@@ -10,12 +10,22 @@ const CATEGORIAS_ENTRADA = ['Venda', 'Serviço', 'Pagamento de Cliente', 'Outros
 const CATEGORIAS_SAIDA   = ['DAS', 'Fornecedor', 'Aluguel', 'Internet', 'Transporte', 'Marketing', 'Outros'];
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const MESES_ABREV = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+function resolveApiUrl() {
+  const saved = localStorage.getItem('fluxmei_api_url');
+  if (saved) return saved.replace(/\/$/, '');
+  if (window.location.protocol.startsWith('http')) return `${window.location.origin}/api`;
+  return 'http://localhost:3002/api';
+}
+const API_URL = resolveApiUrl();
+const TOKEN_KEY = 'fluxmei_access_token';
 
 // ===== STATE =====
 let state = {
   movimentacoes: [],
   clientes: [],
-  config: { nome: 'Meu MEI', cnpj: '', ramo: '', dasDia: 20, dasValor: '72,60' }
+  das: [],
+  profile: null,
+  config: { nome: '', cnpj: '', ramo: '', dasDia: '', dasValor: '' }
 };
 
 let currentPage = 'dashboard';
@@ -26,64 +36,96 @@ let editingClienteId = null;
 let dashChart = null;
 let relChart = null;
 
-// ===== STORAGE =====
-function saveState() {
-  localStorage.setItem('fluxmei_v1', JSON.stringify(state));
+// ===== API =====
+function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
 }
-function loadState() {
-  const raw = localStorage.getItem('fluxmei_v1');
-  if (raw) {
-    try { state = JSON.parse(raw); } catch(e) {}
-  } else {
-    criarDadosExemplo();
+
+async function apiRequest(path, options = {}) {
+  const token = getToken();
+  if (!token) {
+    window.location.href = 'auth/login.html';
+    throw new Error('Faça login para continuar.');
   }
+
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...(options.headers || {})
+    }
+  });
+
+  const isJson = response.headers.get('content-type')?.includes('application/json');
+  const data = isJson ? await response.json() : null;
+
+  if (response.status === 401) {
+    localStorage.removeItem(TOKEN_KEY);
+    window.location.href = 'auth/login.html';
+    throw new Error('Sessão expirada.');
+  }
+
+  if (!response.ok) throw new Error(data?.error || 'Erro ao comunicar com o servidor.');
+  return data;
 }
 
-// ===== EXAMPLE DATA =====
-function criarDadosExemplo() {
-  const hoje = new Date();
-  const ano = hoje.getFullYear();
-  const mes = hoje.getMonth();
+function mapMovimentacao(item) {
+  return {
+    id: item.id,
+    tipo: item.tipo,
+    desc: item.descricao,
+    valor: Number(item.valor),
+    cat: item.categoria,
+    pag: item.forma_pagamento,
+    data: item.data,
+    obs: item.observacao || ''
+  };
+}
 
-  const exemplos = [
-    { tipo:'entrada', desc:'Serviço de design gráfico', valor:850, cat:'Serviço',    data:fmtDate(ano,mes,3),  pag:'pix' },
-    { tipo:'entrada', desc:'Venda de produtos online',  valor:420, cat:'Venda',      data:fmtDate(ano,mes,5),  pag:'pix' },
-    { tipo:'saida',   desc:'DAS Mensal',                valor:72.60,cat:'DAS',       data:fmtDate(ano,mes,7),  pag:'boleto' },
-    { tipo:'entrada', desc:'Projeto de identidade visual',valor:1200,cat:'Serviço',  data:fmtDate(ano,mes,8),  pag:'pix' },
-    { tipo:'saida',   desc:'Fornecedor de insumos',     valor:180, cat:'Fornecedor', data:fmtDate(ano,mes,10), pag:'pix' },
-    { tipo:'saida',   desc:'Plano de internet',         valor:99.90,cat:'Internet',  data:fmtDate(ano,mes,12), pag:'boleto' },
-    { tipo:'entrada', desc:'Pagamento cliente Mariana', valor:650, cat:'Pagamento de Cliente', data:fmtDate(ano,mes,14), pag:'pix' },
-    { tipo:'saida',   desc:'Transporte / combustível',  valor:95,  cat:'Transporte', data:fmtDate(ano,mes,15), pag:'dinheiro' },
-    { tipo:'entrada', desc:'Venda produto físico',      valor:230, cat:'Venda',      data:fmtDate(ano,mes,17), pag:'cartao' },
-    { tipo:'saida',   desc:'Instagram Ads',             valor:150, cat:'Marketing',  data:fmtDate(ano,mes,18), pag:'cartao' },
-    { tipo:'entrada', desc:'Consultoria mensal',        valor:900, cat:'Serviço',    data:fmtDate(ano,mes,20), pag:'pix' },
-    { tipo:'saida',   desc:'Aluguel sala compartilhada',valor:400, cat:'Aluguel',    data:fmtDate(ano,mes,21), pag:'boleto' },
-    // Mês anterior
-    { tipo:'entrada', desc:'Serviço de fotografia',    valor:700, cat:'Serviço',    data:fmtDate(ano,mes-1,10), pag:'pix' },
-    { tipo:'entrada', desc:'Venda parcelada',          valor:360, cat:'Venda',      data:fmtDate(ano,mes-1,18), pag:'cartao' },
-    { tipo:'saida',   desc:'DAS Mensal',               valor:72.60,cat:'DAS',       data:fmtDate(ano,mes-1,7),  pag:'boleto' },
-    { tipo:'saida',   desc:'Fornecedor embalagens',    valor:130, cat:'Fornecedor', data:fmtDate(ano,mes-1,22), pag:'pix' },
-    { tipo:'saida',   desc:'Plano de internet',        valor:99.90,cat:'Internet',  data:fmtDate(ano,mes-1,12), pag:'boleto' },
-    // 2 meses atrás
-    { tipo:'entrada', desc:'Serviço de edição',        valor:550, cat:'Serviço',    data:fmtDate(ano,mes-2,8),  pag:'pix' },
-    { tipo:'saida',   desc:'DAS Mensal',               valor:72.60,cat:'DAS',       data:fmtDate(ano,mes-2,7),  pag:'boleto' },
-    { tipo:'entrada', desc:'Venda online',             valor:490, cat:'Venda',      data:fmtDate(ano,mes-2,15), pag:'pix' },
-  ];
+function mapCliente(item) {
+  return {
+    id: item.id,
+    nome: item.nome,
+    tel: item.telefone,
+    email: item.email,
+    obs: item.observacao
+  };
+}
 
-  state.movimentacoes = exemplos.map((m, i) => ({
-    ...m, id: 'mov_' + (i+1), obs: ''
-  }));
+function hydrateConfig(profile, dasList) {
+  const nextDas = [...(dasList || [])]
+    .filter((item) => item.status !== 'pago')
+    .sort((a, b) => String(a.vencimento).localeCompare(String(b.vencimento)))[0];
 
-  state.clientes = [
-    { id:'cli_1', nome:'Ana Paula Silva',  tel:'(11) 98765-4321', email:'ana@email.com', obs:'Cliente fidelizada, prefere pagamento via PIX.' },
-    { id:'cli_2', nome:'Bruno Ferreira',   tel:'(11) 91234-5678', email:'bruno@empresa.com', obs:'Contrata serviços mensais de design.' },
-    { id:'cli_3', nome:'Mariana Oliveira', tel:'(21) 99988-7766', email:'mari@gmail.com', obs:'' },
-  ];
+  state.config = {
+    nome: profile?.nome_negocio || profile?.nome || '',
+    cnpj: profile?.cnpj || '',
+    ramo: profile?.ramo || profile?.tipo_negocio || '',
+    dasDia: nextDas?.vencimento ? Number(nextDas.vencimento.split('-')[2]) : '',
+    dasValor: nextDas?.valor ? String(Number(nextDas.valor).toFixed(2)).replace('.', ',') : ''
+  };
+}
 
-  state.config = { nome: 'Meu MEI', cnpj: '', ramo: '', dasDia: 20, dasValor: '72,60' };
+async function loadState() {
+  const [me, movimentacoes, clientes, das] = await Promise.all([
+    apiRequest('/auth/me'),
+    apiRequest('/movimentacoes'),
+    apiRequest('/clientes'),
+    apiRequest('/das')
+  ]);
 
-  saveState();
-  showToast('Dados de exemplo carregados! ✨', 'success');
+  state.profile = me.profile;
+  state.movimentacoes = (movimentacoes || []).map(mapMovimentacao);
+  state.clientes = (clientes || []).map(mapCliente);
+  state.das = das || [];
+  hydrateConfig(me.profile, das || []);
+}
+
+async function reloadAndRender(page = currentPage) {
+  await loadState();
+  renderPage(page);
+  updateSidebarUser();
 }
 
 function fmtDate(ano, mes, dia) {
@@ -231,32 +273,38 @@ function renderDashboard() {
 }
 
 function renderDASInfo() {
-  const dia = parseInt(state.config.dasDia) || 20;
-  const hoje = new Date();
-  const mesAtual = hoje.getMonth();
-  const anoAtual = hoje.getFullYear();
+  const badge = document.getElementById('dasBadge');
+  const alert = document.getElementById('dasAlert');
+  const nextDas = [...state.das]
+    .filter((item) => item.status !== 'pago')
+    .sort((a, b) => String(a.vencimento).localeCompare(String(b.vencimento)))[0];
 
-  let venc = new Date(anoAtual, mesAtual, dia);
-  if (venc < hoje) venc = new Date(anoAtual, mesAtual+1, dia);
+  if (!nextDas) {
+    document.getElementById('dasDate').textContent = 'Não configurado';
+    document.getElementById('dasDays').textContent = 'Cadastre o próximo DAS em Configurações';
+    badge.className = 'badge-das';
+    badge.textContent = '';
+    alert.style.display = 'none';
+    return;
+  }
 
+  const venc = new Date(`${nextDas.vencimento}T00:00:00`);
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   const diff = Math.ceil((venc - hoje) / (1000*60*60*24));
   const label = venc.toLocaleDateString('pt-BR', {day:'2-digit',month:'long'});
 
-  document.getElementById('dasDate').textContent = `Dia ${dia} de cada mês`;
-  document.getElementById('dasDays').textContent = `Próximo: ${label}`;
-
-  const badge = document.getElementById('dasBadge');
-  const alert = document.getElementById('dasAlert');
+  document.getElementById('dasDate').textContent = formatBRL(Number(nextDas.valor || 0));
+  document.getElementById('dasDays').textContent = `Vencimento: ${label}`;
 
   if (diff < 0) {
     badge.className = 'badge-das danger'; badge.textContent = 'Vencido!';
     alert.className = 'das-alert danger';
-    alert.innerHTML = `⚠️ <strong>DAS vencido!</strong> O DAS com vencimento dia ${dia} está vencido. Regularize sua situação.`;
+    alert.innerHTML = `⚠️ <strong>DAS vencido!</strong> Regularize o DAS de ${esc(nextDas.mes_referencia)}.`;
     alert.style.display = 'flex';
   } else if (diff <= 7) {
     badge.className = 'badge-das warning'; badge.textContent = `${diff} dias`;
     alert.className = 'das-alert warning';
-    alert.innerHTML = `🔔 <strong>DAS vence em ${diff} dia(s)!</strong> Não esqueça de pagar até o dia ${dia}.`;
+    alert.innerHTML = `🔔 <strong>DAS vence em ${diff} dia(s)!</strong> Não esqueça de pagar.`;
     alert.style.display = 'flex';
   } else {
     badge.className = 'badge-das ok'; badge.textContent = `${diff} dias`;
@@ -284,8 +332,8 @@ function renderDashChart() {
     data: {
       labels,
       datasets: [
-        { label:'Entradas', data:dataE, backgroundColor:'rgba(15,157,88,.8)', borderRadius:6, barPercentage:.6 },
-        { label:'Saídas',   data:dataS, backgroundColor:'rgba(229,57,53,.7)', borderRadius:6, barPercentage:.6 }
+        { label:'Entradas', data:dataE, backgroundColor:'rgba(10,159,90,.82)', borderRadius:6, barPercentage:.6 },
+        { label:'Saídas',   data:dataS, backgroundColor:'rgba(220,63,58,.72)', borderRadius:6, barPercentage:.6 }
       ]
     },
     options: {
@@ -293,7 +341,7 @@ function renderDashChart() {
       plugins: { legend:{ position:'top', labels:{font:{size:11},boxWidth:12} } },
       scales: {
         x: { grid:{display:false}, ticks:{font:{size:11}} },
-        y: { grid:{color:'#f0f0f0'}, ticks:{font:{size:11}, callback: v => 'R$'+v.toLocaleString('pt-BR')} }
+        y: { grid:{color:'#d9e8df'}, ticks:{font:{size:11}, color:'#40574d', callback: v => 'R$'+v.toLocaleString('pt-BR')} }
       }
     }
   });
@@ -429,15 +477,18 @@ function editarMov(id) {
   openModal('modalMovimentacao');
 }
 
-function excluirMov(id) {
+async function excluirMov(id) {
   if (!confirm('Excluir esta movimentação?')) return;
-  state.movimentacoes = state.movimentacoes.filter(m=>m.id!==id);
-  saveState();
-  showToast('Movimentação excluída.', 'error');
-  renderPage(currentPage);
+  try {
+    await apiRequest(`/movimentacoes/${id}`, { method: 'DELETE' });
+    showToast('Movimentação excluída.', 'error');
+    await reloadAndRender(currentPage);
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
 }
 
-function salvarMovimentacao() {
+async function salvarMovimentacao() {
   const desc  = document.getElementById('movDesc').value.trim();
   const valor = parseBRL(document.getElementById('movValor').value);
   const cat   = document.getElementById('movCategoria').value;
@@ -449,20 +500,36 @@ function salvarMovimentacao() {
   if (!valor || valor <= 0) { showToast('Informe um valor válido.', 'error'); return; }
   if (!data) { showToast('Informe a data.', 'error'); return; }
 
-  if (editingMovId) {
-    const idx = state.movimentacoes.findIndex(m=>m.id===editingMovId);
-    state.movimentacoes[idx] = { ...state.movimentacoes[idx], tipo:movTipo, desc, valor, cat, data, pag, obs };
-    showToast('Movimentação atualizada! ✅');
-  } else {
-    state.movimentacoes.push({
-      id: 'mov_' + Date.now(), tipo:movTipo, desc, valor, cat, data, pag, obs
-    });
-    showToast('Movimentação salva! ✅');
-  }
+  const payload = {
+    tipo: movTipo,
+    descricao: desc,
+    valor,
+    categoria: cat,
+    forma_pagamento: pag,
+    data,
+    observacao: obs || null
+  };
 
-  saveState();
-  closeModal('modalMovimentacao');
-  renderPage(currentPage);
+  try {
+    if (editingMovId) {
+      await apiRequest(`/movimentacoes/${editingMovId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+      showToast('Movimentação atualizada! ✅');
+    } else {
+      await apiRequest('/movimentacoes', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      showToast('Movimentação salva! ✅');
+    }
+
+    closeModal('modalMovimentacao');
+    await reloadAndRender(currentPage);
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
 }
 
 // ===== CALENDÁRIO =====
@@ -620,15 +687,18 @@ function editarCliente(id) {
   openModal('modalCliente');
 }
 
-function excluirCliente(id) {
+async function excluirCliente(id) {
   if (!confirm('Excluir este cliente?')) return;
-  state.clientes = state.clientes.filter(c=>c.id!==id);
-  saveState();
-  showToast('Cliente excluído.', 'error');
-  renderClientes();
+  try {
+    await apiRequest(`/clientes/${id}`, { method: 'DELETE' });
+    showToast('Cliente excluído.', 'error');
+    await reloadAndRender('clientes');
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
 }
 
-function salvarCliente() {
+async function salvarCliente() {
   const nome  = document.getElementById('clienteNome').value.trim();
   const tel   = document.getElementById('clienteTel').value.trim();
   const email = document.getElementById('clienteEmail').value.trim();
@@ -636,24 +706,34 @@ function salvarCliente() {
 
   if (!nome) { showToast('Informe o nome do cliente.', 'error'); return; }
 
-  if (editingClienteId) {
-    const idx = state.clientes.findIndex(c=>c.id===editingClienteId);
-    state.clientes[idx] = { ...state.clientes[idx], nome, tel, email, obs };
-    showToast('Cliente atualizado! ✅');
-  } else {
-    state.clientes.push({ id:'cli_'+Date.now(), nome, tel, email, obs });
-    showToast('Cliente salvo! ✅');
-  }
+  const payload = { nome, telefone: tel, email, observacao: obs };
 
-  saveState();
-  closeModal('modalCliente');
-  renderClientes();
+  try {
+    if (editingClienteId) {
+      await apiRequest(`/clientes/${editingClienteId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+      showToast('Cliente atualizado! ✅');
+    } else {
+      await apiRequest('/clientes', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      showToast('Cliente salvo! ✅');
+    }
+
+    closeModal('modalCliente');
+    await reloadAndRender('clientes');
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
 }
 
 // ===== RELATÓRIOS =====
 function renderRelatorios() {
   const anoSel = document.getElementById('relatorioAno');
-  const anos = [...new Set(state.movimentacoes.map(m=>m.data.split('-')[0]))].sort().reverse();
+  const anos = [...new Set([String(new Date().getFullYear()), ...state.movimentacoes.map(m=>m.data.split('-')[0])])].sort().reverse();
   const curAno = anoSel.value || String(new Date().getFullYear());
   if (!anoSel.innerHTML.includes(curAno)) {
     anoSel.innerHTML = anos.map(a=>`<option value="${a}" ${a===curAno?'selected':''}>${a}</option>`).join('');
@@ -703,8 +783,8 @@ function renderRelatorios() {
     data: {
       labels,
       datasets: [
-        { label:'Entradas', data:dataE, backgroundColor:'rgba(15,157,88,.8)', borderRadius:6, barPercentage:.65 },
-        { label:'Saídas',   data:dataS, backgroundColor:'rgba(229,57,53,.7)', borderRadius:6, barPercentage:.65 }
+        { label:'Entradas', data:dataE, backgroundColor:'rgba(10,159,90,.82)', borderRadius:6, barPercentage:.65 },
+        { label:'Saídas',   data:dataS, backgroundColor:'rgba(220,63,58,.72)', borderRadius:6, barPercentage:.65 }
       ]
     },
     options: {
@@ -712,7 +792,7 @@ function renderRelatorios() {
       plugins:{ legend:{position:'top',labels:{font:{size:11},boxWidth:12}} },
       scales:{
         x:{grid:{display:false},ticks:{font:{size:11}}},
-        y:{grid:{color:'#f0f0f0'},ticks:{font:{size:11},callback:v=>'R$'+v.toLocaleString('pt-BR')}}
+        y:{grid:{color:'#d9e8df'},ticks:{font:{size:11},color:'#40574d',callback:v=>'R$'+v.toLocaleString('pt-BR')}}
       }
     }
   });
@@ -766,40 +846,87 @@ function renderConfiguracoes() {
   document.getElementById('cfgNome').value     = state.config.nome || '';
   document.getElementById('cfgCnpj').value     = state.config.cnpj || '';
   document.getElementById('cfgRamo').value     = state.config.ramo || '';
-  document.getElementById('cfgDasDia').value   = state.config.dasDia || 20;
-  document.getElementById('cfgDasValor').value = state.config.dasValor || '72,60';
+  document.getElementById('cfgDasDia').value   = state.config.dasDia || '';
+  document.getElementById('cfgDasValor').value = state.config.dasValor || '';
   updateDasPreview();
   updateSidebarUser();
 }
 
-function salvarConfig() {
-  state.config.nome = document.getElementById('cfgNome').value.trim() || 'Meu MEI';
+async function salvarConfig() {
+  state.config.nome = document.getElementById('cfgNome').value.trim();
   state.config.cnpj = document.getElementById('cfgCnpj').value.trim();
   state.config.ramo = document.getElementById('cfgRamo').value.trim();
-  saveState();
-  updateSidebarUser();
-  showToast('Configurações salvas! ✅');
+
+  try {
+    await apiRequest('/auth/me/profile', {
+      method: 'PUT',
+      body: JSON.stringify({
+        nome: state.profile?.nome || state.config.nome || 'Usuário FluxMEI',
+        nome_negocio: state.config.nome,
+        cnpj: state.config.cnpj,
+        ramo: state.config.ramo
+      })
+    });
+    await reloadAndRender('configuracoes');
+    showToast('Configurações salvas! ✅');
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
 }
 
-function salvarDAS() {
-  const dia   = parseInt(document.getElementById('cfgDasDia').value) || 20;
+async function salvarDAS() {
+  const dia   = parseInt(document.getElementById('cfgDasDia').value);
   const valor = document.getElementById('cfgDasValor').value.trim();
-  if (dia < 1 || dia > 31) { showToast('Dia inválido (1-31).', 'error'); return; }
-  state.config.dasDia   = dia;
-  state.config.dasValor = valor;
-  saveState();
-  updateDasPreview();
-  showToast('Lembrete do DAS configurado! ✅');
+  if (!dia || dia < 1 || dia > 31) { showToast('Dia inválido (1-31).', 'error'); return; }
+  if (!parseBRL(valor) || parseBRL(valor) <= 0) { showToast('Informe o valor do DAS.', 'error'); return; }
+
+  const now = new Date();
+  const vencimento = new Date(now.getFullYear(), now.getMonth(), dia);
+  if (vencimento < now) vencimento.setMonth(vencimento.getMonth() + 1);
+
+  const mesReferencia = `${vencimento.getFullYear()}-${String(vencimento.getMonth()+1).padStart(2,'0')}`;
+  const payload = {
+    mes_referencia: mesReferencia,
+    vencimento: `${mesReferencia}-${String(dia).padStart(2,'0')}`,
+    valor: parseBRL(valor),
+    status: 'pendente'
+  };
+
+  try {
+    const existing = state.das.find((item) => item.mes_referencia === mesReferencia);
+    if (existing) {
+      await apiRequest(`/das/${existing.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+    } else {
+      await apiRequest('/das', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+    }
+
+    await reloadAndRender('configuracoes');
+    showToast('Lembrete do DAS configurado! ✅');
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
 }
 
 function updateDasPreview() {
-  const dia = parseInt(document.getElementById('cfgDasDia').value) || 20;
+  const dia = parseInt(document.getElementById('cfgDasDia').value);
+  const prev = document.getElementById('dasPreview');
+
+  if (!dia) {
+    prev.className = 'das-preview';
+    prev.textContent = '';
+    return;
+  }
+
   const hoje = new Date();
   let venc = new Date(hoje.getFullYear(), hoje.getMonth(), dia);
   if (venc < hoje) venc = new Date(hoje.getFullYear(), hoje.getMonth()+1, dia);
   const diff = Math.ceil((venc - hoje)/(1000*60*60*24));
-
-  const prev = document.getElementById('dasPreview');
   if (diff < 0) {
     prev.className='das-preview danger'; prev.textContent=`⚠️ DAS vencido! Regularize já.`;
   } else if (diff <= 7) {
@@ -810,24 +937,24 @@ function updateDasPreview() {
 }
 
 function updateSidebarUser() {
-  const nome = state.config.nome || 'Meu MEI';
+  const nome = state.config.nome || 'FluxMEI';
   document.querySelectorAll('.user-name').forEach(el=>el.textContent=nome);
   document.querySelectorAll('.user-avatar').forEach(el=>el.textContent=nome.charAt(0).toUpperCase());
 }
 
-function restaurarExemplos() {
-  if (!confirm('Isso substituirá todos os dados pelos exemplos. Continuar?')) return;
-  localStorage.removeItem('fluxmei_v1');
-  criarDadosExemplo();
-  renderPage(currentPage);
-}
-
-function limparTudo() {
+async function limparTudo() {
   if (!confirm('Apagar TODOS os dados? Esta ação não pode ser desfeita.')) return;
-  state = { movimentacoes:[], clientes:[], config:{ nome:'Meu MEI', cnpj:'', ramo:'', dasDia:20, dasValor:'72,60' } };
-  saveState();
-  showToast('Todos os dados foram apagados.', 'error');
-  renderPage(currentPage);
+  try {
+    await Promise.all([
+      ...state.movimentacoes.map((item) => apiRequest(`/movimentacoes/${item.id}`, { method: 'DELETE' })),
+      ...state.clientes.map((item) => apiRequest(`/clientes/${item.id}`, { method: 'DELETE' })),
+      ...state.das.map((item) => apiRequest(`/das/${item.id}`, { method: 'DELETE' }))
+    ]);
+    showToast('Todos os dados foram apagados.', 'error');
+    await reloadAndRender(currentPage);
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
 }
 
 // ===== ESCAPE =====
@@ -836,8 +963,13 @@ function esc(str) {
 }
 
 // ===== INIT =====
-function init() {
-  loadState();
+async function init() {
+  try {
+    await loadState();
+  } catch (error) {
+    showToast(error.message || 'Não foi possível carregar seus dados.', 'error');
+    return;
+  }
 
   // Navigation
   document.querySelectorAll('[data-page]').forEach(el => {

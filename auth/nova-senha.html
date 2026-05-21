@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nova senha | FluxMEI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="auth.css" />
+</head>
+<body>
+  <main class="auth-shell">
+    <section class="auth-visual" aria-hidden="true">
+      <div class="visual-card">
+        <div class="visual-logo">
+          <span class="brand-icon">+</span>
+          <span>FluxMEI</span>
+        </div>
+        <h1>Defina uma nova senha.</h1>
+        <p>Use uma senha forte para proteger seus dados financeiros.</p>
+        <div class="visual-metrics">
+          <div>
+            <strong>Seguro</strong>
+            <span>Acesso protegido</span>
+          </div>
+          <div>
+            <strong>Rápido</strong>
+            <span>Volte para sua conta</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="auth-panel">
+      <form class="auth-card" data-auth-form="new-password" novalidate>
+        <div class="mobile-brand">
+          <span class="brand-icon">+</span>
+          <span>FluxMEI</span>
+        </div>
+
+        <header class="auth-header">
+          <p class="eyebrow">Recuperação</p>
+          <h2>Nova senha</h2>
+          <p>Digite e confirme sua nova senha.</p>
+        </header>
+
+        <div class="alert" data-form-alert role="status"></div>
+
+        <label class="field">
+          <span>Nova senha</span>
+          <div class="password-field">
+            <input type="password" name="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres" required minlength="8" />
+            <button class="password-toggle" type="button" aria-label="Mostrar senha" data-toggle-password>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5c-5 0-8.5 4.2-9.7 6.1a1.7 1.7 0 0 0 0 1.8C3.5 14.8 7 19 12 19s8.5-4.2 9.7-6.1a1.7 1.7 0 0 0 0-1.8C20.5 9.2 17 5 12 5Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm0-2.2a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6Z"/></svg>
+            </button>
+          </div>
+          <small class="field-error"></small>
+        </label>
+
+        <label class="field">
+          <span>Confirmar senha</span>
+          <div class="password-field">
+            <input type="password" name="confirmPassword" autocomplete="new-password" placeholder="Repita sua senha" required />
+            <button class="password-toggle" type="button" aria-label="Mostrar senha" data-toggle-password>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5c-5 0-8.5 4.2-9.7 6.1a1.7 1.7 0 0 0 0 1.8C3.5 14.8 7 19 12 19s8.5-4.2 9.7-6.1a1.7 1.7 0 0 0 0-1.8C20.5 9.2 17 5 12 5Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm0-2.2a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6Z"/></svg>
+            </button>
+          </div>
+          <small class="field-error"></small>
+        </label>
+
+        <button class="submit-btn" type="submit" data-default-text="Atualizar senha" data-loading-text="Atualizando...">
+          Atualizar senha
+        </button>
+
+        <p class="switch-auth">
+          Lembrou sua senha?
+          <a href="login.html">Entrar</a>
+        </p>
+      </form>
+    </section>
+  </main>
+
+  <script src="auth.js"></script>
+</body>
+</html>

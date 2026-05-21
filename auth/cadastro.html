@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cadastro | FluxMEI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="auth.css" />
+</head>
+<body>
+  <main class="auth-shell">
+    <section class="brand-panel" aria-label="FluxMEI">
+      <a class="brand-mark" href="../index.html" aria-label="FluxMEI">
+        <span class="brand-symbol">F</span>
+        <span>FluxMEI</span>
+      </a>
+      <div class="brand-copy">
+        <p class="brand-kicker">Entrou, saiu, lucrou.</p>
+        <h1>FluxMEI</h1>
+        <p>O sistema financeiro inteligente para o seu MEI.</p>
+      </div>
+      <div class="brand-metrics" aria-hidden="true">
+        <div>
+          <span>Organização</span>
+          <strong>Em minutos</strong>
+        </div>
+        <div>
+          <span>Relatórios</span>
+          <strong>Com IA</strong>
+        </div>
+        <div>
+          <span>Controle</span>
+          <strong>Todo dia</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="form-panel">
+      <div class="mobile-logo" aria-hidden="true">
+        <span class="brand-symbol">F</span>
+        <span>FluxMEI</span>
+      </div>
+
+      <form class="auth-card auth-card-wide" data-auth-form="register" novalidate>
+        <div class="auth-heading">
+          <p class="eyebrow">Comece grátis</p>
+          <h2>Crie sua conta no FluxMEI</h2>
+          <p>Organize seu MEI em poucos minutos.</p>
+        </div>
+
+        <div class="alert" data-form-alert role="status" aria-live="polite"></div>
+
+        <div class="field-grid">
+          <label class="field">
+            <span>Nome completo</span>
+            <span class="input-wrap">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12.25A4.25 4.25 0 1 1 12 3.75a4.25 4.25 0 0 1 0 8.5Zm0-1.5a2.75 2.75 0 1 0 0-5.5 2.75 2.75 0 0 0 0 5.5Zm-7.25 8.5c.57-3.3 3.47-5.75 7.25-5.75s6.68 2.45 7.25 5.75a.75.75 0 0 1-.74.87H5.49a.75.75 0 0 1-.74-.87Zm1.68-.63h11.14C16.85 16.5 14.79 15 12 15s-4.85 1.5-5.57 3.62Z"/></svg>
+              <input type="text" name="fullName" autocomplete="name" placeholder="Seu nome" required />
+            </span>
+            <small class="field-error"></small>
+          </label>
+
+          <label class="field">
+            <span>Nome do negócio <em>opcional</em></span>
+            <span class="input-wrap">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4.75A2.75 2.75 0 0 1 10.75 2h2.5A2.75 2.75 0 0 1 16 4.75V6h2.25A2.75 2.75 0 0 1 21 8.75v9.5A2.75 2.75 0 0 1 18.25 21H5.75A2.75 2.75 0 0 1 3 18.25v-9.5A2.75 2.75 0 0 1 5.75 6H8V4.75Zm1.5 1.25h5V4.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25V6Zm-3.75 1.5c-.69 0-1.25.56-1.25 1.25v9.5c0 .69.56 1.25 1.25 1.25h12.5c.69 0 1.25-.56 1.25-1.25v-9.5c0-.69-.56-1.25-1.25-1.25H5.75Z"/></svg>
+              <input type="text" name="businessName" autocomplete="organization" placeholder="Ex: Studio Ana MEI" />
+            </span>
+            <small class="field-error"></small>
+          </label>
+        </div>
+
+        <div class="field-grid">
+          <label class="field">
+            <span>Email</span>
+            <span class="input-wrap">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.75A2.75 2.75 0 0 1 6.75 4h10.5A2.75 2.75 0 0 1 20 6.75v10.5A2.75 2.75 0 0 1 17.25 20H6.75A2.75 2.75 0 0 1 4 17.25V6.75Zm2.75-1.25c-.36 0-.69.15-.92.39L12 11.1l6.17-5.21c-.23-.24-.56-.39-.92-.39H6.75Zm11.75 2.08-5.66 4.78a1.3 1.3 0 0 1-1.68 0L5.5 7.58v9.67c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25V7.58Z"/></svg>
+              <input type="email" name="email" autocomplete="email" placeholder="voce@email.com" required />
+            </span>
+            <small class="field-error"></small>
+          </label>
+
+          <label class="field">
+            <span>WhatsApp</span>
+            <span class="input-wrap">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.25 3.5h9.5A2.25 2.25 0 0 1 19 5.75v12.5a2.25 2.25 0 0 1-2.25 2.25h-9.5A2.25 2.25 0 0 1 5 18.25V5.75A2.25 2.25 0 0 1 7.25 3.5Zm0 1.5a.75.75 0 0 0-.75.75v12.5c0 .41.34.75.75.75h9.5c.41 0 .75-.34.75-.75V5.75a.75.75 0 0 0-.75-.75h-9.5ZM10 17.25c0-.41.34-.75.75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"/></svg>
+              <input type="tel" name="whatsapp" autocomplete="tel" placeholder="(11) 99999-9999" required />
+            </span>
+            <small class="field-error"></small>
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Tipo de negócio</span>
+          <span class="input-wrap select-wrap">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.75 4h12.5A2.75 2.75 0 0 1 21 6.75v10.5A2.75 2.75 0 0 1 18.25 20H5.75A2.75 2.75 0 0 1 3 17.25V6.75A2.75 2.75 0 0 1 5.75 4Zm0 1.5c-.69 0-1.25.56-1.25 1.25v10.5c0 .69.56 1.25 1.25 1.25h12.5c.69 0 1.25-.56 1.25-1.25V6.75c0-.69-.56-1.25-1.25-1.25H5.75Zm2 3h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Zm0 3h5.5a.75.75 0 0 1 0 1.5h-5.5a.75.75 0 0 1 0-1.5Z"/></svg>
+            <select name="businessType" required>
+              <option value="">Selecione uma opção</option>
+              <option>Prestador de Serviço</option>
+              <option>Beleza</option>
+              <option>Alimentação</option>
+              <option>Loja</option>
+              <option>Freelancer</option>
+              <option>Marketing</option>
+              <option>Tecnologia</option>
+              <option>Outro</option>
+            </select>
+          </span>
+          <small class="field-error"></small>
+        </label>
+
+        <div class="field-grid">
+          <label class="field">
+            <span>Senha</span>
+            <span class="input-wrap">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.75 9V7.25a4.25 4.25 0 0 1 8.5 0V9h.25A2.5 2.5 0 0 1 19 11.5v5A2.5 2.5 0 0 1 16.5 19h-9A2.5 2.5 0 0 1 5 16.5v-5A2.5 2.5 0 0 1 7.5 9h.25Zm1.5 0h5.5V7.25a2.75 2.75 0 0 0-5.5 0V9Zm-1.75 1.5c-.55 0-1 .45-1 1v5c0 .55.45 1 1 1h9c.55 0 1-.45 1-1v-5c0-.55-.45-1-1-1h-9Z"/></svg>
+              <input type="password" name="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres" required minlength="8" />
+              <button class="password-toggle" type="button" aria-label="Mostrar senha" data-toggle-password>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5c4.45 0 7.4 3.2 8.73 5.07.62.87.62 2 0 2.86C19.4 15.3 16.45 18.5 12 18.5s-7.4-3.2-8.73-5.07a2.45 2.45 0 0 1 0-2.86C4.6 8.7 7.55 5.5 12 5.5Zm0 1.5c-3.73 0-6.22 2.72-7.51 4.44-.24.32-.24.8 0 1.12C5.78 14.28 8.27 17 12 17s6.22-2.72 7.51-4.44c.24-.32.24-.8 0-1.12C18.22 9.72 15.73 7 12 7Zm0 2.25a2.75 2.75 0 1 1 0 5.5 2.75 2.75 0 0 1 0-5.5Zm0 1.5a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5Z"/></svg>
+              </button>
+            </span>
+            <small class="field-error"></small>
+          </label>
+
+          <label class="field">
+            <span>Confirmar senha</span>
+            <span class="input-wrap">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.75 10V7.75a3.25 3.25 0 0 1 6.5 0V10h.5A2.25 2.25 0 0 1 18 12.25v4.5A2.25 2.25 0 0 1 15.75 19h-7.5A2.25 2.25 0 0 1 6 16.75v-4.5A2.25 2.25 0 0 1 8.25 10h.5Zm1.5 0h3.5V7.75a1.75 1.75 0 0 0-3.5 0V10Zm-2 1.5a.75.75 0 0 0-.75.75v4.5c0 .41.34.75.75.75h7.5c.41 0 .75-.34.75-.75v-4.5a.75.75 0 0 0-.75-.75h-7.5Z"/></svg>
+              <input type="password" name="confirmPassword" autocomplete="new-password" placeholder="Repita sua senha" required />
+            </span>
+            <small class="field-error"></small>
+          </label>
+        </div>
+
+        <label class="check check-terms">
+          <input type="checkbox" name="terms" required />
+          <span>Concordo com os Termos de Uso</span>
+        </label>
+        <small class="field-error terms-error"></small>
+
+        <button class="submit-btn" type="submit" data-default-text="Criar conta grátis" data-loading-text="Criando conta...">
+          Criar conta grátis
+        </button>
+
+        <p class="auth-switch">
+          Já possui uma conta?
+          <a href="login.html">Entrar</a>
+        </p>
+      </form>
+    </section>
+  </main>
+  <script src="auth.js"></script>
+</body>
+</html>

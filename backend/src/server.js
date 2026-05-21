@@ -1,0 +1,125 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import dotenv from 'dotenv';
+
+import authRoutes from './routes/authRoutes.js';
+import movimentacaoRoutes from './routes/movimentacaoRoutes.js';
+import clienteRoutes from './routes/clienteRoutes.js';
+import dasRoutes from './routes/dasRoutes.js';
+import dashboardRoutes from './routes/dashboardRoutes.js';
+import calendarioRoutes from './routes/calendarioRoutes.js';
+import relatorioRoutes from './routes/relatorioRoutes.js';
+import assinaturaRoutes from './routes/assinaturaRoutes.js';
+import { planos } from './controllers/assinaturaController.js';
+import { asyncHandler, errorHandler, notFoundHandler } from './middlewares/errorMiddleware.js';
+
+const app = express();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const publicDir = path.resolve(__dirname, '..', '..');
+const envFile = process.env.FLUXMEI_ENV_FILE || path.resolve(__dirname, '..', '.env');
+
+dotenv.config({ path: envFile });
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'", 'https://*.supabase.co', 'https://generativelanguage.googleapis.com']
+    }
+  }
+}));
+const allowedOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(',').map((origin) => origin.trim())
+  : [];
+
+function isDevOrigin(origin) {
+  if (!origin) return true;
+  if (origin === 'null') return true;
+
+  try {
+    const url = new URL(origin);
+    return ['localhost', '127.0.0.1'].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+app.use(cors({
+  origin(origin, callback) {
+    if (allowedOrigins.includes(origin) || isDevOrigin(origin)) return callback(null, true);
+    return callback(new Error('Origem bloqueada pelo CORS.'));
+  },
+  credentials: true
+}));
+app.use(express.json({ limit: '1mb' }));
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 200,
+  standardHeaders: true,
+  legacyHeaders: false
+}));
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'FluxMEI API' });
+});
+
+app.use(express.static(publicDir, {
+  extensions: ['html'],
+  index: 'index.html'
+}));
+
+const apiRouter = express.Router();
+
+apiRouter.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'FluxMEI API' });
+});
+
+apiRouter.use('/auth', authRoutes);
+apiRouter.use('/movimentacoes', movimentacaoRoutes);
+apiRouter.use('/clientes', clienteRoutes);
+apiRouter.use('/das', dasRoutes);
+apiRouter.use('/dashboard', dashboardRoutes);
+apiRouter.use('/calendario', calendarioRoutes);
+apiRouter.use('/relatorios', relatorioRoutes);
+apiRouter.use('/assinaturas', assinaturaRoutes);
+apiRouter.get('/planos', asyncHandler(planos));
+
+app.use('/api', apiRouter);
+
+app.use('/auth', authRoutes);
+app.use('/movimentacoes', movimentacaoRoutes);
+app.use('/clientes', clienteRoutes);
+app.use('/das', dasRoutes);
+app.use('/dashboard', dashboardRoutes);
+app.use('/calendario', calendarioRoutes);
+app.use('/relatorios', relatorioRoutes);
+app.use('/assinaturas', assinaturaRoutes);
+app.get('/planos', asyncHandler(planos));
+
+app.get('*', (req, res, next) => {
+  if (req.method !== 'GET' || req.path.startsWith('/api/')) return next();
+  res.sendFile(path.join(publicDir, 'index.html'));
+});
+
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+export function startServer(port = process.env.PORT || 3002) {
+  return app.listen(port, () => {
+    console.log(`FluxMEI API rodando na porta ${port}`);
+  });
+}
+
+export { app };
+
+const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === __filename;
+if (isDirectRun) startServer();

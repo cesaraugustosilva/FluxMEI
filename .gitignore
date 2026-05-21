@@ -1,0 +1,13 @@
+node_modules/
+dist/
+release/
+*.log
+
+.env
+.env.*
+!.env.example
+
+backend/node_modules/
+backend/.env
+backend/.env.*
+!backend/.env.example
