@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FluxMEI — Controle Financeiro</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20260523-1" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -91,9 +91,12 @@
         <h1 class="page-title">Dashboard</h1>
         <p class="page-subtitle" id="dashSubtitle">Visão geral do seu negócio</p>
       </div>
-      <button class="btn btn-primary" onclick="openModal('modalMovimentacao')">
+      <div class="dashboard-actions">
+        <input type="month" id="dashboardMes" class="filter-select" aria-label="MÃªs do dashboard" />
+        <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">
         + Nova Movimentação
-      </button>
+        </button>
+      </div>
     </div>
 
     <!-- DAS Alert -->
@@ -178,7 +181,7 @@
         <h1 class="page-title">Movimentações</h1>
         <p class="page-subtitle">Controle de entradas e saídas</p>
       </div>
-      <button class="btn btn-primary" onclick="openModal('modalMovimentacao')">+ Nova</button>
+      <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">+ Nova</button>
     </div>
 
     <!-- Filters -->
@@ -273,7 +276,15 @@
         <h1 class="page-title">Relatórios</h1>
         <p class="page-subtitle">Análise financeira do seu negócio</p>
       </div>
-      <select id="relatorioAno" class="filter-select"></select>
+      <div class="filter-group">
+        <select id="relatorioPeriodo" class="filter-select">
+          <option value="bisemanal">Bisemanal (15 dias)</option>
+          <option value="mensal">Mensal</option>
+          <option value="semestral">Semestral</option>
+          <option value="anual" selected>Anual</option>
+        </select>
+        <select id="relatorioAno" class="filter-select"></select>
+      </div>
     </div>
 
     <div class="rel-summary-grid" id="relSummaryGrid"></div>
@@ -461,6 +472,6 @@
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<script src="app.js"></script>
+<script src="app.js?v=20260523-1"></script>
 </body>
 </html>

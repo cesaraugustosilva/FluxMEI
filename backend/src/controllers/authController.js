@@ -2,6 +2,38 @@ import { createUserSupabaseClient, supabase, supabaseAdmin } from '../config/sup
 import { AppError } from '../middlewares/errorMiddleware.js';
 import { assinaturaService } from '../services/assinaturaService.js';
 
+function shouldAutoConfirmEmail() {
+  return process.env.AUTH_AUTO_CONFIRM_EMAIL === 'true';
+}
+
+function isEmailNotConfirmedError(error) {
+  return /email.*not.*confirmed|confirm/i.test(error?.message || '');
+}
+
+async function confirmUserEmailByAddress(email) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  let page = 1;
+
+  while (page <= 20) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw new AppError(error.message, 400);
+
+    const user = data.users.find((candidate) => candidate.email?.toLowerCase() === normalizedEmail);
+    if (user) {
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+        email_confirm: true
+      });
+      if (updateError) throw new AppError(updateError.message, 400);
+      return true;
+    }
+
+    if (data.users.length < 1000) break;
+    page += 1;
+  }
+
+  return false;
+}
+
 function requireFields(body, fields) {
   const missing = fields.filter((field) => !body[field]);
   if (missing.length) throw new AppError(`Campos obrigatórios: ${missing.join(', ')}.`);
@@ -27,7 +59,7 @@ export async function register(req, res) {
 
   const { email, password, nome, nome_negocio, whatsapp, tipo_negocio } = req.body;
   const metadata = { nome, nome_negocio, whatsapp, tipo_negocio };
-  const autoConfirmEmail = process.env.AUTH_AUTO_CONFIRM_EMAIL === 'true';
+  const autoConfirmEmail = shouldAutoConfirmEmail();
   const redirectTo = `${process.env.FRONTEND_URL || 'http://localhost:3002'}/auth/login.html`;
   const { data, error } = autoConfirmEmail
     ? await supabaseAdmin.auth.admin.createUser({
@@ -73,10 +105,26 @@ export async function register(req, res) {
 export async function login(req, res) {
   requireFields(req.body, ['email', 'password']);
 
-  const { data, error } = await supabase.auth.signInWithPassword({
+  let { data, error } = await supabase.auth.signInWithPassword({
     email: req.body.email,
     password: req.body.password
   });
+
+  if (error && shouldAutoConfirmEmail() && isEmailNotConfirmedError(error)) {
+    const confirmed = await confirmUserEmailByAddress(req.body.email);
+    if (confirmed) {
+      const retry = await supabase.auth.signInWithPassword({
+        email: req.body.email,
+        password: req.body.password
+      });
+      data = retry.data;
+      error = retry.error;
+    }
+  }
+
+  if (error && isEmailNotConfirmedError(error)) {
+    throw new AppError('Confirme seu email antes de entrar. Verifique sua caixa de entrada.', 403);
+  }
 
   if (error) throw new AppError('Email ou senha inválidos.', 401);
   res.json(data);

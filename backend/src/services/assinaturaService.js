@@ -30,10 +30,10 @@ export const PLANOS = {
   }
 };
 
-function currentMonthRange() {
-  const now = new Date();
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+function monthRange(referenceDate = new Date()) {
+  const date = referenceDate instanceof Date ? referenceDate : new Date(`${referenceDate}T00:00:00`);
+  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)).toISOString().slice(0, 10);
+  const end = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
   return { start, end };
 }
 
@@ -75,7 +75,7 @@ async function ensureFreeSubscription(userId) {
   return data;
 }
 
-async function checkFeature(userId, feature) {
+async function checkFeature(userId, feature, context = {}) {
   const assinatura = await ensureFreeSubscription(userId);
   const plano = PLANOS[assinatura.plano] || PLANOS.gratuito;
 
@@ -87,7 +87,7 @@ async function checkFeature(userId, feature) {
     const limit = plano.limites.movimentacoes_mes;
     if (limit === null) return { allowed: true, plano: plano.id };
 
-    const { start, end } = currentMonthRange();
+    const { start, end } = monthRange(context.data);
     const { count, error } = await supabaseAdmin
       .from('movimentacoes')
       .select('id', { count: 'exact', head: true })

@@ -23,7 +23,7 @@ export async function authMiddleware(req, res, next) {
 export function requirePlanFeature(feature) {
   return async (req, res, next) => {
     try {
-      const usage = await assinaturaService.checkFeature(req.user.id, feature);
+      const usage = await assinaturaService.checkFeature(req.user.id, feature, req.body || {});
       if (!usage.allowed) throw new AppError(usage.reason, 403, usage);
       req.planUsage = usage;
       next();

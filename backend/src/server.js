@@ -20,7 +20,7 @@ import { asyncHandler, errorHandler, notFoundHandler } from './middlewares/error
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const publicDir = path.resolve(__dirname, '..', '..');
+const publicDir = path.resolve(__dirname, '..', '..', 'frontend');
 const envFile = process.env.FLUXMEI_ENV_FILE || path.resolve(__dirname, '..', '.env');
 
 dotenv.config({ path: envFile });
@@ -113,9 +113,10 @@ app.get('*', (req, res, next) => {
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-export function startServer(port = process.env.PORT || 3002) {
+export function startServer(port = process.env.PORT || 3002, onListening) {
   return app.listen(port, () => {
     console.log(`FluxMEI API rodando na porta ${port}`);
+    if (onListening) onListening();
   });
 }
 

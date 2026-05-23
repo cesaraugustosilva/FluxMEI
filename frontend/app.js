@@ -10,14 +10,32 @@ const CATEGORIAS_ENTRADA = ['Venda', 'Serviço', 'Pagamento de Cliente', 'Outros
 const CATEGORIAS_SAIDA   = ['DAS', 'Fornecedor', 'Aluguel', 'Internet', 'Transporte', 'Marketing', 'Outros'];
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const MESES_ABREV = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-function resolveApiUrl() {
-  const saved = localStorage.getItem('fluxmei_api_url');
-  if (saved) return saved.replace(/\/$/, '');
-  if (window.location.protocol.startsWith('http')) return `${window.location.origin}/api`;
-  return 'http://localhost:3002/api';
+function normalizeApiUrl(url) {
+  return String(url || '').replace(/\/$/, '');
 }
-const API_URL = resolveApiUrl();
+
+function resolveApiUrls() {
+  const urls = [];
+  const addUrl = (url) => {
+    const normalized = normalizeApiUrl(url);
+    if (normalized && !urls.includes(normalized)) urls.push(normalized);
+  };
+
+  addUrl(localStorage.getItem('fluxmei_api_url'));
+  if (window.location.protocol.startsWith('http')) {
+    if (window.location.port === '3002') addUrl(`${window.location.origin}/api`);
+    addUrl('http://localhost:3002/api');
+    addUrl('http://127.0.0.1:3002/api');
+  } else {
+    addUrl('http://localhost:3002/api');
+    addUrl('http://127.0.0.1:3002/api');
+  }
+
+  return urls;
+}
+const API_URLS = resolveApiUrls();
 const TOKEN_KEY = 'fluxmei_access_token';
+const DASHBOARD_MONTH_KEY = 'fluxmei_dashboard_mes';
 
 // ===== STATE =====
 let state = {
@@ -35,6 +53,7 @@ let editingMovId = null;
 let editingClienteId = null;
 let dashChart = null;
 let relChart = null;
+let dashboardMes = localStorage.getItem(DASHBOARD_MONTH_KEY) || '';
 
 // ===== API =====
 function getToken() {
@@ -48,17 +67,35 @@ async function apiRequest(path, options = {}) {
     throw new Error('Faça login para continuar.');
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...(options.headers || {})
+  let response;
+  let url = '';
+
+  for (const apiUrl of API_URLS) {
+    url = `${apiUrl}${path}`;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          ...(options.headers || {})
+        }
+      });
+      if (response.status === 404 && apiUrl !== API_URLS[API_URLS.length - 1]) continue;
+      localStorage.setItem('fluxmei_api_url', apiUrl);
+      break;
+    } catch {
+      response = null;
     }
-  });
+  }
+
+  if (!response) {
+    throw new Error('Nao foi possivel conectar a API. Inicie o servidor web com npm.cmd start e acesse http://localhost:3002.');
+  }
 
   const isJson = response.headers.get('content-type')?.includes('application/json');
   const data = isJson ? await response.json() : null;
+  const text = isJson ? '' : await response.text();
 
   if (response.status === 401) {
     localStorage.removeItem(TOKEN_KEY);
@@ -66,7 +103,10 @@ async function apiRequest(path, options = {}) {
     throw new Error('Sessão expirada.');
   }
 
-  if (!response.ok) throw new Error(data?.error || 'Erro ao comunicar com o servidor.');
+  if (!response.ok) {
+    const message = data?.error || text?.trim();
+    throw new Error(message || `Erro ${response.status} ao chamar ${url}.`);
+  }
   return data;
 }
 
@@ -213,14 +253,30 @@ function getMesAtual() {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
 }
+function isAnoMes(value) {
+  return /^\d{4}-\d{2}$/.test(String(value || ''));
+}
+function getDashboardMes() {
+  if (!isAnoMes(dashboardMes)) dashboardMes = getMesAtual();
+  return dashboardMes;
+}
+function formatMesAno(anoMes) {
+  const [ano, mes] = anoMes.split('-').map(Number);
+  return `${MESES[mes - 1]} de ${ano}`;
+}
+function syncDashboardMesInput() {
+  const input = document.getElementById('dashboardMes');
+  if (input && input.value !== getDashboardMes()) input.value = getDashboardMes();
+}
 function filtrarMes(movs, anoMes) {
   return movs.filter(m => m.data && m.data.startsWith(anoMes));
 }
 
 // ===== DASHBOARD =====
 function renderDashboard() {
-  const mesAtual = getMesAtual();
-  const movMes = filtrarMes(state.movimentacoes, mesAtual);
+  const mesSelecionado = getDashboardMes();
+  syncDashboardMesInput();
+  const movMes = filtrarMes(state.movimentacoes, mesSelecionado);
 
   const entradas = movMes.filter(m=>m.tipo==='entrada').reduce((s,m)=>s+m.valor,0);
   const saidas   = movMes.filter(m=>m.tipo==='saida').reduce((s,m)=>s+m.valor,0);
@@ -228,8 +284,7 @@ function renderDashboard() {
   const saldoTotal = state.movimentacoes.filter(m=>m.tipo==='entrada').reduce((s,m)=>s+m.valor,0)
                    - state.movimentacoes.filter(m=>m.tipo==='saida').reduce((s,m)=>s+m.valor,0);
 
-  const hoje = new Date();
-  document.getElementById('dashSubtitle').textContent = `${MESES[hoje.getMonth()]} de ${hoje.getFullYear()}`;
+  document.getElementById('dashSubtitle').textContent = formatMesAno(mesSelecionado);
 
   document.getElementById('kpiSaldo').textContent   = formatBRL(saldoTotal);
   document.getElementById('kpiEntradas').textContent = formatBRL(entradas);
@@ -246,7 +301,7 @@ function renderDashboard() {
   renderDASInfo();
 
   // Últimas 8 movimentações
-  const ultimas = [...state.movimentacoes]
+  const ultimas = [...movMes]
     .sort((a,b) => b.data.localeCompare(a.data))
     .slice(0, 8);
 
@@ -269,7 +324,7 @@ function renderDashboard() {
   }
 
   // Mini chart
-  renderDashChart();
+  renderDashChart(mesSelecionado);
 }
 
 function renderDASInfo() {
@@ -312,13 +367,14 @@ function renderDASInfo() {
   }
 }
 
-function renderDashChart() {
+function renderDashChart(anoMesFinal = getDashboardMes()) {
   const ctx = document.getElementById('dashChart').getContext('2d');
-  const today = new Date();
+  const [ano, mes] = anoMesFinal.split('-').map(Number);
+  const ref = new Date(ano, mes - 1, 1);
   const labels = [], dataE = [], dataS = [];
 
   for (let i = 5; i >= 0; i--) {
-    const d = new Date(today.getFullYear(), today.getMonth()-i, 1);
+    const d = new Date(ref.getFullYear(), ref.getMonth()-i, 1);
     const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     labels.push(MESES_ABREV[d.getMonth()]);
     const movs = filtrarMes(state.movimentacoes, ym);
@@ -356,7 +412,7 @@ let movCurrentText = '';
 function renderMovimentacoes() {
   // Set default month filter
   if (!document.getElementById('filtroMes').value) {
-    document.getElementById('filtroMes').value = getMesAtual();
+    document.getElementById('filtroMes').value = getDashboardMes();
   }
   applyFilters();
 }
@@ -455,7 +511,16 @@ function resetMovForm() {
 
 function openNovaMovimentacao(date) {
   resetMovForm();
-  if (date) document.getElementById('movData').value = date;
+  if (date) {
+    document.getElementById('movData').value = date;
+  } else {
+    const [ano, mes] = getDashboardMes().split('-').map(Number);
+    const hoje = new Date();
+    const dia = getDashboardMes() === getMesAtual()
+      ? hoje.getDate()
+      : Math.min(hoje.getDate(), new Date(ano, mes, 0).getDate());
+    document.getElementById('movData').value = fmtDate(ano, mes - 1, dia);
+  }
   openModal('modalMovimentacao');
 }
 
@@ -525,6 +590,10 @@ async function salvarMovimentacao() {
       showToast('Movimentação salva! ✅');
     }
 
+    const movMesInput = document.getElementById('filtroMes');
+    if (movMesInput) movMesInput.value = payload.data.slice(0, 7);
+    dashboardMes = payload.data.slice(0, 7);
+    localStorage.setItem(DASHBOARD_MONTH_KEY, dashboardMes);
     closeModal('modalMovimentacao');
     await reloadAndRender(currentPage);
   } catch (error) {
@@ -731,14 +800,223 @@ async function salvarCliente() {
 }
 
 // ===== RELATÓRIOS =====
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function addMonths(date, months) {
+  return new Date(date.getFullYear(), date.getMonth() + months, date.getDate());
+}
+
+function toISODate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function getRelatorioPeriodoConfig(tipo, ano) {
+  const hoje = new Date();
+  const anoAtual = hoje.getFullYear();
+  const ref = Number(ano) === anoAtual
+    ? new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())
+    : new Date(Number(ano), 11, 31);
+
+  if (tipo === 'bisemanal') {
+    const inicio = addDays(ref, -14);
+    const buckets = Array.from({ length: 15 }, (_, index) => {
+      const date = addDays(inicio, index);
+      return {
+        key: toISODate(date),
+        label: `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`
+      };
+    });
+    return {
+      titulo: 'Relatorio bisemanal',
+      resultadoLabel: 'Resultado Bisemanal',
+      mediaLabel: 'Media Diaria',
+      mediaDivisor: 15,
+      chartLabel: 'Entradas x Saidas por dia',
+      inicio: toISODate(inicio),
+      fim: toISODate(ref),
+      buckets,
+      bucketKey: (mov) => mov.data
+    };
+  }
+
+  if (tipo === 'mensal') {
+    const inicio = new Date(ref.getFullYear(), ref.getMonth(), 1);
+    const fim = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
+    const totalDias = fim.getDate();
+    const buckets = Array.from({ length: totalDias }, (_, index) => {
+      const date = new Date(ref.getFullYear(), ref.getMonth(), index + 1);
+      return {
+        key: toISODate(date),
+        label: String(index + 1).padStart(2, '0')
+      };
+    });
+    return {
+      titulo: 'Relatorio mensal',
+      resultadoLabel: 'Resultado Mensal',
+      mediaLabel: 'Media Diaria',
+      mediaDivisor: totalDias,
+      chartLabel: 'Entradas x Saidas por dia',
+      inicio: toISODate(inicio),
+      fim: toISODate(fim),
+      buckets,
+      bucketKey: (mov) => mov.data
+    };
+  }
+
+  if (tipo === 'semestral') {
+    const inicio = new Date(ref.getFullYear(), ref.getMonth() - 5, 1);
+    const fim = new Date(ref.getFullYear(), ref.getMonth() + 1, 0);
+    const buckets = Array.from({ length: 6 }, (_, index) => {
+      const date = addMonths(inicio, index);
+      return {
+        key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+        label: MESES_ABREV[date.getMonth()]
+      };
+    });
+    return {
+      titulo: 'Relatorio semestral',
+      resultadoLabel: 'Resultado Semestral',
+      mediaLabel: 'Media Mensal',
+      mediaDivisor: 6,
+      chartLabel: 'Entradas x Saidas por mes',
+      inicio: toISODate(inicio),
+      fim: toISODate(fim),
+      buckets,
+      bucketKey: (mov) => mov.data.slice(0, 7)
+    };
+  }
+
+  const inicio = new Date(Number(ano), 0, 1);
+  const fim = new Date(Number(ano), 11, 31);
+  return {
+    titulo: 'Relatorio anual',
+    resultadoLabel: 'Resultado Anual',
+    mediaLabel: 'Media Mensal',
+    mediaDivisor: 12,
+    chartLabel: 'Entradas x Saidas por mes',
+    inicio: toISODate(inicio),
+    fim: toISODate(fim),
+    buckets: MESES_ABREV.map((label, index) => ({
+      key: `${ano}-${String(index + 1).padStart(2, '0')}`,
+      label
+    })),
+    bucketKey: (mov) => mov.data.slice(0, 7)
+  };
+}
+
 function renderRelatorios() {
   const anoSel = document.getElementById('relatorioAno');
+  const periodoSel = document.getElementById('relatorioPeriodo');
   const anos = [...new Set([String(new Date().getFullYear()), ...state.movimentacoes.map(m=>m.data.split('-')[0])])].sort().reverse();
   const curAno = anoSel.value || String(new Date().getFullYear());
   if (!anoSel.innerHTML.includes(curAno)) {
     anoSel.innerHTML = anos.map(a=>`<option value="${a}" ${a===curAno?'selected':''}>${a}</option>`).join('');
   }
   anoSel.value = curAno;
+  const periodoTipo = periodoSel?.value || 'anual';
+  const periodo = getRelatorioPeriodoConfig(periodoTipo, curAno);
+  const movPeriodo = state.movimentacoes.filter((mov) => mov.data >= periodo.inicio && mov.data <= periodo.fim);
+  const totEntPeriodo = movPeriodo.filter(m=>m.tipo==='entrada').reduce((s,m)=>s+m.valor,0);
+  const totSaiPeriodo = movPeriodo.filter(m=>m.tipo==='saida').reduce((s,m)=>s+m.valor,0);
+  const lucroPeriodo = totEntPeriodo - totSaiPeriodo;
+  const mediaPeriodo = lucroPeriodo / periodo.mediaDivisor;
+
+  document.getElementById('relSummaryGrid').innerHTML = `
+    <div class="kpi-card kpi-entrada">
+      <div class="kpi-header"><span class="kpi-label">Total Entradas</span><span class="kpi-icon">↑</span></div>
+      <div class="kpi-value">${formatBRL(totEntPeriodo)}</div>
+    </div>
+    <div class="kpi-card kpi-saida">
+      <div class="kpi-header"><span class="kpi-label">Total Saidas</span><span class="kpi-icon">↓</span></div>
+      <div class="kpi-value">${formatBRL(totSaiPeriodo)}</div>
+    </div>
+    <div class="kpi-card kpi-lucro">
+      <div class="kpi-header"><span class="kpi-label">${periodo.resultadoLabel}</span><span class="kpi-icon">⬡</span></div>
+      <div class="kpi-value" style="color:${lucroPeriodo>=0?'var(--green)':'var(--red)'}">${formatBRL(lucroPeriodo)}</div>
+    </div>
+    <div class="kpi-card kpi-saldo">
+      <div class="kpi-header"><span class="kpi-label">${periodo.mediaLabel}</span><span class="kpi-icon">◈</span></div>
+      <div class="kpi-value">${formatBRL(mediaPeriodo)}</div>
+    </div>
+  `;
+
+  const chartTitle = document.getElementById('relChartTitle');
+  if (chartTitle) chartTitle.textContent = periodo.chartLabel;
+
+  const valoresPorBucket = periodo.buckets.map((bucket) => {
+    const movs = movPeriodo.filter((mov) => periodo.bucketKey(mov) === bucket.key);
+    return {
+      entradas: movs.filter(x=>x.tipo==='entrada').reduce((s,x)=>s+x.valor,0),
+      saidas: movs.filter(x=>x.tipo==='saida').reduce((s,x)=>s+x.valor,0)
+    };
+  });
+
+  const ctxPeriodo = document.getElementById('relChart').getContext('2d');
+  if (relChart) relChart.destroy();
+  relChart = new Chart(ctxPeriodo, {
+    type: 'bar',
+    data: {
+      labels: periodo.buckets.map((bucket) => bucket.label),
+      datasets: [
+        { label:'Entradas', data:valoresPorBucket.map(item=>item.entradas), backgroundColor:'rgba(10,159,90,.82)', borderRadius:6, barPercentage:.65 },
+        { label:'Saidas', data:valoresPorBucket.map(item=>item.saidas), backgroundColor:'rgba(220,63,58,.72)', borderRadius:6, barPercentage:.65 }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{position:'top',labels:{font:{size:11},boxWidth:12}} },
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:11}}},
+        y:{grid:{color:'#d9e8df'},ticks:{font:{size:11},color:'#40574d',callback:v=>'R$'+v.toLocaleString('pt-BR')}}
+      }
+    }
+  });
+
+  const despesasCatPeriodo = {};
+  movPeriodo.filter(m=>m.tipo==='saida').forEach(m => {
+    despesasCatPeriodo[m.cat] = (despesasCatPeriodo[m.cat]||0) + m.valor;
+  });
+  const topDespesasPeriodo = Object.entries(despesasCatPeriodo).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  document.getElementById('relDespesas').innerHTML = topDespesasPeriodo.length
+    ? topDespesasPeriodo.map(([cat,val],i)=>`
+        <div class="rank-item">
+          <span class="rank-num">${i+1}</span>
+          <span class="rank-label">${esc(cat)}</span>
+          <span class="rank-val neg">${formatBRL(val)}</span>
+        </div>`).join('')
+    : '<div class="empty-state" style="padding:1rem">Sem saidas registradas.</div>';
+
+  const diasFatPeriodo = {};
+  movPeriodo.filter(m=>m.tipo==='entrada').forEach(m => {
+    diasFatPeriodo[m.data] = (diasFatPeriodo[m.data]||0) + m.valor;
+  });
+  const topDiasPeriodo = Object.entries(diasFatPeriodo).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  document.getElementById('relMelhoresDias').innerHTML = topDiasPeriodo.length
+    ? topDiasPeriodo.map(([data,val],i)=>`
+        <div class="rank-item">
+          <span class="rank-num">${i+1}</span>
+          <span class="rank-label">${formatDate(data)}</span>
+          <span class="rank-val pos">${formatBRL(val)}</span>
+        </div>`).join('')
+    : '<div class="empty-state" style="padding:1rem">Sem entradas registradas.</div>';
+
+  const catsPeriodo = {};
+  movPeriodo.forEach(m => { catsPeriodo[m.cat] = (catsPeriodo[m.cat]||0) + (m.tipo==='entrada'?m.valor:-m.valor); });
+  const topCatsPeriodo = Object.entries(catsPeriodo).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  document.getElementById('relCategorias').innerHTML = topCatsPeriodo.length
+    ? topCatsPeriodo.map(([cat,val],i)=>`
+        <div class="rank-item">
+          <span class="rank-num">${i+1}</span>
+          <span class="rank-label">${esc(cat)}</span>
+          <span class="rank-val ${val>=0?'pos':'neg'}">${val>=0?'+':''}${formatBRL(val)}</span>
+        </div>`).join('')
+    : '<div class="empty-state" style="padding:1rem">Sem dados.</div>';
+
+  return;
 
   const movAno = state.movimentacoes.filter(m=>m.data.startsWith(curAno));
 
@@ -957,6 +1235,25 @@ async function limparTudo() {
   }
 }
 
+function exposeGlobalHandlers() {
+  Object.assign(window, {
+    navigate,
+    openModal,
+    closeModal,
+    setTipo,
+    openNovaMovimentacao,
+    editarMov,
+    excluirMov,
+    salvarMovimentacao,
+    editarCliente,
+    excluirCliente,
+    salvarCliente,
+    salvarConfig,
+    salvarDAS,
+    limparTudo
+  });
+}
+
 // ===== ESCAPE =====
 function esc(str) {
   return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -996,7 +1293,21 @@ async function init() {
   // Valor mask
   document.getElementById('movValor').addEventListener('input', function(){ maskValor(this); });
 
+  document.querySelectorAll('[data-open-movimentacao]').forEach((button) => {
+    button.addEventListener('click', () => openNovaMovimentacao());
+  });
+
   // Filters
+  const dashboardMesInput = document.getElementById('dashboardMes');
+  if (dashboardMesInput) {
+    dashboardMes = getDashboardMes();
+    dashboardMesInput.value = dashboardMes;
+    dashboardMesInput.addEventListener('change', () => {
+      dashboardMes = dashboardMesInput.value || getMesAtual();
+      localStorage.setItem(DASHBOARD_MONTH_KEY, dashboardMes);
+      renderDashboard();
+    });
+  }
   document.getElementById('filtroTipo').addEventListener('change', applyFilters);
   document.getElementById('filtroCategoria').addEventListener('change', applyFilters);
   document.getElementById('filtroMes').addEventListener('change', applyFilters);
@@ -1014,6 +1325,7 @@ async function init() {
   });
 
   // Relatório ano
+  document.getElementById('relatorioPeriodo').addEventListener('change', renderRelatorios);
   document.getElementById('relatorioAno').addEventListener('change', renderRelatorios);
 
   // Config DAS preview on input
@@ -1040,3 +1352,4 @@ async function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+exposeGlobalHandlers();

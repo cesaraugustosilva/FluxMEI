@@ -1,15 +1,13 @@
 {
-  "name": "fluxmei-desktop",
+  "name": "fluxmei-web",
   "version": "1.0.0",
-  "description": "FluxMEI desktop para Windows.",
+  "description": "FluxMEI web app.",
   "type": "module",
-  "main": "electron/main.mjs",
   "author": "FluxMEI",
   "license": "UNLICENSED",
   "scripts": {
-    "desktop": "electron .",
-    "build:win": "set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win nsis",
-    "pack:win": "set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win --dir"
+    "start": "node backend/src/server.js",
+    "dev": "node backend/src/server.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -20,42 +18,5 @@
     "express-rate-limit": "^7.5.1",
     "helmet": "^8.1.0"
   },
-  "devDependencies": {
-    "electron": "^31.7.7",
-    "electron-builder": "^24.13.3"
-  },
-  "build": {
-    "appId": "br.com.fluxmei.desktop",
-    "productName": "FluxMEI",
-    "directories": {
-      "output": "dist"
-    },
-    "files": [
-      "app.js",
-      "index.html",
-      "style.css",
-      "auth/**/*",
-      "backend/src/**/*",
-      "backend/database/schema.sql",
-      "electron/**/*",
-      "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "backend/.env.example",
-        "to": "fluxmei.env.example"
-      }
-    ],
-    "win": {
-      "target": "nsis",
-      "signAndEditExecutable": false
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "FluxMEI"
-    }
-  }
+  "devDependencies": {}
 }

@@ -11,14 +11,31 @@ const AUTH_MESSAGES = {
   resetSuccess: 'Enviamos um link para seu email.'
 };
 
-function resolveApiUrl() {
-  const saved = localStorage.getItem('fluxmei_api_url');
-  if (saved) return saved.replace(/\/$/, '');
-  if (window.location.protocol.startsWith('http')) return `${window.location.origin}/api`;
-  return 'http://localhost:3002/api';
+function normalizeApiUrl(url) {
+  return String(url || '').replace(/\/$/, '');
 }
 
-const API_URL = resolveApiUrl();
+function resolveApiUrls() {
+  const urls = [];
+  const addUrl = (url) => {
+    const normalized = normalizeApiUrl(url);
+    if (normalized && !urls.includes(normalized)) urls.push(normalized);
+  };
+
+  addUrl(localStorage.getItem('fluxmei_api_url'));
+  if (window.location.protocol.startsWith('http')) {
+    if (window.location.port === '3002') addUrl(`${window.location.origin}/api`);
+    addUrl('http://localhost:3002/api');
+    addUrl('http://127.0.0.1:3002/api');
+  } else {
+    addUrl('http://localhost:3002/api');
+    addUrl('http://127.0.0.1:3002/api');
+  }
+
+  return urls;
+}
+
+const API_URLS = resolveApiUrls();
 const TOKEN_KEY = 'fluxmei_access_token';
 const USER_KEY = 'fluxmei_user';
 
@@ -31,15 +48,35 @@ async function apiRequest(path, options = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers
-  });
+  let response;
+  let url = '';
+
+  for (const apiUrl of API_URLS) {
+    url = `${apiUrl}${path}`;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers
+      });
+      if (response.status === 404 && apiUrl !== API_URLS[API_URLS.length - 1]) continue;
+      localStorage.setItem('fluxmei_api_url', apiUrl);
+      break;
+    } catch {
+      response = null;
+    }
+  }
+
+  if (!response) {
+    throw new Error('Nao foi possivel conectar a API. Inicie o servidor web com npm.cmd start e acesse http://localhost:3002.');
+  }
 
   const isJson = response.headers.get('content-type')?.includes('application/json');
   const data = isJson ? await response.json() : null;
+  const text = isJson ? '' : await response.text();
 
   if (!response.ok) {
+    if (!data?.error && text?.trim()) throw new Error(text.trim());
+    if (!data?.error) throw new Error(`Erro ${response.status} ao chamar ${url}.`);
     throw new Error(data?.error || 'Não foi possível concluir a solicitação.');
   }
 
