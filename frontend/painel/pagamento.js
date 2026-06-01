@@ -16,7 +16,7 @@ const API_URLS = resolveApiUrls();
 
 function clearSessionAndRedirect() {
   localStorage.removeItem(TOKEN_KEY);
-  window.location.href = 'auth/login.html';
+  window.location.href = '../auth/login.html';
 }
 
 function showAlert(message, type = 'error') {
@@ -41,7 +41,7 @@ function getReturnMessage(status) {
 async function apiRequest(path, options = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) {
-    window.location.href = 'auth/login.html';
+    window.location.href = '../auth/login.html';
     throw new Error('Faça login para continuar.');
   }
 

@@ -11,6 +11,10 @@ Este guia prepara o FluxMEI para:
 ## Estrutura
 
 - Frontend estatico: `frontend`
+- Entrada principal: `frontend/index.html`, que redireciona para `frontend/landing/index.html`
+- Landing page: `frontend/landing`
+- Aplicativo autenticado: `frontend/painel`
+- Atalhos de compatibilidade: `frontend/app.html` e `frontend/pagamento.html`
 - Backend Express: `backend`
 - Entrada do backend: `backend/src/server.js`
 - Script de producao do backend: `npm start`

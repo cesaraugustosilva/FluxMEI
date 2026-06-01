@@ -331,7 +331,7 @@ async function handleLogin(form) {
   try {
     await login(payload);
     showAlert(form, 'Login realizado com sucesso.', 'success');
-    window.location.href = '../index.html';
+    window.location.href = '../painel/index.html';
   } catch (error) {
     showAlert(form, error.message || AUTH_MESSAGES.loginError, 'error');
   } finally {

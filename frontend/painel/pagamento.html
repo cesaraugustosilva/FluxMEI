@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pagamento | FluxMEI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="pagamento.css" />
+</head>
+<body>
+  <main class="payment-shell">
+    <header class="payment-header">
+      <img src="../assets/logo-transparente-fluxmei.png" alt="FluxMEI" />
+      <a href="index.html">Voltar ao app</a>
+    </header>
+
+    <section class="payment-hero">
+      <p class="eyebrow">Assinatura FluxMEI</p>
+      <h1>Escolha seu plano</h1>
+      <p>O acesso será liberado automaticamente após a confirmação do pagamento pelo Mercado Pago.</p>
+    </section>
+
+    <section class="plans">
+      <article class="plan-card">
+        <h2>Plano Pro Mensal</h2>
+        <strong>R$ 49,90</strong>
+        <span>cobrança mensal</span>
+        <ul>
+          <li>Movimentações ilimitadas</li>
+          <li>Clientes ilimitados</li>
+          <li>DAS, calendário e relatórios</li>
+        </ul>
+        <button type="button" data-plan="pro_mensal">Assinar agora</button>
+      </article>
+
+      <article class="plan-card featured">
+        <div class="badge">Melhor escolha</div>
+        <h2>Plano Pro Anual</h2>
+        <strong>R$ 39,90/mês</strong>
+        <span>cobrança anual de R$ 478,80</span>
+        <ul>
+          <li>Todos os recursos do mensal</li>
+          <li>Mais economia no ano</li>
+          <li>Acesso liberado após confirmação</li>
+        </ul>
+        <button type="button" data-plan="pro_anual">Assinar agora</button>
+      </article>
+    </section>
+
+    <div class="payment-alert" id="paymentAlert"></div>
+  </main>
+
+  <script src="/env.js"></script>
+  <script src="pagamento.js"></script>
+</body>
+</html>

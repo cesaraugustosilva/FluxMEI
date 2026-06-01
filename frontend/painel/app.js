@@ -125,7 +125,7 @@ function getToken() {
 async function apiRequest(path, options = {}) {
   const token = getToken();
   if (!token) {
-    window.location.href = 'auth/login.html';
+    window.location.href = '../auth/login.html';
     throw new Error('Faça login para continuar.');
   }
 
@@ -161,7 +161,7 @@ async function apiRequest(path, options = {}) {
 
   if (response.status === 401) {
     localStorage.removeItem(TOKEN_KEY);
-    window.location.href = 'auth/login.html';
+    window.location.href = '../auth/login.html';
     throw new Error('Sessão expirada.');
   }
 

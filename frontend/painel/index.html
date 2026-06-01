@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FluxMEI — Controle Financeiro</title>
+  <script>
+    (function () {
+      const key = 'fluxmei_theme';
+
+      function getTheme() {
+        return localStorage.getItem(key) === 'dark' ? 'dark' : 'light';
+      }
+
+      function syncButtons(theme) {
+        document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+          const nextTheme = theme === 'dark' ? 'claro' : 'escuro';
+          const label = theme === 'dark' ? 'Claro' : 'Escuro';
+          const text = button.querySelector('.theme-toggle-text');
+
+          button.dataset.activeTheme = theme;
+          button.setAttribute('aria-label', `Ativar modo ${nextTheme}`);
+          button.title = `Ativar modo ${nextTheme}`;
+          if (text) text.textContent = label;
+        });
+      }
+
+      window.applyFluxmeiTheme = function (theme) {
+        document.documentElement.dataset.theme = theme;
+        localStorage.setItem(key, theme);
+        syncButtons(theme);
+      };
+
+      window.toggleTheme = function () {
+        window.applyFluxmeiTheme(getTheme() === 'dark' ? 'light' : 'dark');
+      };
+
+      document.documentElement.dataset.theme = getTheme();
+      document.addEventListener('DOMContentLoaded', () => syncButtons(getTheme()));
+    }());
+  </script>
+  <link rel="stylesheet" href="style.css?v=20260523-17" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="subscription-banner" id="subscriptionBanner" style="display:none"></div>
+<div class="subscription-lock" id="subscriptionLock" style="display:none">
+  <div class="subscription-lock-card">
+    <h2>Seu teste grátis terminou.</h2>
+    <p>Assine o FluxMEI para continuar usando.</p>
+    <a class="btn btn-primary" href="pagamento.html">Assinar agora</a>
+  </div>
+</div>
+
+<!-- SIDEBAR (Desktop) -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <span class="brand-name">FluxMEI</span>
+    <button class="theme-toggle" type="button" data-theme-toggle aria-label="Ativar modo escuro">
+      <span class="theme-toggle-icon" aria-hidden="true"></span>
+      <span class="theme-toggle-text">Escuro</span>
+    </button>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="#" class="nav-item active" data-page="dashboard">
+      <span class="nav-icon">▦</span><span class="nav-label">Dashboard</span>
+    </a>
+    <a href="#" class="nav-item" data-page="movimentacoes">
+      <span class="nav-icon">⇅</span><span class="nav-label">Movimentações</span>
+    </a>
+    <a href="#" class="nav-item" data-page="calendario">
+      <span class="nav-icon">◫</span><span class="nav-label">Calendário</span>
+    </a>
+    <a href="#" class="nav-item" data-page="clientes">
+      <span class="nav-icon">◎</span><span class="nav-label">Clientes</span>
+    </a>
+    <a href="#" class="nav-item" data-page="relatorios">
+      <span class="nav-icon">◈</span><span class="nav-label">Relatórios</span>
+    </a>
+    <a href="#" class="nav-item" data-page="configuracoes">
+      <span class="nav-icon">◉</span><span class="nav-label">Configurações</span>
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="sidebar-user">
+      <div class="user-avatar">M</div>
+      <div class="user-info">
+        <span class="user-name">FluxMEI</span>
+        <span class="user-plan">Carregando plano...</span>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- MOBILE HEADER -->
+<header class="mobile-header">
+  <button class="hamburger" id="hamburger">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="mobile-brand">
+    <span>FluxMEI</span>
+  </div>
+  <div class="mobile-header-right">
+    <button class="theme-toggle" type="button" data-theme-toggle aria-label="Ativar modo escuro">
+      <span class="theme-toggle-icon" aria-hidden="true"></span>
+      <span class="theme-toggle-text">Escuro</span>
+    </button>
+  </div>
+</header>
+
+<!-- MOBILE NAV OVERLAY -->
+<div class="mobile-overlay" id="mobileOverlay"></div>
+
+<!-- BOTTOM NAV (Mobile) -->
+<nav class="bottom-nav">
+  <a href="#" class="bottom-item active" data-page="dashboard">
+    <span class="bottom-icon">▦</span><span>Início</span>
+  </a>
+  <a href="#" class="bottom-item" data-page="movimentacoes">
+    <span class="bottom-icon">⇅</span><span>Lançar</span>
+  </a>
+  <a href="#" class="bottom-item" data-page="calendario">
+    <span class="bottom-icon">◫</span><span>Calendário</span>
+  </a>
+  <a href="#" class="bottom-item" data-page="clientes">
+    <span class="bottom-icon">◎</span><span>Clientes</span>
+  </a>
+  <a href="#" class="bottom-item" data-page="relatorios">
+    <span class="bottom-icon">◈</span><span>Relatórios</span>
+  </a>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main class="main-content" id="mainContent">
+
+  <!-- ====== DASHBOARD ====== -->
+  <section class="page active" id="page-dashboard">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Dashboard</h1>
+        <p class="page-subtitle" id="dashSubtitle">Visão geral do seu negócio</p>
+      </div>
+      <div class="dashboard-actions">
+        <input type="month" id="dashboardMes" class="filter-select" aria-label="MÃªs do dashboard" />
+        <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">
+        + Nova Movimentação
+        </button>
+      </div>
+    </div>
+
+    <!-- DAS Alert -->
+    <div class="das-alert" id="dasAlert" style="display:none"></div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card kpi-saldo">
+        <div class="kpi-header">
+          <span class="kpi-label">Saldo Atual</span>
+          <span class="kpi-icon">◈</span>
+        </div>
+        <div class="kpi-value" id="kpiSaldo">R$ 0,00</div>
+        <div class="kpi-trend" id="kpiSaldoTrend"></div>
+      </div>
+      <div class="kpi-card kpi-entrada">
+        <div class="kpi-header">
+          <span class="kpi-label">Entradas do Mês</span>
+          <span class="kpi-icon">↑</span>
+        </div>
+        <div class="kpi-value" id="kpiEntradas">R$ 0,00</div>
+        <div class="kpi-trend" id="kpiEntradasTrend"></div>
+      </div>
+      <div class="kpi-card kpi-saida">
+        <div class="kpi-header">
+          <span class="kpi-label">Saídas do Mês</span>
+          <span class="kpi-icon">↓</span>
+        </div>
+        <div class="kpi-value" id="kpiSaidas">R$ 0,00</div>
+        <div class="kpi-trend" id="kpiSaidasTrend"></div>
+      </div>
+      <div class="kpi-card kpi-lucro">
+        <div class="kpi-header">
+          <span class="kpi-label">Resultado do Mês</span>
+          <span class="kpi-icon">◆</span>
+        </div>
+        <div class="kpi-value" id="kpiLucro">R$ 0,00</div>
+        <div class="kpi-trend" id="kpiLucroLabel"></div>
+      </div>
+    </div>
+
+    <!-- DAS Card + Ultimas -->
+    <div class="dash-grid">
+      <div class="dash-card">
+        <div class="card-header">
+          <h3>Próximo DAS</h3>
+          <span class="badge-das" id="dasBadge"></span>
+        </div>
+        <div class="das-info" id="dasInfo">
+          <div class="das-date" id="dasDate">—</div>
+          <div class="das-days" id="dasDays"></div>
+          <button class="btn btn-sm btn-outline" onclick="navigate('configuracoes')">Configurar</button>
+        </div>
+      </div>
+
+      <div class="dash-card dash-card-wide">
+        <div class="card-header">
+          <h3>Últimas Movimentações</h3>
+          <a href="#" class="link-ver-mais" onclick="navigate('movimentacoes')">Ver todas →</a>
+        </div>
+        <div class="mov-list" id="dashMovList">
+          <div class="empty-state">Nenhuma movimentação ainda.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mini chart -->
+    <div class="dash-card chart-card">
+      <div class="card-header">
+        <h3>Entradas x Saídas — Últimos 6 Meses</h3>
+      </div>
+      <div class="chart-wrapper">
+        <canvas id="dashChart"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== MOVIMENTAÇÕES ====== -->
+  <section class="page" id="page-movimentacoes">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Movimentações</h1>
+        <p class="page-subtitle">Controle de entradas e saídas</p>
+      </div>
+      <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">+ Nova</button>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-bar">
+      <div class="filter-group">
+        <select id="filtroTipo" class="filter-select">
+          <option value="">Todos os tipos</option>
+          <option value="entrada">Entradas</option>
+          <option value="saida">Saídas</option>
+        </select>
+        <select id="filtroCategoria" class="filter-select">
+          <option value="">Todas as categorias</option>
+        </select>
+        <input type="month" id="filtroMes" class="filter-select" />
+      </div>
+      <div class="filter-search">
+        <input type="text" id="filtroTexto" placeholder="Buscar descrição…" class="filter-input" />
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="mov-summary">
+      <span class="sum-entrada">Entradas: <strong id="sumEntrada">R$ 0,00</strong></span>
+      <span class="sum-saida">Saídas: <strong id="sumSaida">R$ 0,00</strong></span>
+      <span class="sum-saldo">Saldo: <strong id="sumSaldo">R$ 0,00</strong></span>
+    </div>
+
+    <div class="table-wrap">
+      <table class="data-table" id="movTable">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Descrição</th>
+            <th>Categoria</th>
+            <th>Pagamento</th>
+            <th>Tipo</th>
+            <th>Valor</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="movTableBody"></tbody>
+      </table>
+      <div class="empty-state" id="movEmpty" style="display:none">Nenhuma movimentação encontrada.</div>
+    </div>
+  </section>
+
+  <!-- ====== CALENDÁRIO ====== -->
+  <section class="page" id="page-calendario">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Calendário Financeiro</h1>
+        <p class="page-subtitle">Movimentações por dia</p>
+      </div>
+      <div class="cal-nav">
+        <button class="btn btn-sm btn-outline" id="calPrev">‹</button>
+        <span class="cal-month-label" id="calMonthLabel"></span>
+        <button class="btn btn-sm btn-outline" id="calNext">›</button>
+      </div>
+    </div>
+    <div class="calendar-grid-wrap">
+      <div class="calendar-weekdays">
+        <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+      </div>
+      <div class="calendar-grid" id="calendarGrid"></div>
+    </div>
+    <div class="cal-legend">
+      <span class="leg-entrada">● Entradas</span>
+      <span class="leg-saida">● Saídas</span>
+    </div>
+  </section>
+
+  <!-- ====== CLIENTES ====== -->
+  <section class="page" id="page-clientes">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Agenda de Clientes</h1>
+        <p class="page-subtitle">Retornos, atendimentos e relacionamento</p>
+      </div>
+      <button class="btn btn-primary" onclick="resetClienteForm(); openModal('modalCliente')">+ Novo Cliente</button>
+    </div>
+    <div class="agenda-grid" id="clientesAgenda"></div>
+    <div class="filter-bar">
+      <div class="filter-group">
+        <input type="text" id="buscaCliente" placeholder="Buscar cliente…" class="filter-input" />
+        <select id="ordemClientes" class="filter-select">
+          <option value="nome">Nome</option>
+          <option value="faturamento">Maior faturamento</option>
+          <option value="ultimo">Ultima movimentacao</option>
+        </select>
+      </div>
+    </div>
+    <div class="agenda-section-title">Clientes cadastrados</div>
+    <div class="clientes-grid" id="clientesGrid"></div>
+    <div class="empty-state" id="clientesEmpty" style="display:none">Nenhum cliente cadastrado.</div>
+  </section>
+
+  <!-- ====== RELATÓRIOS ====== -->
+  <section class="page" id="page-relatorios">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Relatórios</h1>
+        <p class="page-subtitle">Análise financeira do seu negócio</p>
+      </div>
+      <div class="filter-group">
+        <select id="relatorioPeriodo" class="filter-select">
+          <option value="bisemanal">Bisemanal (15 dias)</option>
+          <option value="mensal">Mensal</option>
+          <option value="semestral">Semestral</option>
+          <option value="anual" selected>Anual</option>
+        </select>
+        <select id="relatorioAno" class="filter-select"></select>
+      </div>
+    </div>
+
+    <div class="rel-summary-grid" id="relSummaryGrid"></div>
+
+    <div class="dash-grid">
+      <div class="dash-card chart-card">
+        <div class="card-header"><h3>Entradas x Saídas por Mês</h3></div>
+        <div class="chart-wrapper"><canvas id="relChart"></canvas></div>
+      </div>
+      <div class="dash-card">
+        <div class="card-header"><h3>Maiores Despesas do Ano</h3></div>
+        <div id="relDespesas" class="rank-list"></div>
+      </div>
+    </div>
+    <div class="dash-grid">
+      <div class="dash-card">
+        <div class="card-header"><h3>Melhores Dias de Faturamento</h3></div>
+        <div id="relMelhoresDias" class="rank-list"></div>
+      </div>
+      <div class="dash-card">
+        <div class="card-header"><h3>Resumo por Categoria</h3></div>
+        <div id="relCategorias" class="rank-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== CONFIGURAÇÕES ====== -->
+  <section class="page" id="page-configuracoes">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Configurações</h1>
+        <p class="page-subtitle">Dados do MEI e preferências</p>
+      </div>
+    </div>
+    <div class="config-grid">
+      <div class="dash-card">
+        <div class="card-header"><h3>Dados do Negócio</h3></div>
+        <div class="form-group">
+          <label class="form-label">Nome do Negócio</label>
+          <input type="text" id="cfgNome" class="form-input" placeholder="Ex: João Silva ME" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Tipo de documento</label>
+            <select id="cfgDocumentoTipo" class="form-input" onchange="updateDocumentoConfig()">
+              <option value="cpf">CPF</option>
+              <option value="cnpj">CNPJ</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" id="cfgDocumentoLabel">CPF</label>
+            <input type="text" id="cfgDocumento" class="form-input" placeholder="000.000.000-00" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ramo de Atividade</label>
+          <input type="text" id="cfgRamo" class="form-input" placeholder="Ex: Comércio de roupas" />
+        </div>
+        <button class="btn btn-primary" onclick="salvarConfig()">Salvar Dados</button>
+      </div>
+
+      <div class="dash-card">
+        <div class="card-header"><h3>Lembrete do DAS</h3></div>
+        <div class="form-group">
+          <label class="form-label">Dia de Vencimento Mensal do DAS</label>
+          <input type="number" id="cfgDasDia" class="form-input" placeholder="Ex: 20" min="1" max="31" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valor Estimado do DAS (R$)</label>
+          <input type="text" id="cfgDasValor" class="form-input" placeholder="Ex: 72,60" />
+        </div>
+        <button class="btn btn-primary" onclick="salvarDAS()">Salvar DAS</button>
+
+        <div class="das-preview" id="dasPreview"></div>
+      </div>
+
+      <div class="dash-card danger-zone">
+        <div class="card-header"><h3>Dados</h3></div>
+        <div class="danger-zone-body">
+          <div class="danger-icon">!</div>
+          <div>
+            <strong>Zona de perigo</strong>
+            <p>Apague movimentacoes, clientes e lembretes para recomecar do zero.</p>
+          </div>
+        </div>
+        <button class="btn btn-danger" onclick="limparTudo()">Apagar Tudo</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ====== MODAIS ====== -->
+
+<!-- Modal Movimentação -->
+<div class="modal-backdrop" id="modalMovimentacao">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalMovTitle">Nova Movimentação</h2>
+      <button class="modal-close" type="button" onclick="closeModal('modalMovimentacao')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="movId" />
+      <div class="tipo-toggle">
+        <button class="tipo-btn active" id="btnEntrada" type="button" onclick="setTipo('entrada')">↑ Entrada</button>
+        <button class="tipo-btn" id="btnSaida" type="button" onclick="setTipo('saida')">↓ Saída</button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Descrição *</label>
+          <input type="text" id="movDesc" class="form-input" placeholder="Ex: Venda de produto" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valor *</label>
+          <input type="text" id="movValor" class="form-input" placeholder="0,00" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Categoria *</label>
+          <select id="movCategoria" class="form-input"></select>
+          <div class="category-create">
+            <input type="text" id="novaCategoria" class="form-input" placeholder="Nova categoria" />
+            <button class="btn btn-outline" type="button" onclick="criarCategoria()">+ Criar</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data *</label>
+          <input type="date" id="movData" class="form-input" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Cliente</label>
+        <select id="movCliente" class="form-input"></select>
+        <div class="inline-create">
+          <input type="text" id="movNovoClienteNome" class="form-input" placeholder="Novo cliente" />
+          <input type="text" id="movNovoClienteTel" class="form-input" placeholder="WhatsApp" />
+          <button class="btn btn-outline" type="button" onclick="criarClienteRapido()">+ Criar</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Forma de Pagamento</label>
+        <div class="payment-grid">
+          <label class="pay-opt"><input type="radio" name="pagamento" value="pix" checked /> PIX</label>
+          <label class="pay-opt"><input type="radio" name="pagamento" value="dinheiro" /> Dinheiro</label>
+          <label class="pay-opt"><input type="radio" name="pagamento" value="cartao" /> Cartão</label>
+          <label class="pay-opt"><input type="radio" name="pagamento" value="boleto" /> Boleto</label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Observação</label>
+        <textarea id="movObs" class="form-input" rows="2" placeholder="Opcional…"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" type="button" onclick="closeModal('modalMovimentacao')">Cancelar</button>
+      <button class="btn btn-primary" type="button" onclick="salvarMovimentacao()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Cliente -->
+<div class="modal-backdrop" id="modalCliente">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalClienteTitle">Novo Cliente</h2>
+      <button class="modal-close" type="button" onclick="closeModal('modalCliente')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="clienteId" />
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Nome *</label>
+          <input type="text" id="clienteNome" class="form-input" placeholder="Nome completo" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telefone / WhatsApp</label>
+          <input type="text" id="clienteTel" class="form-input" placeholder="(11) 99999-9999" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Servico / Produto <span class="label-optional">opcional</span></label>
+          <input type="text" id="clienteServico" class="form-input" placeholder="Ex: Consultoria mensal" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Tipo de compromisso <span class="label-optional">opcional</span></label>
+          <select id="clienteAgendaTipo" class="form-input">
+            <option value="">Sem agenda</option>
+            <option value="Retorno">Retorno</option>
+            <option value="Atendimento">Atendimento</option>
+            <option value="Reuniao">Reuniao</option>
+            <option value="Entrega">Entrega</option>
+            <option value="Cobranca">Cobranca</option>
+            <option value="Data importante">Data importante</option>
+            <option value="Outro">Outro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data do compromisso <span class="label-optional">opcional</span></label>
+          <input type="date" id="clienteAgendaData" class="form-input" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Detalhe da agenda <span class="label-optional">opcional</span></label>
+        <input type="text" id="clienteAgendaDescricao" class="form-input" placeholder="Ex: Confirmar orçamento, cobrar retorno, entregar pedido" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Observação <span class="label-optional">opcional</span></label>
+        <textarea id="clienteObs" class="form-input" rows="3" placeholder="Detalhes sobre o cliente…"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" type="button" onclick="closeModal('modalCliente')">Cancelar</button>
+      <button class="btn btn-primary" type="button" onclick="salvarCliente()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Detalhe Dia (Calendário) -->
+<div class="modal-backdrop" id="modalDia">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalDiaTitle">Movimentações do Dia</h2>
+      <button class="modal-close" type="button" onclick="closeModal('modalDia')">✕</button>
+    </div>
+    <div class="modal-body" id="modalDiaBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" type="button" onclick="closeModal('modalDia')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Confirmacao -->
+<div class="modal-backdrop" id="modalConfirmacao">
+  <div class="modal modal-confirm">
+    <div class="modal-header">
+      <h2 id="confirmTitle">Confirmar acao</h2>
+      <button class="modal-close" type="button" id="confirmClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="confirm-visual">
+        <div class="confirm-icon">!</div>
+        <p id="confirmMessage"></p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" type="button" id="confirmCancel">Cancelar</button>
+      <button class="btn btn-danger" type="button" id="confirmAction">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="/env.js"></script>
+<script src="app.js?v=20260526-2"></script>
+</body>
+</html>
