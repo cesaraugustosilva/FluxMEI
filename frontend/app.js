@@ -15,23 +15,9 @@ function normalizeApiUrl(url) {
 }
 
 function resolveApiUrls() {
-  const urls = [];
-  const addUrl = (url) => {
-    const normalized = normalizeApiUrl(url);
-    if (normalized && !urls.includes(normalized)) urls.push(normalized);
-  };
-
-  addUrl(localStorage.getItem('fluxmei_api_url'));
-  if (window.location.protocol.startsWith('http')) {
-    if (window.location.port === '3002') addUrl(`${window.location.origin}/api`);
-    addUrl('http://localhost:3002/api');
-    addUrl('http://127.0.0.1:3002/api');
-  } else {
-    addUrl('http://localhost:3002/api');
-    addUrl('http://127.0.0.1:3002/api');
-  }
-
-  return urls;
+  const apiUrl = normalizeApiUrl(window.FLUXMEI_CONFIG?.API_URL);
+  if (!apiUrl) throw new Error('FLUXMEI_CONFIG.API_URL nao configurada.');
+  return [apiUrl];
 }
 const API_URLS = resolveApiUrls();
 const TOKEN_KEY = 'fluxmei_access_token';
@@ -166,7 +152,7 @@ async function apiRequest(path, options = {}) {
   }
 
   if (!response) {
-    throw new Error('Nao foi possivel conectar a API. Inicie o servidor web com npm.cmd start e acesse http://localhost:3002.');
+    throw new Error('Nao foi possivel conectar a API. Verifique a configuracao FLUXMEI_API_URL.');
   }
 
   const isJson = response.headers.get('content-type')?.includes('application/json');

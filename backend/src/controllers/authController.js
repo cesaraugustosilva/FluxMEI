@@ -6,6 +6,16 @@ function shouldAutoConfirmEmail() {
   return process.env.AUTH_AUTO_CONFIRM_EMAIL === 'true';
 }
 
+function getFrontendUrl() {
+  const frontendUrl = (process.env.FRONTEND_URL || '')
+    .split(',')
+    .map((url) => url.trim().replace(/\/$/, ''))
+    .find(Boolean);
+
+  if (!frontendUrl) throw new AppError('FRONTEND_URL nao configurada.', 500);
+  return frontendUrl;
+}
+
 function isEmailNotConfirmedError(error) {
   return /email.*not.*confirmed|confirm/i.test(error?.message || '');
 }
@@ -60,7 +70,7 @@ export async function register(req, res) {
   const { email, password, nome, nome_negocio, whatsapp, tipo_negocio } = req.body;
   const metadata = { nome, nome_negocio, whatsapp, tipo_negocio };
   const autoConfirmEmail = shouldAutoConfirmEmail();
-  const redirectTo = `${process.env.FRONTEND_URL || 'http://localhost:3002'}/auth/login.html`;
+  const redirectTo = `${getFrontendUrl()}/auth/login.html`;
   const { data, error } = autoConfirmEmail
     ? await supabaseAdmin.auth.admin.createUser({
         email,
@@ -170,7 +180,7 @@ export async function updateProfile(req, res) {
 export async function resetPassword(req, res) {
   requireFields(req.body, ['email']);
 
-  const redirectTo = req.body.redirect_to || `${process.env.FRONTEND_URL || 'http://localhost:3002'}/auth/nova-senha.html`;
+  const redirectTo = req.body.redirect_to || `${getFrontendUrl()}/auth/nova-senha.html`;
   const { error } = await supabase.auth.resetPasswordForEmail(req.body.email, { redirectTo });
 
   if (error) throw new AppError(error.message, 400);

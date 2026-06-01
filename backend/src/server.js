@@ -28,6 +28,8 @@ const envFile = process.env.FLUXMEI_ENV_FILE || path.resolve(__dirname, '..', '.
 
 dotenv.config({ path: envFile });
 
+app.set('trust proxy', 1);
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -40,8 +42,12 @@ app.use(helmet({
     }
   }
 }));
+const isProduction = process.env.NODE_ENV === 'production';
 const allowedOrigins = process.env.FRONTEND_URL
-  ? process.env.FRONTEND_URL.split(',').map((origin) => origin.trim())
+  ? process.env.FRONTEND_URL
+      .split(',')
+      .map((origin) => origin.trim().replace(/\/$/, ''))
+      .filter(Boolean)
   : [];
 
 function isDevOrigin(origin) {
@@ -58,7 +64,10 @@ function isDevOrigin(origin) {
 
 app.use(cors({
   origin(origin, callback) {
-    if (allowedOrigins.includes(origin) || isDevOrigin(origin)) return callback(null, true);
+    const normalizedOrigin = origin ? origin.replace(/\/$/, '') : origin;
+    if (allowedOrigins.includes(normalizedOrigin) || (!isProduction && isDevOrigin(origin))) {
+      return callback(null, true);
+    }
     return callback(new Error('Origem bloqueada pelo CORS.'));
   },
   credentials: true
@@ -96,23 +105,25 @@ apiRouter.use('/relatorios', relatorioRoutes);
 apiRouter.use('/assinaturas', assinaturaRoutes);
 apiRouter.use('/pagamentos', pagamentoRoutes);
 apiRouter.use('/webhooks', webhookRoutes);
-apiRouter.use('/dev', devRoutes);
+if (!isProduction) apiRouter.use('/dev', devRoutes);
 apiRouter.get('/planos', asyncHandler(planos));
 
 app.use('/api', apiRouter);
 
-app.use('/auth', authRoutes);
-app.use('/movimentacoes', movimentacaoRoutes);
-app.use('/clientes', clienteRoutes);
-app.use('/das', dasRoutes);
-app.use('/dashboard', dashboardRoutes);
-app.use('/calendario', calendarioRoutes);
-app.use('/relatorios', relatorioRoutes);
-app.use('/assinaturas', assinaturaRoutes);
-app.use('/pagamentos', pagamentoRoutes);
-app.use('/webhooks', webhookRoutes);
-app.use('/dev', devRoutes);
-app.get('/planos', asyncHandler(planos));
+if (!isProduction) {
+  app.use('/auth', authRoutes);
+  app.use('/movimentacoes', movimentacaoRoutes);
+  app.use('/clientes', clienteRoutes);
+  app.use('/das', dasRoutes);
+  app.use('/dashboard', dashboardRoutes);
+  app.use('/calendario', calendarioRoutes);
+  app.use('/relatorios', relatorioRoutes);
+  app.use('/assinaturas', assinaturaRoutes);
+  app.use('/pagamentos', pagamentoRoutes);
+  app.use('/webhooks', webhookRoutes);
+  app.use('/dev', devRoutes);
+  app.get('/planos', asyncHandler(planos));
+}
 
 app.get('*', (req, res, next) => {
   if (req.method !== 'GET' || req.path.startsWith('/api/')) return next();
