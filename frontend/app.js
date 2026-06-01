@@ -36,6 +36,9 @@ function resolveApiUrls() {
 const API_URLS = resolveApiUrls();
 const TOKEN_KEY = 'fluxmei_access_token';
 const DASHBOARD_MONTH_KEY = 'fluxmei_dashboard_mes';
+const CUSTOM_CATEGORIES_KEY = 'fluxmei_custom_categories';
+const MOV_CLIENT_LINKS_KEY = 'fluxmei_mov_client_links';
+const THEME_KEY = 'fluxmei_theme';
 
 // ===== STATE =====
 let state = {
@@ -43,7 +46,7 @@ let state = {
   clientes: [],
   das: [],
   profile: null,
-  config: { nome: '', cnpj: '', ramo: '', dasDia: '', dasValor: '' }
+  config: { nome: '', cpf: '', cnpj: '', ramo: '', dasDia: '', dasValor: '' }
 };
 
 let currentPage = 'dashboard';
@@ -54,6 +57,79 @@ let editingClienteId = null;
 let dashChart = null;
 let relChart = null;
 let dashboardMes = localStorage.getItem(DASHBOARD_MONTH_KEY) || '';
+let subscriptionStatus = null;
+
+function getSavedTheme() {
+  return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light';
+}
+
+function applyTheme(theme) {
+  if (typeof window.applyFluxmeiTheme === 'function') {
+    window.applyFluxmeiTheme(theme);
+    return;
+  }
+
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem(THEME_KEY, theme);
+  document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+    const nextTheme = theme === 'dark' ? 'claro' : 'escuro';
+    const label = theme === 'dark' ? 'Claro' : 'Escuro';
+    const text = button.querySelector('.theme-toggle-text');
+
+    button.dataset.activeTheme = theme;
+    button.setAttribute('aria-label', `Ativar modo ${nextTheme}`);
+    button.title = `Ativar modo ${nextTheme}`;
+    if (text) text.textContent = label;
+  });
+}
+
+function toggleTheme() {
+  applyTheme(getSavedTheme() === 'dark' ? 'light' : 'dark');
+}
+
+function setupThemeControls() {
+  applyTheme(getSavedTheme());
+
+  document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+    button.addEventListener('click', toggleTheme);
+  });
+}
+
+function getCustomCategories() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CUSTOM_CATEGORIES_KEY) || '{}');
+    return {
+      entrada: Array.isArray(parsed.entrada) ? parsed.entrada : [],
+      saida: Array.isArray(parsed.saida) ? parsed.saida : []
+    };
+  } catch {
+    return { entrada: [], saida: [] };
+  }
+}
+
+function saveCustomCategories(categories) {
+  localStorage.setItem(CUSTOM_CATEGORIES_KEY, JSON.stringify({
+    entrada: Array.isArray(categories.entrada) ? categories.entrada : [],
+    saida: Array.isArray(categories.saida) ? categories.saida : []
+  }));
+}
+
+function normalizeCategoryName(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ');
+}
+
+function sortCategories(categories) {
+  return categories.sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+}
+
+function getCategoriasPorTipo(tipo) {
+  const defaults = tipo === 'entrada' ? CATEGORIAS_ENTRADA : CATEGORIAS_SAIDA;
+  const custom = getCustomCategories()[tipo] || [];
+  const used = state.movimentacoes
+    .filter((mov) => mov.tipo === tipo && mov.cat)
+    .map((mov) => mov.cat);
+  return sortCategories([...new Set([...defaults, ...custom, ...used])]);
+}
 
 // ===== API =====
 function getToken() {
@@ -103,6 +179,14 @@ async function apiRequest(path, options = {}) {
     throw new Error('Sessão expirada.');
   }
 
+  if (response.status === 402) {
+    showSubscriptionLock(data || {});
+    const error = new Error(data?.error || 'Teste grátis expirado');
+    error.code = data?.code || 'TRIAL_EXPIRED';
+    error.redirectTo = data?.redirectTo || '/pagamento.html';
+    throw error;
+  }
+
   if (!response.ok) {
     const message = data?.error || text?.trim();
     throw new Error(message || `Erro ${response.status} ao chamar ${url}.`);
@@ -111,6 +195,8 @@ async function apiRequest(path, options = {}) {
 }
 
 function mapMovimentacao(item) {
+  const meta = parseMetaObservacao(item.observacao);
+  const localLinks = getMovClientLinks();
   return {
     id: item.id,
     tipo: item.tipo,
@@ -119,17 +205,149 @@ function mapMovimentacao(item) {
     cat: item.categoria,
     pag: item.forma_pagamento,
     data: item.data,
-    obs: item.observacao || ''
+    obs: meta.texto,
+    clienteId: meta.cliente_id || localLinks[item.id] || ''
   };
 }
 
+function renderSubscriptionNotice(status) {
+  subscriptionStatus = status;
+  updateSidebarUser();
+  const banner = document.getElementById('subscriptionBanner');
+  const lock = document.getElementById('subscriptionLock');
+  if (!banner || !lock || !status) return;
+
+  if (status.bloqueado || status.status === 'vencido') {
+    banner.style.display = 'none';
+    lock.style.display = 'grid';
+    return;
+  }
+
+  lock.style.display = 'none';
+
+  if (status.status === 'teste_gratis') {
+    const dias = Number(status.dias_restantes || 0);
+    banner.textContent = dias <= 2
+      ? `Seu teste grátis termina em ${dias} dia(s).`
+      : `Você está no teste grátis. Restam ${dias} dias.`;
+    banner.className = `subscription-banner${dias <= 2 ? ' warning' : ''}`;
+    banner.style.display = 'block';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function getPlanLabel(status = subscriptionStatus) {
+  const plano = status?.plano || 'gratuito';
+  const statusAtual = status?.status || '';
+
+  if (statusAtual === 'teste_gratis' || plano === 'gratuito') return 'Teste gratis';
+  if (plano === 'pro_anual' || plano === 'anual') return 'Plano Pro Anual';
+  if (plano === 'pro_mensal' || plano === 'mensal') return 'Plano Pro Mensal';
+  if (statusAtual === 'ativo') return 'Plano Pro';
+  return 'Plano gratuito';
+}
+
+function showSubscriptionLock(payload = {}) {
+  const lock = document.getElementById('subscriptionLock');
+  const banner = document.getElementById('subscriptionBanner');
+  if (banner) banner.style.display = 'none';
+  if (lock) lock.style.display = 'grid';
+  if (payload.redirectTo && !window.location.pathname.endsWith('/pagamento.html')) {
+    // Keep the user on the current screen with the modal; the CTA handles navigation.
+  }
+}
+
 function mapCliente(item) {
+  const meta = parseMetaObservacao(item.observacao);
   return {
     id: item.id,
     nome: item.nome,
     tel: item.telefone,
-    email: item.email,
-    obs: item.observacao
+    obs: meta.texto,
+    servico: meta.servico || '',
+    agendaTipo: meta.agenda_tipo || (meta.proximo_contato ? 'Retorno' : (meta.aniversario ? 'Data importante' : '')),
+    agendaData: meta.agenda_data || meta.proximo_contato || meta.aniversario || '',
+    agendaDescricao: meta.agenda_descricao || ''
+  };
+}
+
+function parseMetaObservacao(value) {
+  if (!value) return { texto: '' };
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed && parsed._fluxmei_meta === true) {
+      return { texto: '', ...parsed };
+    }
+  } catch {
+    // Legacy observations are plain text.
+  }
+  return { texto: String(value || '') };
+}
+
+function stringifyMetaObservacao(meta) {
+  const clean = Object.fromEntries(
+    Object.entries(meta).filter(([, value]) => value !== undefined && value !== null && value !== '')
+  );
+  return Object.keys(clean).length ? JSON.stringify({ _fluxmei_meta: true, ...clean }) : null;
+}
+
+function getMovClientLinks() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MOV_CLIENT_LINKS_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function setMovClientLink(movId, clienteId) {
+  if (!movId) return;
+  const links = getMovClientLinks();
+  if (clienteId) {
+    links[movId] = clienteId;
+  } else {
+    delete links[movId];
+  }
+  localStorage.setItem(MOV_CLIENT_LINKS_KEY, JSON.stringify(links));
+}
+
+function shouldRetryWithoutObservacao(error) {
+  return /observacao|schema cache|column/i.test(error?.message || '');
+}
+
+async function saveMovimentacaoRequest(path, payload, method) {
+  try {
+    return await apiRequest(path, {
+      method,
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    if (!payload.observacao || !shouldRetryWithoutObservacao(error)) throw error;
+    const fallbackPayload = { ...payload };
+    delete fallbackPayload.observacao;
+    return apiRequest(path, {
+      method,
+      body: JSON.stringify(fallbackPayload)
+    });
+  }
+}
+
+function getClienteNome(clienteId) {
+  return state.clientes.find((cliente) => cliente.id === clienteId)?.nome || '';
+}
+
+function getClienteStats(clienteId) {
+  const movs = state.movimentacoes.filter((mov) => mov.clienteId === clienteId);
+  const entradas = movs.filter((mov) => mov.tipo === 'entrada');
+  const totalRecebido = entradas.reduce((sum, mov) => sum + mov.valor, 0);
+  const ultimaMov = [...movs].sort((a, b) => b.data.localeCompare(a.data))[0] || null;
+  return {
+    movs,
+    totalRecebido,
+    quantidade: entradas.length,
+    ticketMedio: entradas.length ? totalRecebido / entradas.length : 0,
+    ultimaMov
   };
 }
 
@@ -140,6 +358,7 @@ function hydrateConfig(profile, dasList) {
 
   state.config = {
     nome: profile?.nome_negocio || profile?.nome || '',
+    cpf: profile?.cpf || '',
     cnpj: profile?.cnpj || '',
     ramo: profile?.ramo || profile?.tipo_negocio || '',
     dasDia: nextDas?.vencimento ? Number(nextDas.vencimento.split('-')[2]) : '',
@@ -148,8 +367,19 @@ function hydrateConfig(profile, dasList) {
 }
 
 async function loadState() {
-  const [me, movimentacoes, clientes, das] = await Promise.all([
+  const [me, assinaturaStatus] = await Promise.all([
     apiRequest('/auth/me'),
+    apiRequest('/assinaturas/status')
+  ]);
+
+  renderSubscriptionNotice(assinaturaStatus);
+  if (assinaturaStatus?.bloqueado) {
+    state.profile = me.profile;
+    hydrateConfig(me.profile, []);
+    return;
+  }
+
+  const [movimentacoes, clientes, das] = await Promise.all([
     apiRequest('/movimentacoes'),
     apiRequest('/clientes'),
     apiRequest('/das')
@@ -198,7 +428,7 @@ function renderPage(page) {
     case 'dashboard':      renderDashboard(); break;
     case 'movimentacoes':  renderMovimentacoes(); break;
     case 'calendario':     renderCalendario(); break;
-    case 'clientes':       renderClientes(); break;
+    case 'clientes':       renderClientesEnhanced(); break;
     case 'relatorios':     renderRelatorios(); break;
     case 'configuracoes':  renderConfiguracoes(); break;
   }
@@ -215,7 +445,9 @@ function openModal(id) {
   document.getElementById(id).classList.add('open');
 }
 function closeModal(id) {
-  document.getElementById(id).classList.remove('open');
+  const modal = document.getElementById(id);
+  if (!modal) return;
+  modal.classList.remove('open');
   if (id === 'modalMovimentacao') resetMovForm();
   if (id === 'modalCliente') resetClienteForm();
 }
@@ -226,6 +458,39 @@ function showToast(msg, type='success') {
   t.textContent = msg;
   t.className = 'toast show ' + type;
   setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function confirmarAcao({ title, message, confirmText = 'Confirmar', danger = false }) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('modalConfirmacao');
+    const titleEl = document.getElementById('confirmTitle');
+    const messageEl = document.getElementById('confirmMessage');
+    const confirmBtn = document.getElementById('confirmAction');
+    const cancelBtn = document.getElementById('confirmCancel');
+    const closeBtn = document.getElementById('confirmClose');
+
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    confirmBtn.textContent = confirmText;
+    confirmBtn.className = danger ? 'btn btn-danger' : 'btn btn-primary';
+
+    const cleanup = (result) => {
+      modal.classList.remove('open');
+      confirmBtn.onclick = null;
+      cancelBtn.onclick = null;
+      closeBtn.onclick = null;
+      modal.onclick = null;
+      resolve(result);
+    };
+
+    confirmBtn.onclick = () => cleanup(true);
+    cancelBtn.onclick = () => cleanup(false);
+    closeBtn.onclick = () => cleanup(false);
+    modal.onclick = (event) => {
+      if (event.target === modal) cleanup(false);
+    };
+    modal.classList.add('open');
+  });
 }
 
 // ===== FORMAT HELPERS =====
@@ -246,6 +511,72 @@ function maskValor(el) {
   if (!v) { el.value = ''; return; }
   v = (parseInt(v)/100).toFixed(2);
   el.value = v.replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+}
+function maskTelefone(el) {
+  const digits = el.value.replace(/\D/g, '').slice(0, 11);
+  if (!digits) {
+    el.value = '';
+    return;
+  }
+
+  if (digits.length <= 2) {
+    el.value = `(${digits}`;
+  } else if (digits.length <= 6) {
+    el.value = `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  } else if (digits.length <= 10) {
+    el.value = `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  } else {
+    el.value = `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+}
+function maskCPF(el) {
+  const digits = el.value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length <= 3) {
+    el.value = digits;
+  } else if (digits.length <= 6) {
+    el.value = `${digits.slice(0, 3)}.${digits.slice(3)}`;
+  } else if (digits.length <= 9) {
+    el.value = `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+  } else {
+    el.value = `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+  }
+}
+function maskCNPJ(el) {
+  const digits = el.value.replace(/\D/g, '').slice(0, 14);
+  if (digits.length <= 2) {
+    el.value = digits;
+  } else if (digits.length <= 5) {
+    el.value = `${digits.slice(0, 2)}.${digits.slice(2)}`;
+  } else if (digits.length <= 8) {
+    el.value = `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`;
+  } else if (digits.length <= 12) {
+    el.value = `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8)}`;
+  } else {
+    el.value = `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
+  }
+}
+function getDocumentoTipo() {
+  const tipo = document.getElementById('cfgDocumentoTipo')?.value || 'cpf';
+  return tipo === 'cnpj' ? 'cnpj' : 'cpf';
+}
+function updateDocumentoConfig() {
+  const tipo = getDocumentoTipo();
+  const input = document.getElementById('cfgDocumento');
+  const label = document.getElementById('cfgDocumentoLabel');
+  if (!input || !label) return;
+
+  label.textContent = tipo.toUpperCase();
+  input.placeholder = tipo === 'cpf' ? '000.000.000-00' : '00.000.000/0001-00';
+  input.value = tipo === 'cpf' ? (state.config.cpf || '') : (state.config.cnpj || '');
+}
+function maskDocumentoConfig() {
+  const input = document.getElementById('cfgDocumento');
+  if (!input) return;
+  if (getDocumentoTipo() === 'cpf') {
+    maskCPF(input);
+  } else {
+    maskCNPJ(input);
+  }
 }
 
 // ===== CURRENT MONTH FILTER =====
@@ -453,6 +784,7 @@ function applyFilters() {
       <td>${formatDate(m.data)}</td>
       <td>
         <div style="font-weight:500">${esc(m.desc)}</div>
+        ${m.clienteId ? `<div style="font-size:.75rem;color:var(--primary)">Cliente: ${esc(getClienteNome(m.clienteId))}</div>` : ''}
         ${m.obs ? `<div style="font-size:.75rem;color:var(--text-muted)">${esc(m.obs)}</div>` : ''}
       </td>
       <td><span class="badge-cat">${esc(m.cat)}</span></td>
@@ -475,7 +807,7 @@ function applyFilters() {
   const curCat = catSelect.value;
   const cats = [...new Set(state.movimentacoes.map(m=>m.cat))].sort();
   catSelect.innerHTML = '<option value="">Todas as categorias</option>' +
-    cats.map(c=>`<option value="${c}" ${c===curCat?'selected':''}>${c}</option>`).join('');
+    cats.map(c=>`<option value="${esc(c)}" ${c===curCat?'selected':''}>${esc(c)}</option>`).join('');
 }
 
 function pagIcon(pag) {
@@ -493,8 +825,34 @@ function setTipo(tipo) {
 
 function updateCategorias() {
   const sel = document.getElementById('movCategoria');
-  const cats = movTipo === 'entrada' ? CATEGORIAS_ENTRADA : CATEGORIAS_SAIDA;
-  sel.innerHTML = cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  const current = sel.value;
+  const cats = getCategoriasPorTipo(movTipo);
+  sel.innerHTML = cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if (current && cats.includes(current)) sel.value = current;
+}
+
+function criarCategoria() {
+  const input = document.getElementById('novaCategoria');
+  const nome = normalizeCategoryName(input.value);
+  if (!nome) {
+    showToast('Digite o nome da categoria.', 'error');
+    return;
+  }
+
+  const categories = getCustomCategories();
+  const categoriaExistente = getCategoriasPorTipo(movTipo)
+    .find((cat) => cat.toLowerCase() === nome.toLowerCase());
+  const categoriaFinal = categoriaExistente || nome;
+
+  if (!categoriaExistente) {
+    categories[movTipo] = sortCategories([...(categories[movTipo] || []), nome]);
+    saveCustomCategories(categories);
+  }
+
+  updateCategorias();
+  document.getElementById('movCategoria').value = categoriaFinal;
+  input.value = '';
+  showToast(categoriaExistente ? 'Categoria selecionada!' : 'Categoria criada!');
 }
 
 function resetMovForm() {
@@ -503,14 +861,21 @@ function resetMovForm() {
   document.getElementById('movDesc').value = '';
   document.getElementById('movValor').value = '';
   document.getElementById('movObs').value = '';
+  document.getElementById('movNovoClienteNome').value = '';
+  document.getElementById('movNovoClienteTel').value = '';
+  updateMovClienteOptions();
+  document.getElementById('movCliente').value = '';
+  const novaCategoriaInput = document.getElementById('novaCategoria');
+  if (novaCategoriaInput) novaCategoriaInput.value = '';
   document.getElementById('movData').value = new Date().toISOString().split('T')[0];
   document.querySelector('input[name="pagamento"][value="pix"]').checked = true;
   document.getElementById('modalMovTitle').textContent = 'Nova Movimentação';
   setTipo('entrada');
 }
 
-function openNovaMovimentacao(date) {
+function openNovaMovimentacao(date, clienteId = '') {
   resetMovForm();
+  if (clienteId) document.getElementById('movCliente').value = clienteId;
   if (date) {
     document.getElementById('movData').value = date;
   } else {
@@ -535,6 +900,8 @@ function editarMov(id) {
   document.getElementById('movValor').value = String(m.valor.toFixed(2)).replace('.',',');
   document.getElementById('movObs').value   = m.obs || '';
   document.getElementById('movData').value  = m.data;
+  updateMovClienteOptions();
+  document.getElementById('movCliente').value = m.clienteId || '';
   const sel = document.getElementById('movCategoria');
   [...sel.options].forEach(o => { if(o.value===m.cat) o.selected=true; });
   const pagRadio = document.querySelector(`input[name="pagamento"][value="${m.pag}"]`);
@@ -543,9 +910,16 @@ function editarMov(id) {
 }
 
 async function excluirMov(id) {
-  if (!confirm('Excluir esta movimentação?')) return;
+  const confirmed = await confirmarAcao({
+    title: 'Excluir movimentacao',
+    message: 'Essa movimentacao sera removida do seu historico financeiro.',
+    confirmText: 'Excluir',
+    danger: true
+  });
+  if (!confirmed) return;
   try {
     await apiRequest(`/movimentacoes/${id}`, { method: 'DELETE' });
+    setMovClientLink(id, '');
     showToast('Movimentação excluída.', 'error');
     await reloadAndRender(currentPage);
   } catch (error) {
@@ -560,6 +934,7 @@ async function salvarMovimentacao() {
   const data  = document.getElementById('movData').value;
   const pag   = document.querySelector('input[name="pagamento"]:checked').value;
   const obs   = document.getElementById('movObs').value.trim();
+  const clienteId = document.getElementById('movCliente').value;
 
   if (!desc) { showToast('Preencha a descrição.', 'error'); return; }
   if (!valor || valor <= 0) { showToast('Informe um valor válido.', 'error'); return; }
@@ -572,21 +947,17 @@ async function salvarMovimentacao() {
     categoria: cat,
     forma_pagamento: pag,
     data,
-    observacao: obs || null
+    observacao: stringifyMetaObservacao({ texto: obs, cliente_id: clienteId })
   };
 
   try {
     if (editingMovId) {
-      await apiRequest(`/movimentacoes/${editingMovId}`, {
-        method: 'PUT',
-        body: JSON.stringify(payload)
-      });
+      await saveMovimentacaoRequest(`/movimentacoes/${editingMovId}`, payload, 'PUT');
+      setMovClientLink(editingMovId, clienteId);
       showToast('Movimentação atualizada! ✅');
     } else {
-      await apiRequest('/movimentacoes', {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      });
+      const savedMovimentacao = await saveMovimentacaoRequest('/movimentacoes', payload, 'POST');
+      setMovClientLink(savedMovimentacao?.id, clienteId);
       showToast('Movimentação salva! ✅');
     }
 
@@ -596,6 +967,51 @@ async function salvarMovimentacao() {
     localStorage.setItem(DASHBOARD_MONTH_KEY, dashboardMes);
     closeModal('modalMovimentacao');
     await reloadAndRender(currentPage);
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+function updateMovClienteOptions() {
+  const select = document.getElementById('movCliente');
+  if (!select) return;
+  const current = select.value;
+  const clientes = [...state.clientes].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  select.innerHTML = '<option value="">Sem cliente vinculado</option>' +
+    clientes.map((cliente) => `<option value="${esc(cliente.id)}">${esc(cliente.nome)}</option>`).join('');
+  if (current && clientes.some((cliente) => cliente.id === current)) select.value = current;
+}
+
+function novaMovimentacaoCliente(clienteId) {
+  openNovaMovimentacao(null, clienteId);
+}
+
+async function criarClienteRapido() {
+  const nome = document.getElementById('movNovoClienteNome').value.trim();
+  const telefone = document.getElementById('movNovoClienteTel').value.trim();
+
+  if (!nome) {
+    showToast('Informe o nome do cliente.', 'error');
+    return;
+  }
+
+  try {
+    const cliente = await apiRequest('/clientes', {
+      method: 'POST',
+      body: JSON.stringify({
+        nome,
+        telefone,
+        email: null,
+        observacao: null
+      })
+    });
+
+    state.clientes.unshift(mapCliente(cliente));
+    updateMovClienteOptions();
+    document.getElementById('movCliente').value = cliente.id;
+    document.getElementById('movNovoClienteNome').value = '';
+    document.getElementById('movNovoClienteTel').value = '';
+    showToast('Cliente criado e vinculado!');
   } catch (error) {
     showToast(error.message, 'error');
   }
@@ -703,7 +1119,7 @@ function abrirDia(dateStr, movs) {
 function renderClientes() {
   const busca = (document.getElementById('buscaCliente').value||'').toLowerCase();
   let clientes = [...state.clientes];
-  if (busca) clientes = clientes.filter(c => c.nome.toLowerCase().includes(busca) || (c.email||'').toLowerCase().includes(busca));
+  if (busca) clientes = clientes.filter(c => c.nome.toLowerCase().includes(busca) || (c.tel||'').toLowerCase().includes(busca));
 
   const grid = document.getElementById('clientesGrid');
   const empty = document.getElementById('clientesEmpty');
@@ -726,7 +1142,6 @@ function renderClientes() {
       </div>
       <div class="cliente-info">
         ${c.tel   ? `📱 <a href="https://wa.me/55${c.tel.replace(/\D/g,'')}" target="_blank">${esc(c.tel)}</a><br>` : ''}
-        ${c.email ? `✉️ <a href="mailto:${c.email}">${esc(c.email)}</a><br>` : ''}
         ${c.obs   ? `📝 ${esc(c.obs)}` : ''}
       </div>
     </div>
@@ -738,7 +1153,10 @@ function resetClienteForm() {
   document.getElementById('clienteId').value   = '';
   document.getElementById('clienteNome').value  = '';
   document.getElementById('clienteTel').value   = '';
-  document.getElementById('clienteEmail').value = '';
+  document.getElementById('clienteServico').value = '';
+  document.getElementById('clienteAgendaTipo').value = '';
+  document.getElementById('clienteAgendaData').value = '';
+  document.getElementById('clienteAgendaDescricao').value = '';
   document.getElementById('clienteObs').value   = '';
   document.getElementById('modalClienteTitle').textContent = 'Novo Cliente';
 }
@@ -751,13 +1169,22 @@ function editarCliente(id) {
   document.getElementById('clienteId').value   = id;
   document.getElementById('clienteNome').value  = c.nome;
   document.getElementById('clienteTel').value   = c.tel || '';
-  document.getElementById('clienteEmail').value = c.email || '';
+  document.getElementById('clienteServico').value = c.servico || '';
+  document.getElementById('clienteAgendaTipo').value = c.agendaTipo || '';
+  document.getElementById('clienteAgendaData').value = c.agendaData || '';
+  document.getElementById('clienteAgendaDescricao').value = c.agendaDescricao || '';
   document.getElementById('clienteObs').value   = c.obs || '';
   openModal('modalCliente');
 }
 
 async function excluirCliente(id) {
-  if (!confirm('Excluir este cliente?')) return;
+  const confirmed = await confirmarAcao({
+    title: 'Excluir cliente',
+    message: 'O cadastro sera removido, mas as movimentacoes ja criadas continuam no financeiro.',
+    confirmText: 'Excluir',
+    danger: true
+  });
+  if (!confirmed) return;
   try {
     await apiRequest(`/clientes/${id}`, { method: 'DELETE' });
     showToast('Cliente excluído.', 'error');
@@ -770,12 +1197,26 @@ async function excluirCliente(id) {
 async function salvarCliente() {
   const nome  = document.getElementById('clienteNome').value.trim();
   const tel   = document.getElementById('clienteTel').value.trim();
-  const email = document.getElementById('clienteEmail').value.trim();
+  const servico = document.getElementById('clienteServico').value.trim();
+  const agendaTipo = document.getElementById('clienteAgendaTipo').value;
+  const agendaData = document.getElementById('clienteAgendaData').value;
+  const agendaDescricao = document.getElementById('clienteAgendaDescricao').value.trim();
   const obs   = document.getElementById('clienteObs').value.trim();
 
   if (!nome) { showToast('Informe o nome do cliente.', 'error'); return; }
 
-  const payload = { nome, telefone: tel, email, observacao: obs };
+  const payload = {
+    nome,
+    telefone: tel,
+    email: null,
+    observacao: stringifyMetaObservacao({
+      texto: obs,
+      servico,
+      agenda_tipo: agendaTipo,
+      agenda_data: agendaData,
+      agenda_descricao: agendaDescricao
+    })
+  };
 
   try {
     if (editingClienteId) {
@@ -800,6 +1241,139 @@ async function salvarCliente() {
 }
 
 // ===== RELATÓRIOS =====
+function renderClientesEnhanced() {
+  renderClientesAgenda();
+
+  const busca = (document.getElementById('buscaCliente').value || '').toLowerCase();
+  const ordenacao = document.getElementById('ordemClientes')?.value || 'nome';
+  let clientes = [...state.clientes];
+
+  if (busca) {
+    clientes = clientes.filter((cliente) =>
+      cliente.nome.toLowerCase().includes(busca) ||
+      (cliente.tel || '').toLowerCase().includes(busca) ||
+      (cliente.servico || '').toLowerCase().includes(busca)
+    );
+  }
+
+  clientes.sort((a, b) => {
+    const statsA = getClienteStats(a.id);
+    const statsB = getClienteStats(b.id);
+    if (ordenacao === 'faturamento') return statsB.totalRecebido - statsA.totalRecebido;
+    if (ordenacao === 'ultimo') return String(statsB.ultimaMov?.data || '').localeCompare(String(statsA.ultimaMov?.data || ''));
+    return a.nome.localeCompare(b.nome, 'pt-BR');
+  });
+
+  const grid = document.getElementById('clientesGrid');
+  const empty = document.getElementById('clientesEmpty');
+
+  if (!clientes.length) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  grid.innerHTML = clientes.map((cliente) => {
+    const stats = getClienteStats(cliente.id);
+    const whatsapp = cliente.tel ? cliente.tel.replace(/\D/g, '') : '';
+    const isLateContact = cliente.agendaData && cliente.agendaData < new Date().toISOString().slice(0, 10);
+    return `
+      <div class="cliente-card">
+        <div class="cliente-header">
+          <div>
+            <div class="cliente-nome">${esc(cliente.nome)}</div>
+            ${cliente.agendaTipo ? `<span class="cliente-agenda-badge">${esc(cliente.agendaTipo)}</span>` : ''}
+          </div>
+          <div class="action-btns">
+            <button class="btn-action" onclick="editarCliente('${cliente.id}')">Editar</button>
+            <button class="btn-action delete" onclick="excluirCliente('${cliente.id}')">Excluir</button>
+          </div>
+        </div>
+        <div class="cliente-stats">
+          <div><strong>${formatBRL(stats.totalRecebido)}</strong><span>Total recebido</span></div>
+          <div><strong>${stats.quantidade}</strong><span>Vendas</span></div>
+          <div><strong>${formatBRL(stats.ticketMedio)}</strong><span>Ticket medio</span></div>
+        </div>
+        <div class="cliente-info">
+          ${cliente.servico ? `<div><strong>Servico:</strong> ${esc(cliente.servico)}</div>` : ''}
+          ${stats.ultimaMov ? `<div><strong>Ultima movimentacao:</strong> ${formatDate(stats.ultimaMov.data)}</div>` : '<div><strong>Ultima movimentacao:</strong> nenhuma</div>'}
+          ${cliente.agendaData ? `<div class="${isLateContact ? 'cliente-alert' : ''}"><strong>${esc(cliente.agendaTipo || 'Agenda')}:</strong> ${formatDate(cliente.agendaData)}</div>` : ''}
+          ${cliente.agendaDescricao ? `<div><strong>Detalhe:</strong> ${esc(cliente.agendaDescricao)}</div>` : ''}
+          ${cliente.obs ? `<div><strong>Observacoes:</strong> ${esc(cliente.obs)}</div>` : ''}
+        </div>
+        <div class="cliente-actions">
+          ${whatsapp ? `<a class="btn btn-sm btn-outline" href="https://wa.me/55${whatsapp}" target="_blank">WhatsApp</a>` : ''}
+          <button class="btn btn-sm btn-primary" type="button" onclick="novaMovimentacaoCliente('${cliente.id}')">+ Movimento</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderClientesAgenda() {
+  const agenda = document.getElementById('clientesAgenda');
+  if (!agenda) return;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayIso = toISODate(today);
+  const nextLimit = addDays(today, 14);
+
+  const items = state.clientes
+    .filter((cliente) => cliente.agendaData)
+    .map((cliente) => ({
+      cliente,
+      tipo: cliente.agendaTipo || 'Agenda',
+      data: cliente.agendaData,
+      descricao: cliente.agendaDescricao || cliente.servico || 'Compromisso agendado'
+    }))
+    .sort((a, b) => a.data.localeCompare(b.data));
+
+  const atrasados = items.filter((item) => item.data < todayIso);
+  const hoje = items.filter((item) => item.data === todayIso);
+  const proximos = items.filter((item) => {
+    const date = new Date(`${item.data}T00:00:00`);
+    return date > today && date <= nextLimit;
+  });
+
+  agenda.innerHTML = [
+    renderAgendaColumn('Atrasados', atrasados, 'danger'),
+    renderAgendaColumn('Hoje', hoje, 'today'),
+    renderAgendaColumn('Proximos 14 dias', proximos, 'next')
+  ].join('');
+}
+
+function renderAgendaColumn(title, items, tone) {
+  return `
+    <div class="agenda-column agenda-${tone}">
+      <div class="agenda-column-header">
+        <h3>${title}</h3>
+        <span>${items.length}</span>
+      </div>
+      <div class="agenda-list">
+        ${items.length ? items.map(renderAgendaItem).join('') : '<div class="agenda-empty">Nada agendado.</div>'}
+      </div>
+    </div>
+  `;
+}
+
+function renderAgendaItem(item) {
+  const whatsapp = item.cliente.tel ? item.cliente.tel.replace(/\D/g, '') : '';
+  return `
+    <div class="agenda-item">
+      <div class="agenda-date">${formatDate(item.data)}</div>
+      <div class="agenda-client">${esc(item.cliente.nome)}</div>
+      <div class="agenda-meta">${esc(item.tipo)} · ${esc(item.descricao)}</div>
+      <div class="agenda-actions">
+        ${whatsapp ? `<a class="btn btn-sm btn-outline" href="https://wa.me/55${whatsapp}" target="_blank">WhatsApp</a>` : ''}
+        <button class="btn btn-sm btn-outline" type="button" onclick="editarCliente('${item.cliente.id}')">Editar</button>
+        <button class="btn btn-sm btn-primary" type="button" onclick="novaMovimentacaoCliente('${item.cliente.id}')">+ Movimento</button>
+      </div>
+    </div>
+  `;
+}
+
 function addDays(date, days) {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
@@ -935,7 +1509,7 @@ function renderRelatorios() {
       <div class="kpi-value">${formatBRL(totSaiPeriodo)}</div>
     </div>
     <div class="kpi-card kpi-lucro">
-      <div class="kpi-header"><span class="kpi-label">${periodo.resultadoLabel}</span><span class="kpi-icon">⬡</span></div>
+      <div class="kpi-header"><span class="kpi-label">${periodo.resultadoLabel}</span><span class="kpi-icon">◆</span></div>
       <div class="kpi-value" style="color:${lucroPeriodo>=0?'var(--green)':'var(--red)'}">${formatBRL(lucroPeriodo)}</div>
     </div>
     <div class="kpi-card kpi-saldo">
@@ -1036,7 +1610,7 @@ function renderRelatorios() {
       <div class="kpi-value">${formatBRL(totSai)}</div>
     </div>
     <div class="kpi-card kpi-lucro">
-      <div class="kpi-header"><span class="kpi-label">Resultado Anual</span><span class="kpi-icon">⬡</span></div>
+      <div class="kpi-header"><span class="kpi-label">Resultado Anual</span><span class="kpi-icon">◆</span></div>
       <div class="kpi-value" style="color:${lucroAno>=0?'var(--green)':'var(--red)'}">${formatBRL(lucroAno)}</div>
     </div>
     <div class="kpi-card kpi-saldo">
@@ -1122,7 +1696,8 @@ function renderRelatorios() {
 // ===== CONFIGURAÇÕES =====
 function renderConfiguracoes() {
   document.getElementById('cfgNome').value     = state.config.nome || '';
-  document.getElementById('cfgCnpj').value     = state.config.cnpj || '';
+  document.getElementById('cfgDocumentoTipo').value = state.config.cnpj ? 'cnpj' : 'cpf';
+  updateDocumentoConfig();
   document.getElementById('cfgRamo').value     = state.config.ramo || '';
   document.getElementById('cfgDasDia').value   = state.config.dasDia || '';
   document.getElementById('cfgDasValor').value = state.config.dasValor || '';
@@ -1131,8 +1706,11 @@ function renderConfiguracoes() {
 }
 
 async function salvarConfig() {
+  const documentoTipo = getDocumentoTipo();
+  const documento = document.getElementById('cfgDocumento').value.trim();
   state.config.nome = document.getElementById('cfgNome').value.trim();
-  state.config.cnpj = document.getElementById('cfgCnpj').value.trim();
+  state.config.cpf = documentoTipo === 'cpf' ? documento : '';
+  state.config.cnpj = documentoTipo === 'cnpj' ? documento : '';
   state.config.ramo = document.getElementById('cfgRamo').value.trim();
 
   try {
@@ -1141,6 +1719,7 @@ async function salvarConfig() {
       body: JSON.stringify({
         nome: state.profile?.nome || state.config.nome || 'Usuário FluxMEI',
         nome_negocio: state.config.nome,
+        cpf: state.config.cpf,
         cnpj: state.config.cnpj,
         ramo: state.config.ramo
       })
@@ -1218,10 +1797,17 @@ function updateSidebarUser() {
   const nome = state.config.nome || 'FluxMEI';
   document.querySelectorAll('.user-name').forEach(el=>el.textContent=nome);
   document.querySelectorAll('.user-avatar').forEach(el=>el.textContent=nome.charAt(0).toUpperCase());
+  document.querySelectorAll('.user-plan').forEach(el=>el.textContent=getPlanLabel());
 }
 
 async function limparTudo() {
-  if (!confirm('Apagar TODOS os dados? Esta ação não pode ser desfeita.')) return;
+  const confirmed = await confirmarAcao({
+    title: 'Apagar todos os dados',
+    message: 'Isso remove movimentacoes, clientes e lembretes de DAS. Essa acao nao pode ser desfeita.',
+    confirmText: 'Apagar tudo',
+    danger: true
+  });
+  if (!confirmed) return;
   try {
     await Promise.all([
       ...state.movimentacoes.map((item) => apiRequest(`/movimentacoes/${item.id}`, { method: 'DELETE' })),
@@ -1240,11 +1826,17 @@ function exposeGlobalHandlers() {
     navigate,
     openModal,
     closeModal,
+    updateDocumentoConfig,
+    toggleTheme,
     setTipo,
     openNovaMovimentacao,
+    novaMovimentacaoCliente,
     editarMov,
     excluirMov,
     salvarMovimentacao,
+    criarCategoria,
+    criarClienteRapido,
+    resetClienteForm,
     editarCliente,
     excluirCliente,
     salvarCliente,
@@ -1261,6 +1853,8 @@ function esc(str) {
 
 // ===== INIT =====
 async function init() {
+  setupThemeControls();
+
   try {
     await loadState();
   } catch (error) {
@@ -1292,6 +1886,9 @@ async function init() {
 
   // Valor mask
   document.getElementById('movValor').addEventListener('input', function(){ maskValor(this); });
+  document.getElementById('clienteTel').addEventListener('input', function(){ maskTelefone(this); });
+  document.getElementById('movNovoClienteTel').addEventListener('input', function(){ maskTelefone(this); });
+  document.getElementById('cfgDocumento').addEventListener('input', maskDocumentoConfig);
 
   document.querySelectorAll('[data-open-movimentacao]').forEach((button) => {
     button.addEventListener('click', () => openNovaMovimentacao());
@@ -1312,7 +1909,8 @@ async function init() {
   document.getElementById('filtroCategoria').addEventListener('change', applyFilters);
   document.getElementById('filtroMes').addEventListener('change', applyFilters);
   document.getElementById('filtroTexto').addEventListener('input', applyFilters);
-  document.getElementById('buscaCliente').addEventListener('input', renderClientes);
+  document.getElementById('buscaCliente').addEventListener('input', renderClientesEnhanced);
+  document.getElementById('ordemClientes').addEventListener('change', renderClientesEnhanced);
 
   // Calendar nav
   document.getElementById('calPrev').addEventListener('click', () => {

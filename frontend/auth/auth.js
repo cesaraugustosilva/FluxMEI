@@ -39,6 +39,11 @@ const API_URLS = resolveApiUrls();
 const TOKEN_KEY = 'fluxmei_access_token';
 const USER_KEY = 'fluxmei_user';
 
+function clearSession() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+}
+
 async function apiRequest(path, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
@@ -73,6 +78,11 @@ async function apiRequest(path, options = {}) {
   const isJson = response.headers.get('content-type')?.includes('application/json');
   const data = isJson ? await response.json() : null;
   const text = isJson ? '' : await response.text();
+
+  if (response.status === 401) {
+    clearSession();
+    throw new Error('Sua sessão expirou. Faça login novamente.');
+  }
 
   if (!response.ok) {
     if (!data?.error && text?.trim()) throw new Error(text.trim());
@@ -196,7 +206,7 @@ function validateRegister(form) {
   const fullNameValid = validateRequired(getField(form, 'fullName'));
   const emailValid = validateEmailField(getField(form, 'email'));
   const whatsappValid = validateRequired(getField(form, 'whatsapp'), 'Informe seu WhatsApp.');
-  const businessTypeValid = validateRequired(getField(form, 'businessType'), 'Escolha o tipo de negócio.');
+  const businessTypeValid = validateRequired(getField(form, 'businessType'), 'Digite o tipo de negócio.');
   const passwordValid = validatePasswordField(getField(form, 'password'), true);
   const confirmPassword = getField(form, 'confirmPassword');
   const terms = getField(form, 'terms');
@@ -315,8 +325,7 @@ async function logout() {
   try {
     await apiRequest('/auth/logout', { method: 'POST' });
   } finally {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
+    clearSession();
   }
   return true;
 }
@@ -353,7 +362,7 @@ async function handleRegister(form) {
     businessName: getField(form, 'businessName').value.trim(),
     email: getField(form, 'email').value.trim(),
     whatsapp: getField(form, 'whatsapp').value.trim(),
-    businessType: getField(form, 'businessType').value,
+    businessType: getField(form, 'businessType').value.trim(),
     password: getField(form, 'password').value
   };
 

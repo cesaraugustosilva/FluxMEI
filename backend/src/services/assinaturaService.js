@@ -1,19 +1,23 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
 
+const TRIAL_DAYS = 7;
+const TRIAL_STATUS = 'teste_gratis';
+const BLOCKED_STATUSES = ['pendente', 'vencido', 'cancelado'];
+
 export const PLANOS = {
   gratuito: {
     id: 'gratuito',
-    nome: 'Plano Gratuito',
+    nome: 'Teste grátis',
     preco: 0,
     tipo_cobranca: 'mensal',
-    limites: { movimentacoes_mes: 30, clientes: 5, ia: false },
-    recursos: ['Controle financeiro básico', 'Até 30 movimentações por mês', 'Até 5 clientes']
+    limites: { movimentacoes_mes: null, clientes: null, ia: true },
+    recursos: ['7 dias grátis para testar todos os recursos']
   },
   pro_mensal: {
     id: 'pro_mensal',
     nome: 'Plano Pro Mensal',
-    preco: 39.9,
+    preco: 49.9,
     tipo_cobranca: 'mensal',
     limites: { movimentacoes_mes: null, clientes: null, ia: true },
     recursos: ['Movimentações ilimitadas', 'Clientes ilimitados', 'DAS', 'Calendário', 'Relatórios', 'Exportação']
@@ -21,28 +25,51 @@ export const PLANOS = {
   pro_anual: {
     id: 'pro_anual',
     nome: 'Plano Pro Anual',
-    preco: 358.8,
-    preco_equivalente_mensal: 29.9,
-    economia_anual: 120,
+    preco: 478.8,
     tipo_cobranca: 'anual',
     limites: { movimentacoes_mes: null, clientes: null, ia: true },
     recursos: ['Todos os recursos do Pro Mensal', 'Cobrança anual com desconto']
   }
 };
 
-function monthRange(referenceDate = new Date()) {
-  const date = referenceDate instanceof Date ? referenceDate : new Date(`${referenceDate}T00:00:00`);
-  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)).toISOString().slice(0, 10);
-  const end = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
-  return { start, end };
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
 }
 
-async function getActiveSubscription(userId) {
+function addDaysIso(days) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function diffDaysUntil(dateIso) {
+  if (!dateIso) return 0;
+  const today = new Date(`${todayIso()}T00:00:00Z`);
+  const target = new Date(`${dateIso}T00:00:00Z`);
+  return Math.max(0, Math.ceil((target - today) / 86400000));
+}
+
+function trialExpired(assinatura) {
+  return assinatura?.status === TRIAL_STATUS
+    && assinatura.data_vencimento
+    && assinatura.data_vencimento < todayIso();
+}
+
+function blockedPayload(assinatura, code = 'TRIAL_EXPIRED') {
+  return {
+    allowed: false,
+    error: 'Teste grátis expirado',
+    code,
+    redirectTo: '/pagamento.html',
+    assinatura
+  };
+}
+
+async function getLatestSubscription(userId) {
   const { data, error } = await supabaseAdmin
     .from('assinaturas')
     .select('*')
     .eq('user_id', userId)
-    .in('status', ['ativo', 'teste_gratis'])
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -51,17 +78,22 @@ async function getActiveSubscription(userId) {
   return data || null;
 }
 
-async function ensureFreeSubscription(userId) {
-  const active = await getActiveSubscription(userId);
-  if (active) return active;
+async function createTrialSubscription(userId) {
+  const existing = await getLatestSubscription(userId);
+  if (existing) return existing;
 
+  const trialEnd = addDaysIso(TRIAL_DAYS);
   const payload = {
     user_id: userId,
     plano: 'gratuito',
-    status: 'ativo',
+    status: TRIAL_STATUS,
     valor: 0,
     tipo_cobranca: 'mensal',
-    data_inicio: new Date().toISOString().slice(0, 10),
+    data_inicio: todayIso(),
+    data_vencimento: trialEnd,
+    data_trial_fim: trialEnd,
+    teste_gratis_usado: true,
+    bloqueado: false,
     renovacao_automatica: false
   };
 
@@ -71,65 +103,77 @@ async function ensureFreeSubscription(userId) {
     .select()
     .single();
 
-  if (error) throw new AppError('Erro ao criar assinatura gratuita.', 500, error.message);
+  if (error) throw new AppError('Erro ao criar assinatura de teste grátis.', 500, error.message);
   return data;
 }
 
-async function checkFeature(userId, feature, context = {}) {
-  const assinatura = await ensureFreeSubscription(userId);
-  const plano = PLANOS[assinatura.plano] || PLANOS.gratuito;
+async function ensureTrialSubscription(userId) {
+  const existing = await getLatestSubscription(userId);
+  if (existing) return existing;
+  return createTrialSubscription(userId);
+}
 
-  if (feature === 'ia' && !plano.limites.ia) {
-    return { allowed: false, reason: 'Relatórios com IA estão disponíveis apenas nos planos Pro.', plano: plano.id };
+async function markTrialExpired(assinatura) {
+  const { data, error } = await supabaseAdmin
+    .from('assinaturas')
+    .update({ status: 'vencido', bloqueado: true, renovacao_automatica: false })
+    .eq('id', assinatura.id)
+    .select()
+    .single();
+
+  if (error) throw new AppError('Erro ao atualizar assinatura vencida.', 500, error.message);
+  return data;
+}
+
+async function evaluateAccess(userId) {
+  let assinatura = await ensureTrialSubscription(userId);
+
+  if (trialExpired(assinatura)) {
+    assinatura = await markTrialExpired(assinatura);
+    return blockedPayload(assinatura);
   }
 
-  if (feature === 'movimentacoes') {
-    const limit = plano.limites.movimentacoes_mes;
-    if (limit === null) return { allowed: true, plano: plano.id };
-
-    const { start, end } = monthRange(context.data);
-    const { count, error } = await supabaseAdmin
-      .from('movimentacoes')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .gte('data', start)
-      .lte('data', end);
-
-    if (error) throw new AppError('Erro ao verificar limite de movimentações.', 500, error.message);
-    return {
-      allowed: count < limit,
-      reason: `O plano gratuito permite até ${limit} movimentações por mês.`,
-      plano: plano.id,
-      usado: count,
-      limite: limit
-    };
+  if (assinatura.status === 'ativo' && !assinatura.bloqueado) {
+    return { allowed: true, assinatura };
   }
 
-  if (feature === 'clientes') {
-    const limit = plano.limites.clientes;
-    if (limit === null) return { allowed: true, plano: plano.id };
-
-    const { count, error } = await supabaseAdmin
-      .from('clientes')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId);
-
-    if (error) throw new AppError('Erro ao verificar limite de clientes.', 500, error.message);
-    return {
-      allowed: count < limit,
-      reason: `O plano gratuito permite até ${limit} clientes.`,
-      plano: plano.id,
-      usado: count,
-      limite: limit
-    };
+  if (assinatura.status === TRIAL_STATUS && !assinatura.bloqueado) {
+    return { allowed: true, assinatura };
   }
 
-  return { allowed: true, plano: plano.id };
+  if (assinatura.bloqueado || BLOCKED_STATUSES.includes(assinatura.status)) {
+    return blockedPayload(assinatura, assinatura.status === 'vencido' ? 'TRIAL_EXPIRED' : 'SUBSCRIPTION_BLOCKED');
+  }
+
+  return { allowed: true, assinatura };
+}
+
+async function getSubscriptionStatus(userId) {
+  const access = await evaluateAccess(userId);
+  const assinatura = access.assinatura;
+
+  return {
+    plano: assinatura?.plano || 'gratuito',
+    status: assinatura?.status || TRIAL_STATUS,
+    bloqueado: !access.allowed || Boolean(assinatura?.bloqueado),
+    data_inicio: assinatura?.data_inicio || null,
+    data_vencimento: assinatura?.data_vencimento || null,
+    data_trial_fim: assinatura?.data_trial_fim || assinatura?.data_vencimento || null,
+    dias_restantes: assinatura?.status === TRIAL_STATUS ? diffDaysUntil(assinatura.data_vencimento) : 0
+  };
+}
+
+async function checkFeature(userId) {
+  return evaluateAccess(userId);
 }
 
 export const assinaturaService = {
   PLANOS,
-  getActiveSubscription,
-  ensureFreeSubscription,
+  TRIAL_DAYS,
+  TRIAL_STATUS,
+  createTrialSubscription,
+  ensureTrialSubscription,
+  evaluateAccess,
+  getSubscriptionStatus,
   checkFeature
 };

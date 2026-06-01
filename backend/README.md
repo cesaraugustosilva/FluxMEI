@@ -28,6 +28,12 @@ GEMINI_API_KEY=sua_gemini_api_key
 JWT_SECRET=opcional_para_integracoes_futuras
 AUTH_AUTO_CONFIRM_EMAIL=false
 ALLOW_SELF_MANAGED_SUBSCRIPTIONS=false
+MERCADO_PAGO_PUBLIC_KEY=sua_public_key_mercado_pago
+MERCADO_PAGO_ACCESS_TOKEN=seu_access_token_mercado_pago
+MERCADO_PAGO_BASE_URL=https://api.mercadopago.com
+MERCADO_PAGO_USE_SANDBOX=false
+MERCADO_PAGO_WEBHOOK_SECRET=seu_secret_do_webhook
+MERCADO_PAGO_NOTIFICATION_URL=https://seudominio.com/api/webhooks/mercado-pago
 ```
 
 Importante: `SUPABASE_SERVICE_ROLE_KEY` so deve ficar no backend.
@@ -86,6 +92,39 @@ Principais rotas:
 - `POST /api/relatorios/ia`
 - `GET /api/planos`
 - `GET /api/assinaturas`
+- `GET /api/assinaturas/status`
+- `POST /api/pagamentos/mercado-pago/criar-checkout`
+- `GET /api/pagamentos/mercado-pago/sincronizar?payment_id=ID`
+- `POST /api/webhooks/mercado-pago`
+
+## Teste Gratis E Bloqueio
+Ao cadastrar um usuario, o backend cria uma assinatura com `status = teste_gratis`, `plano = gratuito` e 7 dias de validade. O login continua funcionando depois do vencimento, mas rotas internas como movimentacoes, clientes, DAS, dashboard, calendario e relatorios retornam HTTP `402` quando a assinatura esta bloqueada.
+
+A rota `GET /api/assinaturas/status` retorna o estado atual para o frontend exibir avisos e redirecionar para `pagamento.html`.
+
+## Mercado Pago
+1. Configure as variaveis `MERCADO_PAGO_PUBLIC_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` e `MERCADO_PAGO_NOTIFICATION_URL`.
+2. No painel do Mercado Pago, cadastre o webhook de pagamentos apontando para:
+
+```text
+https://seudominio.com/api/webhooks/mercado-pago
+```
+
+Em testes locais reais, use uma URL publica temporaria, como ngrok, porque o Mercado Pago precisa acessar seu backend.
+
+Fluxo de teste:
+1. Criar usuario.
+2. Confirmar que `GET /api/assinaturas/status` mostra `teste_gratis`.
+3. Forcar vencimento no banco alterando `data_vencimento` para uma data passada.
+4. Acessar rota protegida e verificar HTTP `402`.
+5. Abrir `http://localhost:3002/pagamento.html`.
+6. Criar assinatura pela tela.
+7. Pagar pelo Checkout Pro ou enviar uma notificacao de teste do Mercado Pago.
+8. Confirmar que a assinatura ficou `ativo` e `bloqueado = false`.
+
+Quando o usuario volta do Checkout Pro com `payment_id` ou `collection_id` na URL,
+`pagamento.html` tambem chama a rota de sincronizacao para atualizar a assinatura
+em ambiente local, mesmo antes de configurar uma URL publica para webhook.
 
 ## Seguranca
 - Supabase Auth

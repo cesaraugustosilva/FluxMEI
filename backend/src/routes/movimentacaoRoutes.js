@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authMiddleware, requirePlanFeature } from '../middlewares/authMiddleware.js';
+import { authMiddleware, checkSubscriptionAccess } from '../middlewares/authMiddleware.js';
 import { asyncHandler } from '../middlewares/errorMiddleware.js';
 import {
   createMovimentacao,
@@ -12,7 +12,8 @@ import {
 const router = Router();
 
 router.use(authMiddleware);
-router.post('/', requirePlanFeature('movimentacoes'), asyncHandler(createMovimentacao));
+router.use(checkSubscriptionAccess);
+router.post('/', asyncHandler(createMovimentacao));
 router.get('/', asyncHandler(listMovimentacoes));
 router.get('/:id', asyncHandler(getMovimentacao));
 router.put('/:id', asyncHandler(updateMovimentacao));

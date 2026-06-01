@@ -4,18 +4,64 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FluxMEI — Controle Financeiro</title>
-  <link rel="stylesheet" href="style.css?v=20260523-1" />
+  <script>
+    (function () {
+      const key = 'fluxmei_theme';
+
+      function getTheme() {
+        return localStorage.getItem(key) === 'dark' ? 'dark' : 'light';
+      }
+
+      function syncButtons(theme) {
+        document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+          const nextTheme = theme === 'dark' ? 'claro' : 'escuro';
+          const label = theme === 'dark' ? 'Claro' : 'Escuro';
+          const text = button.querySelector('.theme-toggle-text');
+
+          button.dataset.activeTheme = theme;
+          button.setAttribute('aria-label', `Ativar modo ${nextTheme}`);
+          button.title = `Ativar modo ${nextTheme}`;
+          if (text) text.textContent = label;
+        });
+      }
+
+      window.applyFluxmeiTheme = function (theme) {
+        document.documentElement.dataset.theme = theme;
+        localStorage.setItem(key, theme);
+        syncButtons(theme);
+      };
+
+      window.toggleTheme = function () {
+        window.applyFluxmeiTheme(getTheme() === 'dark' ? 'light' : 'dark');
+      };
+
+      document.documentElement.dataset.theme = getTheme();
+      document.addEventListener('DOMContentLoaded', () => syncButtons(getTheme()));
+    }());
+  </script>
+  <link rel="stylesheet" href="style.css?v=20260523-17" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
+<div class="subscription-banner" id="subscriptionBanner" style="display:none"></div>
+<div class="subscription-lock" id="subscriptionLock" style="display:none">
+  <div class="subscription-lock-card">
+    <h2>Seu teste grátis terminou.</h2>
+    <p>Assine o FluxMEI para continuar usando.</p>
+    <a class="btn btn-primary" href="pagamento.html">Assinar agora</a>
+  </div>
+</div>
 
 <!-- SIDEBAR (Desktop) -->
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-brand">
-    <span class="brand-icon">⬡</span>
     <span class="brand-name">FluxMEI</span>
+    <button class="theme-toggle" type="button" data-theme-toggle aria-label="Ativar modo escuro">
+      <span class="theme-toggle-icon" aria-hidden="true"></span>
+      <span class="theme-toggle-text">Escuro</span>
+    </button>
   </div>
   <nav class="sidebar-nav">
     <a href="#" class="nav-item active" data-page="dashboard">
@@ -42,7 +88,7 @@
       <div class="user-avatar">M</div>
       <div class="user-info">
         <span class="user-name">FluxMEI</span>
-        <span class="user-plan">Plano Gratuito</span>
+        <span class="user-plan">Carregando plano...</span>
       </div>
     </div>
   </div>
@@ -54,9 +100,14 @@
     <span></span><span></span><span></span>
   </button>
   <div class="mobile-brand">
-    <span class="brand-icon">⬡</span> FluxMEI
+    <span>FluxMEI</span>
   </div>
-  <div class="mobile-header-right"></div>
+  <div class="mobile-header-right">
+    <button class="theme-toggle" type="button" data-theme-toggle aria-label="Ativar modo escuro">
+      <span class="theme-toggle-icon" aria-hidden="true"></span>
+      <span class="theme-toggle-text">Escuro</span>
+    </button>
+  </div>
 </header>
 
 <!-- MOBILE NAV OVERLAY -->
@@ -131,7 +182,7 @@
       <div class="kpi-card kpi-lucro">
         <div class="kpi-header">
           <span class="kpi-label">Resultado do Mês</span>
-          <span class="kpi-icon">⬡</span>
+          <span class="kpi-icon">◆</span>
         </div>
         <div class="kpi-value" id="kpiLucro">R$ 0,00</div>
         <div class="kpi-trend" id="kpiLucroLabel"></div>
@@ -257,14 +308,23 @@
   <section class="page" id="page-clientes">
     <div class="page-header">
       <div>
-        <h1 class="page-title">Clientes</h1>
-        <p class="page-subtitle">Sua carteira de clientes</p>
+        <h1 class="page-title">Agenda de Clientes</h1>
+        <p class="page-subtitle">Retornos, atendimentos e relacionamento</p>
       </div>
-      <button class="btn btn-primary" onclick="openModal('modalCliente')">+ Novo Cliente</button>
+      <button class="btn btn-primary" onclick="resetClienteForm(); openModal('modalCliente')">+ Novo Cliente</button>
     </div>
+    <div class="agenda-grid" id="clientesAgenda"></div>
     <div class="filter-bar">
-      <input type="text" id="buscaCliente" placeholder="Buscar cliente…" class="filter-input" />
+      <div class="filter-group">
+        <input type="text" id="buscaCliente" placeholder="Buscar cliente…" class="filter-input" />
+        <select id="ordemClientes" class="filter-select">
+          <option value="nome">Nome</option>
+          <option value="faturamento">Maior faturamento</option>
+          <option value="ultimo">Ultima movimentacao</option>
+        </select>
+      </div>
     </div>
+    <div class="agenda-section-title">Clientes cadastrados</div>
     <div class="clientes-grid" id="clientesGrid"></div>
     <div class="empty-state" id="clientesEmpty" style="display:none">Nenhum cliente cadastrado.</div>
   </section>
@@ -326,9 +386,18 @@
           <label class="form-label">Nome do Negócio</label>
           <input type="text" id="cfgNome" class="form-input" placeholder="Ex: João Silva ME" />
         </div>
-        <div class="form-group">
-          <label class="form-label">CNPJ</label>
-          <input type="text" id="cfgCnpj" class="form-input" placeholder="00.000.000/0001-00" />
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Tipo de documento</label>
+            <select id="cfgDocumentoTipo" class="form-input" onchange="updateDocumentoConfig()">
+              <option value="cpf">CPF</option>
+              <option value="cnpj">CNPJ</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" id="cfgDocumentoLabel">CPF</label>
+            <input type="text" id="cfgDocumento" class="form-input" placeholder="000.000.000-00" />
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">Ramo de Atividade</label>
@@ -352,12 +421,16 @@
         <div class="das-preview" id="dasPreview"></div>
       </div>
 
-      <div class="dash-card">
+      <div class="dash-card danger-zone">
         <div class="card-header"><h3>Dados</h3></div>
-        <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1rem;">Apague todos os dados para começar do zero.</p>
-        <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
-          <button class="btn btn-danger" onclick="limparTudo()">Apagar Tudo</button>
+        <div class="danger-zone-body">
+          <div class="danger-icon">!</div>
+          <div>
+            <strong>Zona de perigo</strong>
+            <p>Apague movimentacoes, clientes e lembretes para recomecar do zero.</p>
+          </div>
         </div>
+        <button class="btn btn-danger" onclick="limparTudo()">Apagar Tudo</button>
       </div>
     </div>
   </section>
@@ -371,13 +444,13 @@
   <div class="modal">
     <div class="modal-header">
       <h2 id="modalMovTitle">Nova Movimentação</h2>
-      <button class="modal-close" onclick="closeModal('modalMovimentacao')">✕</button>
+      <button class="modal-close" type="button" onclick="closeModal('modalMovimentacao')">✕</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="movId" />
       <div class="tipo-toggle">
-        <button class="tipo-btn active" id="btnEntrada" onclick="setTipo('entrada')">↑ Entrada</button>
-        <button class="tipo-btn" id="btnSaida" onclick="setTipo('saida')">↓ Saída</button>
+        <button class="tipo-btn active" id="btnEntrada" type="button" onclick="setTipo('entrada')">↑ Entrada</button>
+        <button class="tipo-btn" id="btnSaida" type="button" onclick="setTipo('saida')">↓ Saída</button>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -393,10 +466,23 @@
         <div class="form-group">
           <label class="form-label">Categoria *</label>
           <select id="movCategoria" class="form-input"></select>
+          <div class="category-create">
+            <input type="text" id="novaCategoria" class="form-input" placeholder="Nova categoria" />
+            <button class="btn btn-outline" type="button" onclick="criarCategoria()">+ Criar</button>
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">Data *</label>
           <input type="date" id="movData" class="form-input" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Cliente</label>
+        <select id="movCliente" class="form-input"></select>
+        <div class="inline-create">
+          <input type="text" id="movNovoClienteNome" class="form-input" placeholder="Novo cliente" />
+          <input type="text" id="movNovoClienteTel" class="form-input" placeholder="WhatsApp" />
+          <button class="btn btn-outline" type="button" onclick="criarClienteRapido()">+ Criar</button>
         </div>
       </div>
       <div class="form-group">
@@ -414,8 +500,8 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeModal('modalMovimentacao')">Cancelar</button>
-      <button class="btn btn-primary" onclick="salvarMovimentacao()">Salvar</button>
+      <button class="btn btn-outline" type="button" onclick="closeModal('modalMovimentacao')">Cancelar</button>
+      <button class="btn btn-primary" type="button" onclick="salvarMovimentacao()">Salvar</button>
     </div>
   </div>
 </div>
@@ -425,7 +511,7 @@
   <div class="modal">
     <div class="modal-header">
       <h2 id="modalClienteTitle">Novo Cliente</h2>
-      <button class="modal-close" onclick="closeModal('modalCliente')">✕</button>
+      <button class="modal-close" type="button" onclick="closeModal('modalCliente')">✕</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="clienteId" />
@@ -439,18 +525,43 @@
           <input type="text" id="clienteTel" class="form-input" placeholder="(11) 99999-9999" />
         </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">E-mail</label>
-        <input type="email" id="clienteEmail" class="form-input" placeholder="email@exemplo.com" />
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Servico / Produto <span class="label-optional">opcional</span></label>
+          <input type="text" id="clienteServico" class="form-input" placeholder="Ex: Consultoria mensal" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Tipo de compromisso <span class="label-optional">opcional</span></label>
+          <select id="clienteAgendaTipo" class="form-input">
+            <option value="">Sem agenda</option>
+            <option value="Retorno">Retorno</option>
+            <option value="Atendimento">Atendimento</option>
+            <option value="Reuniao">Reuniao</option>
+            <option value="Entrega">Entrega</option>
+            <option value="Cobranca">Cobranca</option>
+            <option value="Data importante">Data importante</option>
+            <option value="Outro">Outro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data do compromisso <span class="label-optional">opcional</span></label>
+          <input type="date" id="clienteAgendaData" class="form-input" />
+        </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Observação</label>
+        <label class="form-label">Detalhe da agenda <span class="label-optional">opcional</span></label>
+        <input type="text" id="clienteAgendaDescricao" class="form-input" placeholder="Ex: Confirmar orçamento, cobrar retorno, entregar pedido" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Observação <span class="label-optional">opcional</span></label>
         <textarea id="clienteObs" class="form-input" rows="3" placeholder="Detalhes sobre o cliente…"></textarea>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeModal('modalCliente')">Cancelar</button>
-      <button class="btn btn-primary" onclick="salvarCliente()">Salvar</button>
+      <button class="btn btn-outline" type="button" onclick="closeModal('modalCliente')">Cancelar</button>
+      <button class="btn btn-primary" type="button" onclick="salvarCliente()">Salvar</button>
     </div>
   </div>
 </div>
@@ -460,11 +571,31 @@
   <div class="modal">
     <div class="modal-header">
       <h2 id="modalDiaTitle">Movimentações do Dia</h2>
-      <button class="modal-close" onclick="closeModal('modalDia')">✕</button>
+      <button class="modal-close" type="button" onclick="closeModal('modalDia')">✕</button>
     </div>
     <div class="modal-body" id="modalDiaBody"></div>
     <div class="modal-footer">
-      <button class="btn btn-primary" onclick="closeModal('modalDia')">Fechar</button>
+      <button class="btn btn-primary" type="button" onclick="closeModal('modalDia')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Confirmacao -->
+<div class="modal-backdrop" id="modalConfirmacao">
+  <div class="modal modal-confirm">
+    <div class="modal-header">
+      <h2 id="confirmTitle">Confirmar acao</h2>
+      <button class="modal-close" type="button" id="confirmClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="confirm-visual">
+        <div class="confirm-icon">!</div>
+        <p id="confirmMessage"></p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" type="button" id="confirmCancel">Cancelar</button>
+      <button class="btn btn-danger" type="button" id="confirmAction">Confirmar</button>
     </div>
   </div>
 </div>
@@ -472,6 +603,6 @@
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=20260523-1"></script>
+<script src="app.js?v=20260526-2"></script>
 </body>
 </html>

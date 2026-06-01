@@ -93,7 +93,7 @@ export async function register(req, res) {
     .upsert(profilePayload, { onConflict: 'id' });
 
   if (profileError) throw new AppError('Usuário criado, mas houve erro ao salvar o perfil.', 500, profileError.message);
-  await assinaturaService.ensureFreeSubscription(data.user.id);
+  await assinaturaService.createTrialSubscription(data.user.id);
 
   res.status(201).json({
     user: data.user,
@@ -145,13 +145,13 @@ export async function me(req, res) {
     .maybeSingle();
 
   if (error) throw new AppError('Erro ao buscar perfil.', 500, error.message);
-  const assinatura = await assinaturaService.ensureFreeSubscription(req.user.id);
+  const assinatura = await assinaturaService.ensureTrialSubscription(req.user.id);
 
   res.json({ user: req.user, profile, assinatura });
 }
 
 export async function updateProfile(req, res) {
-  const allowed = ['nome', 'nome_negocio', 'cnpj', 'ramo', 'whatsapp', 'tipo_negocio'];
+  const allowed = ['nome', 'nome_negocio', 'cpf', 'cnpj', 'ramo', 'whatsapp', 'tipo_negocio'];
   const payload = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
 
   if (!Object.keys(payload).length) throw new AppError('Nenhum campo válido informado.');

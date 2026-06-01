@@ -24,11 +24,21 @@ export function requirePlanFeature(feature) {
   return async (req, res, next) => {
     try {
       const usage = await assinaturaService.checkFeature(req.user.id, feature, req.body || {});
-      if (!usage.allowed) throw new AppError(usage.reason, 403, usage);
+      if (!usage.allowed) {
+        return res.status(402).json({
+          error: usage.error || 'Teste grátis expirado',
+          code: usage.code || 'TRIAL_EXPIRED',
+          redirectTo: usage.redirectTo || '/pagamento.html'
+        });
+      }
       req.planUsage = usage;
       next();
     } catch (error) {
       next(error);
     }
   };
+}
+
+export function checkSubscriptionAccess(req, res, next) {
+  return requirePlanFeature('access')(req, res, next);
 }

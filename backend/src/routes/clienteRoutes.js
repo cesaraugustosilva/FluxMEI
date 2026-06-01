@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authMiddleware, requirePlanFeature } from '../middlewares/authMiddleware.js';
+import { authMiddleware, checkSubscriptionAccess } from '../middlewares/authMiddleware.js';
 import { asyncHandler } from '../middlewares/errorMiddleware.js';
 import {
   createCliente,
@@ -12,7 +12,8 @@ import {
 const router = Router();
 
 router.use(authMiddleware);
-router.post('/', requirePlanFeature('clientes'), asyncHandler(createCliente));
+router.use(checkSubscriptionAccess);
+router.post('/', asyncHandler(createCliente));
 router.get('/', asyncHandler(listClientes));
 router.get('/:id', asyncHandler(getCliente));
 router.put('/:id', asyncHandler(updateCliente));

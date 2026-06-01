@@ -26,11 +26,11 @@ function buildPayload(body, userId) {
     descricao: body.descricao,
     valor: body.valor,
     categoria: body.categoria,
-    forma_pagamento: body.forma_pagamento || null,
-    observacao: body.observacao || null,
     data: body.data
   };
 
+  if (body.forma_pagamento) payload.forma_pagamento = body.forma_pagamento;
+  if (body.observacao) payload.observacao = body.observacao;
   if (userId) payload.user_id = userId;
   Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
   return payload;
@@ -44,7 +44,7 @@ export async function createMovimentacao(req, res) {
     .select()
     .single();
 
-  if (error) throw new AppError('Erro ao criar movimentação.', 500, error.message);
+  if (error) throw new AppError(`Erro ao criar movimentacao: ${error.message}`, 500, error.message);
   res.status(201).json(data);
 }
 

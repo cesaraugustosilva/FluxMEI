@@ -7,19 +7,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="auth.css" />
+  <link rel="stylesheet" href="auth.css?v=20260524-1" />
 </head>
 <body>
   <main class="auth-shell">
     <section class="brand-panel" aria-label="FluxMEI">
-      <a class="brand-mark" href="../index.html" aria-label="FluxMEI">
-        <span class="brand-symbol">F</span>
-        <span>FluxMEI</span>
-      </a>
       <div class="brand-copy">
-        <p class="brand-kicker">Entrou, saiu, lucrou.</p>
-        <h1>FluxMEI</h1>
-        <p>O sistema financeiro inteligente para o seu MEI.</p>
+        <img class="brand-hero-logo" src="../assets/logo-transparente-fluxmei.png" alt="FluxMEI" />
+        <p>Organize. Controle. Faça fluir.</p>
       </div>
       <div class="brand-metrics" aria-hidden="true">
         <div>
@@ -38,14 +33,9 @@
     </section>
 
     <section class="form-panel">
-      <div class="mobile-logo" aria-hidden="true">
-        <span class="brand-symbol">F</span>
-        <span>FluxMEI</span>
-      </div>
-
       <form class="auth-card auth-card-wide" data-auth-form="register" novalidate>
         <div class="auth-heading">
-          <p class="eyebrow">Comece grátis</p>
+          <p class="eyebrow">7 dias grátis</p>
           <h2>Crie sua conta no FluxMEI</h2>
           <p>Organize seu MEI em poucos minutos.</p>
         </div>
@@ -94,19 +84,9 @@
 
         <label class="field">
           <span>Tipo de negócio</span>
-          <span class="input-wrap select-wrap">
+          <span class="input-wrap">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.75 4h12.5A2.75 2.75 0 0 1 21 6.75v10.5A2.75 2.75 0 0 1 18.25 20H5.75A2.75 2.75 0 0 1 3 17.25V6.75A2.75 2.75 0 0 1 5.75 4Zm0 1.5c-.69 0-1.25.56-1.25 1.25v10.5c0 .69.56 1.25 1.25 1.25h12.5c.69 0 1.25-.56 1.25-1.25V6.75c0-.69-.56-1.25-1.25-1.25H5.75Zm2 3h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Zm0 3h5.5a.75.75 0 0 1 0 1.5h-5.5a.75.75 0 0 1 0-1.5Z"/></svg>
-            <select name="businessType" required>
-              <option value="">Selecione uma opção</option>
-              <option>Prestador de Serviço</option>
-              <option>Beleza</option>
-              <option>Alimentação</option>
-              <option>Loja</option>
-              <option>Freelancer</option>
-              <option>Marketing</option>
-              <option>Tecnologia</option>
-              <option>Outro</option>
-            </select>
+            <input type="text" name="businessType" autocomplete="organization-title" placeholder="Ex: Barbearia, loja de roupas, manicure, manutenção" required />
           </span>
           <small class="field-error"></small>
         </label>
@@ -140,8 +120,8 @@
         </label>
         <small class="field-error terms-error"></small>
 
-        <button class="submit-btn" type="submit" data-default-text="Criar conta grátis" data-loading-text="Criando conta...">
-          Criar conta grátis
+        <button class="submit-btn" type="submit" data-default-text="Começar 7 dias grátis" data-loading-text="Criando conta...">
+          Começar 7 dias grátis
         </button>
 
         <p class="auth-switch">

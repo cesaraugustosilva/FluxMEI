@@ -15,6 +15,7 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   nome text not null,
   nome_negocio text,
+  cpf text,
   cnpj text,
   ramo text,
   whatsapp text,
@@ -24,6 +25,7 @@ create table if not exists public.profiles (
 );
 
 alter table public.profiles add column if not exists cnpj text;
+alter table public.profiles add column if not exists cpf text;
 alter table public.profiles add column if not exists ramo text;
 
 create table if not exists public.movimentacoes (
@@ -79,12 +81,19 @@ create table if not exists public.assinaturas (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   plano text not null default 'gratuito' check (plano in ('gratuito', 'pro_mensal', 'pro_anual')),
-  status text not null default 'ativo' check (status in ('ativo', 'pendente', 'vencido', 'cancelado', 'teste_gratis')),
+  status text not null default 'teste_gratis' check (status in ('ativo', 'pendente', 'vencido', 'cancelado', 'teste_gratis')),
   valor numeric(12,2) not null default 0,
   tipo_cobranca text not null default 'mensal' check (tipo_cobranca in ('mensal', 'anual')),
   data_inicio date not null default current_date,
-  data_vencimento date,
+  data_vencimento date default (current_date + 7),
+  data_trial_fim date default (current_date + 7),
+  teste_gratis_usado boolean not null default false,
+  bloqueado boolean not null default false,
   renovacao_automatica boolean not null default false,
+  mercado_pago_preference_id text,
+  mercado_pago_payment_id text,
+  mercado_pago_status text,
+  checkout_url text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -98,6 +107,8 @@ create index if not exists idx_das_user_vencimento on public.das(user_id, vencim
 create index if not exists idx_das_user_status on public.das(user_id, status);
 create index if not exists idx_relatorios_ia_user_created on public.relatorios_ia(user_id, created_at desc);
 create index if not exists idx_assinaturas_user_status on public.assinaturas(user_id, status);
+create index if not exists idx_assinaturas_mercado_pago_payment on public.assinaturas(mercado_pago_payment_id);
+create index if not exists idx_assinaturas_mercado_pago_preference on public.assinaturas(mercado_pago_preference_id);
 
 drop trigger if exists set_profiles_updated_at on public.profiles;
 create trigger set_profiles_updated_at before update on public.profiles

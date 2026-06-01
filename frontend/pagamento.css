@@ -1,0 +1,165 @@
+:root {
+  --green: #48d52f;
+  --green-2: #8eeb2b;
+  --bg: #030b0d;
+  --panel: rgba(8, 19, 21, 0.92);
+  --line: rgba(72, 213, 47, 0.22);
+  --text: #f7fff9;
+  --muted: #95aaa0;
+  --shadow: 0 28px 80px rgba(0,0,0,.42);
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 16% 12%, rgba(72, 213, 47, .20), transparent 28rem),
+    radial-gradient(circle at 82% 78%, rgba(142, 235, 43, .14), transparent 30rem),
+    linear-gradient(135deg, #010507 0%, var(--bg) 58%, #071416 100%);
+}
+
+a { color: var(--green); text-decoration: none; font-weight: 800; }
+
+.payment-shell {
+  width: min(1120px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 30px 0 56px;
+}
+
+.payment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.payment-header img {
+  width: 180px;
+  height: auto;
+}
+
+.payment-hero {
+  margin: 54px 0 28px;
+  max-width: 720px;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  color: var(--green);
+  font-size: .78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .12rem;
+}
+
+h1 {
+  margin: 0;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  font-size: clamp(2.4rem, 5vw, 4.8rem);
+  line-height: .96;
+}
+
+.payment-hero p:last-child {
+  max-width: 620px;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.plans {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.plan-card {
+  position: relative;
+  min-height: 430px;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.plan-card.featured {
+  border-color: rgba(72, 213, 47, .58);
+  background:
+    radial-gradient(circle at top right, rgba(72, 213, 47, .16), transparent 16rem),
+    var(--panel);
+}
+
+.badge {
+  display: inline-flex;
+  margin-bottom: 18px;
+  padding: 8px 11px;
+  border-radius: 999px;
+  background: var(--green);
+  color: #07120a;
+  font-size: .76rem;
+  font-weight: 900;
+}
+
+.plan-card h2 {
+  margin: 0 0 16px;
+  font-family: "Plus Jakarta Sans", sans-serif;
+}
+
+.plan-card strong {
+  display: block;
+  color: var(--green-2);
+  font-size: 2.4rem;
+  font-weight: 900;
+}
+
+.plan-card > span {
+  display: block;
+  margin: 4px 0 22px;
+  color: var(--muted);
+}
+
+.plan-card ul {
+  min-height: 120px;
+  margin: 0 0 24px;
+  padding-left: 20px;
+  color: #c9d8d0;
+  line-height: 1.8;
+}
+
+.plan-card button {
+  width: 100%;
+  min-height: 52px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--green), var(--green-2));
+  color: #06120a;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+}
+
+.plan-card button:disabled {
+  opacity: .62;
+  cursor: wait;
+}
+
+.payment-alert {
+  display: none;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-weight: 800;
+}
+
+.payment-alert.show { display: block; }
+.payment-alert.error { background: #3d1b1d; color: #ffb4ad; }
+.payment-alert.success { background: #12351d; color: var(--green-2); }
+
+@media (max-width: 760px) {
+  .payment-header { align-items: flex-start; flex-direction: column; }
+  .plans { grid-template-columns: 1fr; }
+}

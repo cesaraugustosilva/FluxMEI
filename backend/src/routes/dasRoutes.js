@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import { authMiddleware } from '../middlewares/authMiddleware.js';
+import { authMiddleware, checkSubscriptionAccess } from '../middlewares/authMiddleware.js';
 import { asyncHandler } from '../middlewares/errorMiddleware.js';
 import { createDas, deleteDas, listDas, pagarDas, updateDas } from '../controllers/dasController.js';
 
 const router = Router();
 
 router.use(authMiddleware);
+router.use(checkSubscriptionAccess);
 router.post('/', asyncHandler(createDas));
 router.get('/', asyncHandler(listDas));
 router.put('/:id', asyncHandler(updateDas));
