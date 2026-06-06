@@ -16,7 +16,7 @@ const API_URLS = resolveApiUrls();
 
 function clearSessionAndRedirect() {
   localStorage.removeItem(TOKEN_KEY);
-  window.location.href = '../auth/login.html';
+  window.location.href = '../../auth/login/index.html';
 }
 
 function showAlert(message, type = 'error') {
@@ -41,7 +41,7 @@ function getReturnMessage(status) {
 async function apiRequest(path, options = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) {
-    window.location.href = '../auth/login.html';
+    window.location.href = '../../auth/login/index.html';
     throw new Error('Faça login para continuar.');
   }
 
@@ -124,7 +124,7 @@ async function syncReturnedPayment() {
       showAlert('Pagamento aprovado. Seu acesso Pro foi liberado.', 'success');
       window.history.replaceState({}, document.title, window.location.pathname);
       setTimeout(() => {
-        window.location.href = 'index.html';
+        window.location.href = '../index.html';
       }, 1500);
       return;
     }

@@ -49,9 +49,9 @@ function getBackUrls(req) {
   if (!baseUrl) return null;
 
   return {
-    success: `${baseUrl}/pagamento.html?status=success`,
-    failure: `${baseUrl}/pagamento.html?status=failure`,
-    pending: `${baseUrl}/pagamento.html?status=pending`
+    success: `${baseUrl}/app/payment/index.html?status=success`,
+    failure: `${baseUrl}/app/payment/index.html?status=failure`,
+    pending: `${baseUrl}/app/payment/index.html?status=pending`
   };
 }
 

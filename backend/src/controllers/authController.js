@@ -70,7 +70,7 @@ export async function register(req, res) {
   const { email, password, nome, nome_negocio, whatsapp, tipo_negocio } = req.body;
   const metadata = { nome, nome_negocio, whatsapp, tipo_negocio };
   const autoConfirmEmail = shouldAutoConfirmEmail();
-  const redirectTo = `${getFrontendUrl()}/auth/login.html`;
+  const redirectTo = `${getFrontendUrl()}/auth/login/index.html`;
   const { data, error } = autoConfirmEmail
     ? await supabaseAdmin.auth.admin.createUser({
         email,
@@ -180,7 +180,7 @@ export async function updateProfile(req, res) {
 export async function resetPassword(req, res) {
   requireFields(req.body, ['email']);
 
-  const redirectTo = req.body.redirect_to || `${getFrontendUrl()}/auth/nova-senha.html`;
+  const redirectTo = req.body.redirect_to || `${getFrontendUrl()}/auth/recovery/nova-senha.html`;
   const { error } = await supabase.auth.resetPasswordForEmail(req.body.email, { redirectTo });
 
   if (error) throw new AppError(error.message, 400);

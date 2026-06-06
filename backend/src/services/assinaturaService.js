@@ -60,7 +60,7 @@ function blockedPayload(assinatura, code = 'TRIAL_EXPIRED') {
     allowed: false,
     error: 'Teste grátis expirado',
     code,
-    redirectTo: '/pagamento.html',
+    redirectTo: '/app/payment/index.html',
     assinatura
   };
 }

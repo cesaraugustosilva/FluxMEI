@@ -331,7 +331,7 @@ async function handleLogin(form) {
   try {
     await login(payload);
     showAlert(form, 'Login realizado com sucesso.', 'success');
-    window.location.href = '../painel/index.html';
+    window.location.href = '../../app/index.html';
   } catch (error) {
     showAlert(form, error.message || AUTH_MESSAGES.loginError, 'error');
   } finally {
@@ -368,7 +368,7 @@ async function handleRegister(form) {
     form.querySelectorAll('.field').forEach((field) => field.classList.remove('has-error', 'is-valid'));
     setTermsError(form, '');
     window.setTimeout(() => {
-      window.location.href = 'login.html';
+      window.location.href = '../login/index.html';
     }, 900);
   } catch (error) {
     showAlert(form, error.message || 'Não foi possível criar sua conta agora.', 'error');
@@ -412,7 +412,7 @@ async function handleNewPassword(form) {
     await updatePassword(getField(form, 'password').value);
     showAlert(form, 'Senha atualizada com sucesso.', 'success');
     window.setTimeout(() => {
-      window.location.href = 'login.html';
+      window.location.href = '../login/index.html';
     }, 900);
   } catch (error) {
     showAlert(form, error.message || 'NÃ£o foi possÃ­vel atualizar a senha agora.', 'error');

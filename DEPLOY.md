@@ -11,10 +11,9 @@ Este guia prepara o FluxMEI para:
 ## Estrutura
 
 - Frontend estatico: `frontend`
-- Entrada principal: `frontend/index.html`, que redireciona para `frontend/landing/index.html`
-- Landing page: `frontend/landing`
-- Aplicativo autenticado: `frontend/painel`
-- Atalhos de compatibilidade: `frontend/app.html` e `frontend/pagamento.html`
+- Entrada principal: `frontend/index.html`, que redireciona para `frontend/landing-page/index.html`
+- Landing page: `frontend/landing-page`
+- Aplicativo autenticado: `frontend/app`
 - Backend Express: `backend`
 - Entrada do backend: `backend/src/server.js`
 - Script de producao do backend: `npm start`
@@ -113,10 +112,10 @@ Auth:
 - Redirect URLs:
 
 ```text
-https://seudominio.com/auth/login.html
-https://seudominio.com/auth/nova-senha.html
-https://www.seudominio.com/auth/login.html
-https://www.seudominio.com/auth/nova-senha.html
+https://seudominio.com/auth/login/index.html
+https://seudominio.com/auth/recovery/nova-senha.html
+https://www.seudominio.com/auth/login/index.html
+https://www.seudominio.com/auth/recovery/nova-senha.html
 ```
 
 RLS:
@@ -144,7 +143,7 @@ MERCADO_PAGO_WEBHOOK_SECRET=seu_secret_do_webhook
 
 Fluxo esperado:
 
-1. Usuario acessa `https://seudominio.com/pagamento.html`.
+1. Usuario acessa `https://seudominio.com/app/payment/index.html`.
 2. Frontend chama `https://api.seudominio.com/api/pagamentos/mercado-pago/criar-checkout`.
 3. Backend cria a preferencia no Mercado Pago.
 4. Usuario paga no Checkout Pro.

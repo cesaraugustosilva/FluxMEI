@@ -100,7 +100,7 @@ Principais rotas:
 ## Teste Gratis E Bloqueio
 Ao cadastrar um usuario, o backend cria uma assinatura com `status = teste_gratis`, `plano = gratuito` e 7 dias de validade. O login continua funcionando depois do vencimento, mas rotas internas como movimentacoes, clientes, DAS, dashboard, calendario e relatorios retornam HTTP `402` quando a assinatura esta bloqueada.
 
-A rota `GET /api/assinaturas/status` retorna o estado atual para o frontend exibir avisos e redirecionar para `pagamento.html`.
+A rota `GET /api/assinaturas/status` retorna o estado atual para o frontend exibir avisos e redirecionar para `app/payment/index.html`.
 
 ## Mercado Pago
 1. Configure as variaveis `MERCADO_PAGO_PUBLIC_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` e `MERCADO_PAGO_NOTIFICATION_URL`.
@@ -117,13 +117,13 @@ Fluxo de teste:
 2. Confirmar que `GET /api/assinaturas/status` mostra `teste_gratis`.
 3. Forcar vencimento no banco alterando `data_vencimento` para uma data passada.
 4. Acessar rota protegida e verificar HTTP `402`.
-5. Abrir `http://localhost:3002/pagamento.html`.
+5. Abrir `http://localhost:3002/app/payment/index.html`.
 6. Criar assinatura pela tela.
 7. Pagar pelo Checkout Pro ou enviar uma notificacao de teste do Mercado Pago.
 8. Confirmar que a assinatura ficou `ativo` e `bloqueado = false`.
 
 Quando o usuario volta do Checkout Pro com `payment_id` ou `collection_id` na URL,
-`pagamento.html` tambem chama a rota de sincronizacao para atualizar a assinatura
+`app/payment/index.html` tambem chama a rota de sincronizacao para atualizar a assinatura
 em ambiente local, mesmo antes de configurar uma URL publica para webhook.
 
 ## Seguranca
