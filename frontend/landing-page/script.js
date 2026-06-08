@@ -1,6 +1,11 @@
 const header = document.querySelector('[data-header]');
 const menuToggle = document.querySelector('[data-menu-toggle]');
 const nav = document.querySelector('[data-nav]');
+const TOKEN_KEY = 'fluxmei_access_token';
+const INTENT_KEY = 'fluxmei_intent';
+const PLAN_KEY = 'fluxmei_subscribe_plan';
+const SUBSCRIBE_INTENT = 'subscribe';
+const DEFAULT_PLAN = 'pro_mensal';
 
 function updateHeaderState() {
   header?.classList.toggle('is-scrolled', window.scrollY > 18);
@@ -19,8 +24,65 @@ nav?.querySelectorAll('a').forEach((link) => {
   });
 });
 
+function showLandingAlert(message, type = 'error') {
+  const alert = document.querySelector('[data-landing-alert]');
+  if (!alert) return;
+
+  alert.textContent = message;
+  alert.className = `landing-alert show ${type}`;
+}
+
+function getPaymentUrl(plan = DEFAULT_PLAN) {
+  const url = new URL('../app/payment/index.html', window.location.href);
+  url.searchParams.set('intent', SUBSCRIBE_INTENT);
+  url.searchParams.set('plan', plan);
+  return url.href;
+}
+
+function getRegisterUrl(plan = DEFAULT_PLAN) {
+  const url = new URL('../auth/cadastro/index.html', window.location.href);
+  url.searchParams.set('intent', SUBSCRIBE_INTENT);
+  url.searchParams.set('plan', plan);
+  return url.href;
+}
+
+function saveSubscribeIntent(plan = DEFAULT_PLAN) {
+  localStorage.setItem(INTENT_KEY, SUBSCRIBE_INTENT);
+  localStorage.setItem(PLAN_KEY, plan);
+}
+
+function handleSubscribeClick(event) {
+  const button = event.currentTarget;
+  const plan = button.dataset.subscribePlan || DEFAULT_PLAN;
+  saveSubscribeIntent(plan);
+
+  if (localStorage.getItem(TOKEN_KEY)) {
+    button.disabled = true;
+    button.textContent = 'Abrindo pagamento...';
+    window.location.href = getPaymentUrl(plan);
+    return;
+  }
+
+  showLandingAlert('Crie sua conta ou entre para continuar a assinatura com segurança.', 'success');
+  window.location.href = getRegisterUrl(plan);
+}
+
+function bindConversionLinks() {
+  document.querySelectorAll('[data-trial-link]').forEach((link) => {
+    link.addEventListener('click', () => {
+      localStorage.removeItem(INTENT_KEY);
+      localStorage.removeItem(PLAN_KEY);
+    });
+  });
+
+  document.querySelectorAll('[data-subscribe-plan]').forEach((button) => {
+    button.addEventListener('click', handleSubscribeClick);
+  });
+}
+
 window.addEventListener('scroll', updateHeaderState, { passive: true });
 updateHeaderState();
+bindConversionLinks();
 
 // Scroll reveal with graceful fallback for older browsers.
 const revealItems = document.querySelectorAll('.reveal');

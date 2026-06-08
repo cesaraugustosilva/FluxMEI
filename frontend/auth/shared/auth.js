@@ -24,6 +24,10 @@ function resolveApiUrls() {
 const API_URLS = resolveApiUrls();
 const TOKEN_KEY = 'fluxmei_access_token';
 const USER_KEY = 'fluxmei_user';
+const INTENT_KEY = 'fluxmei_intent';
+const PLAN_KEY = 'fluxmei_subscribe_plan';
+const SUBSCRIBE_INTENT = 'subscribe';
+const DEFAULT_SUBSCRIBE_PLAN = 'pro_mensal';
 
 function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
@@ -316,6 +320,52 @@ async function logout() {
   return true;
 }
 
+function captureIntentFromUrl() {
+  const query = new URLSearchParams(window.location.search);
+  if (query.get('intent') !== SUBSCRIBE_INTENT) return;
+
+  const plan = query.get('plan') || DEFAULT_SUBSCRIBE_PLAN;
+  localStorage.setItem(INTENT_KEY, SUBSCRIBE_INTENT);
+  localStorage.setItem(PLAN_KEY, plan);
+}
+
+function hasSubscribeIntent() {
+  return localStorage.getItem(INTENT_KEY) === SUBSCRIBE_INTENT;
+}
+
+function getSubscribePlan() {
+  return localStorage.getItem(PLAN_KEY) || DEFAULT_SUBSCRIBE_PLAN;
+}
+
+function getPaymentIntentUrl() {
+  const url = new URL('../../app/payment/index.html', window.location.href);
+  url.searchParams.set('intent', SUBSCRIBE_INTENT);
+  url.searchParams.set('plan', getSubscribePlan());
+  return url.href;
+}
+
+function getLoginIntentUrl() {
+  const url = new URL('../login/index.html', window.location.href);
+  url.searchParams.set('intent', SUBSCRIBE_INTENT);
+  url.searchParams.set('plan', getSubscribePlan());
+  return url.href;
+}
+
+function redirectAfterAuth(defaultUrl) {
+  window.location.href = hasSubscribeIntent() ? getPaymentIntentUrl() : defaultUrl;
+}
+
+function decorateIntentLinks() {
+  if (!hasSubscribeIntent()) return;
+
+  document.querySelectorAll('a[href*="../login/index.html"], a[href*="../cadastro/index.html"]').forEach((link) => {
+    const url = new URL(link.getAttribute('href'), window.location.href);
+    url.searchParams.set('intent', SUBSCRIBE_INTENT);
+    url.searchParams.set('plan', getSubscribePlan());
+    link.href = url.href;
+  });
+}
+
 async function handleLogin(form) {
   if (!validateLogin(form)) return;
 
@@ -331,7 +381,7 @@ async function handleLogin(form) {
   try {
     await login(payload);
     showAlert(form, 'Login realizado com sucesso.', 'success');
-    window.location.href = '../../app/index.html';
+    redirectAfterAuth('../../app/index.html');
   } catch (error) {
     showAlert(form, error.message || AUTH_MESSAGES.loginError, 'error');
   } finally {
@@ -368,7 +418,7 @@ async function handleRegister(form) {
     form.querySelectorAll('.field').forEach((field) => field.classList.remove('has-error', 'is-valid'));
     setTermsError(form, '');
     window.setTimeout(() => {
-      window.location.href = '../login/index.html';
+      window.location.href = hasSubscribeIntent() ? getLoginIntentUrl() : '../login/index.html';
     }, 900);
   } catch (error) {
     showAlert(form, error.message || 'Não foi possível criar sua conta agora.', 'error');
@@ -495,9 +545,11 @@ function bindForms() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  captureIntentFromUrl();
   if (document.querySelector('[data-auth-form="new-password"]')) saveTokenFromUrl();
   bindPasswordToggles();
   bindForms();
+  decorateIntentLinks();
 });
 
 window.FluxMEIAuth = {

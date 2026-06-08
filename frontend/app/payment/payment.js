@@ -1,6 +1,10 @@
 'use strict';
 
 const TOKEN_KEY = 'fluxmei_access_token';
+const INTENT_KEY = 'fluxmei_intent';
+const PLAN_KEY = 'fluxmei_subscribe_plan';
+const SUBSCRIBE_INTENT = 'subscribe';
+const DEFAULT_PLAN = 'pro_mensal';
 
 function normalizeApiUrl(url) {
   return String(url || '').replace(/\/$/, '');
@@ -16,7 +20,12 @@ const API_URLS = resolveApiUrls();
 
 function clearSessionAndRedirect() {
   localStorage.removeItem(TOKEN_KEY);
-  window.location.href = '../../auth/login/index.html';
+  const url = new URL('../../auth/login/index.html', window.location.href);
+  if (hasSubscribeIntent()) {
+    url.searchParams.set('intent', SUBSCRIBE_INTENT);
+    url.searchParams.set('plan', getSubscribePlan());
+  }
+  window.location.href = url.href;
 }
 
 function showAlert(message, type = 'error') {
@@ -38,10 +47,41 @@ function getReturnMessage(status) {
   return messages[status] || null;
 }
 
+function captureIntentFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('intent') !== SUBSCRIBE_INTENT) return;
+
+  localStorage.setItem(INTENT_KEY, SUBSCRIBE_INTENT);
+  localStorage.setItem(PLAN_KEY, params.get('plan') || DEFAULT_PLAN);
+}
+
+function hasSubscribeIntent() {
+  return localStorage.getItem(INTENT_KEY) === SUBSCRIBE_INTENT;
+}
+
+function getSubscribePlan() {
+  return localStorage.getItem(PLAN_KEY) || DEFAULT_PLAN;
+}
+
+function clearSubscribeIntent() {
+  localStorage.removeItem(INTENT_KEY);
+  localStorage.removeItem(PLAN_KEY);
+}
+
+function hasMercadoPagoReturnParams() {
+  const params = new URLSearchParams(window.location.search);
+  return Boolean(
+    params.get('status')
+    || params.get('collection_status')
+    || params.get('payment_id')
+    || params.get('collection_id')
+  );
+}
+
 async function apiRequest(path, options = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) {
-    window.location.href = '../../auth/login/index.html';
+    clearSessionAndRedirect();
     throw new Error('Faça login para continuar.');
   }
 
@@ -88,6 +128,8 @@ async function apiRequest(path, options = {}) {
 }
 
 async function subscribe(plan, button) {
+  if (!button) return;
+
   button.disabled = true;
   button.textContent = 'Criando pagamento...';
 
@@ -99,10 +141,11 @@ async function subscribe(plan, button) {
 
     showAlert(data.message || 'Pagamento criado com sucesso.', 'success');
     if (data.checkout_url) {
+      clearSubscribeIntent();
       window.location.href = data.checkout_url;
     }
   } catch (error) {
-    showAlert(error.message || 'Não foi possível criar o pagamento.');
+    showAlert(error.message || 'Não foi possível criar o pagamento. Tente novamente em instantes.');
   } finally {
     button.disabled = false;
     button.textContent = 'Assinar agora';
@@ -141,9 +184,16 @@ async function syncReturnedPayment() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  captureIntentFromUrl();
   syncReturnedPayment();
 
   document.querySelectorAll('[data-plan]').forEach((button) => {
     button.addEventListener('click', () => subscribe(button.dataset.plan, button));
   });
+
+  if (hasSubscribeIntent() && !hasMercadoPagoReturnParams()) {
+    const plan = getSubscribePlan();
+    const button = document.querySelector(`[data-plan="${plan}"]`) || document.querySelector('[data-plan]');
+    subscribe(plan, button);
+  }
 });

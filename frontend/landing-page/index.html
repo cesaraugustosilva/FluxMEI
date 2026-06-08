@@ -38,13 +38,14 @@
       <a href="#inicio">Início</a>
       <a href="#funcionalidades">Funcionalidades</a>
       <a href="#beneficios">Benefícios</a>
+      <a href="#comece">Começar</a>
       <a href="#planos">Plano</a>
       <a href="#faq">FAQ</a>
     </nav>
 
     <div class="header-actions">
       <a class="btn btn-ghost" href="../auth/login/index.html">Entrar</a>
-      <a class="btn btn-primary" href="../auth/cadastro/index.html">Começar 7 dias grátis</a>
+      <a class="btn btn-primary" href="../auth/cadastro/index.html" data-trial-link>Começar 7 dias grátis</a>
     </div>
   </header>
 
@@ -59,7 +60,8 @@
             O FluxMEI ajuda microempreendedores a controlar entradas, saídas, clientes, DAS e relatórios financeiros em uma plataforma simples, moderna e segura.
           </p>
           <div class="hero-actions">
-            <a class="btn btn-primary btn-lg" href="../auth/cadastro/index.html">Começar 7 dias grátis</a>
+            <a class="btn btn-primary btn-lg" href="../auth/cadastro/index.html" data-trial-link>Começar 7 dias grátis</a>
+            <a class="btn btn-ghost btn-lg" href="#comece">Escolher como começar</a>
             <a class="btn btn-ghost btn-lg" href="#funcionalidades">Ver funcionalidades</a>
           </div>
           <div class="hero-proof">
@@ -121,6 +123,45 @@
             </div>
           </div>
         </div>
+      </div>
+    </section>
+
+    <section class="section start-options" id="comece">
+      <div class="section-inner">
+        <div class="section-heading reveal">
+          <p class="eyebrow">Escolha como começar</p>
+          <h2>Teste antes ou assine agora, no seu ritmo</h2>
+          <p>Você pode experimentar o FluxMEI por 7 dias ou ir direto para a assinatura Pro e começar com acesso completo imediatamente.</p>
+        </div>
+
+        <div class="start-grid">
+          <article class="start-card reveal">
+            <span class="start-label">Teste grátis</span>
+            <h3>R$ 0 por 7 dias</h3>
+            <p>Experimente todas as funcionalidades antes de assinar.</p>
+            <ul>
+              <li>Acesso completo</li>
+              <li>Sem compromisso</li>
+              <li>Ideal para conhecer a plataforma</li>
+            </ul>
+            <a class="btn btn-primary" href="../auth/cadastro/index.html" data-trial-link>Começar teste grátis</a>
+          </article>
+
+          <article class="start-card start-featured reveal">
+            <span class="start-label">Assinar agora</span>
+            <h3>R$ 49,90/mês</h3>
+            <p>Comece com acesso completo imediatamente.</p>
+            <ul>
+              <li>Acesso completo imediato</li>
+              <li>Sem esperar o fim do teste</li>
+              <li>Ideal para quem já quer organizar o MEI hoje</li>
+            </ul>
+            <button class="btn btn-primary" type="button" data-subscribe-plan="pro_mensal">Assinar agora</button>
+            <small class="start-note">Pagamento seguro via Mercado Pago.</small>
+          </article>
+        </div>
+
+        <div class="landing-alert" data-landing-alert role="status" aria-live="polite"></div>
       </div>
     </section>
 
@@ -221,7 +262,7 @@
             <h3>Plano Pro Mensal</h3>
             <strong>R$ 49,90/mês</strong>
             <ul><li>7 dias grátis para testar</li><li>Recursos completos</li><li>Relatórios inteligentes</li><li>Gestão de clientes</li><li>Controle de DAS</li></ul>
-            <a class="btn btn-primary" href="../auth/cadastro/index.html">Começar 7 dias grátis</a>
+            <a class="btn btn-primary" href="../auth/cadastro/index.html" data-trial-link>Começar 7 dias grátis</a>
           </article>
           <article class="plan-card plan-featured reveal">
             <span class="plan-badge">Melhor valor</span>
@@ -229,7 +270,7 @@
             <strong>R$ 39,90/mês</strong>
             <p>cobrança anual de R$ 478,80</p>
             <ul><li>7 dias grátis para testar</li><li>Todos os recursos do mensal</li><li>Valor reduzido no anual</li><li>Ideal para organizar o ano todo</li></ul>
-            <a class="btn btn-primary" href="../auth/cadastro/index.html">Começar 7 dias grátis</a>
+            <button class="btn btn-primary" type="button" data-subscribe-plan="pro_anual">Assinar anual</button>
           </article>
         </div>
       </div>
@@ -257,7 +298,8 @@
         <h2>Pronto para organizar seu MEI?</h2>
         <p>Comece a controlar seu financeiro com uma plataforma simples, moderna e feita para microempreendedores.</p>
         <div class="hero-actions">
-          <a class="btn btn-primary btn-lg" href="../auth/cadastro/index.html">Começar 7 dias grátis</a>
+          <a class="btn btn-primary btn-lg" href="../auth/cadastro/index.html" data-trial-link>Começar teste grátis</a>
+          <button class="btn btn-ghost btn-lg" type="button" data-subscribe-plan="pro_mensal">Assinar agora</button>
         </div>
       </div>
     </section>
@@ -300,6 +342,7 @@
     <p class="copyright">© 2026 FluxMEI. Todos os direitos reservados.</p>
   </footer>
 
+  <script src="/env.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
