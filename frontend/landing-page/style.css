@@ -724,6 +724,40 @@ details p,
   color: var(--green);
 }
 
+.annual-price {
+  display: grid;
+  gap: 6px;
+  margin: 14px 0 14px;
+}
+
+.annual-price .old-price {
+  width: max-content;
+  color: var(--muted-2);
+  font-size: 0.96rem;
+  font-weight: 800;
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  text-decoration-color: var(--danger);
+}
+
+.annual-price strong {
+  color: var(--green);
+  font-family: var(--display);
+  font-size: 1.65rem;
+  line-height: 1;
+}
+
+.annual-price small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.annual-highlight {
+  margin: 0 0 18px;
+  color: var(--text);
+  line-height: 1.6;
+}
+
 .plan-card ul {
   min-height: 160px;
   padding-left: 20px;
