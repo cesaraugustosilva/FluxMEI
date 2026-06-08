@@ -676,7 +676,7 @@ details p,
   gap: 10px;
 }
 
-.start-options {
+.plans {
   background:
     radial-gradient(circle at 22% 40%, rgba(124, 255, 49, 0.12), transparent 24rem),
     linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent);
@@ -788,6 +788,15 @@ details p,
   border-color: rgba(124, 255, 49, 0.28);
   color: var(--text);
   background: rgba(124, 255, 49, 0.10);
+}
+
+.plans-subheading {
+  max-width: 760px;
+  margin: 64px 0 24px;
+}
+
+.plans-subheading h3 {
+  font-size: clamp(1.45rem, 3vw, 2.15rem);
 }
 
 .plans-grid {
