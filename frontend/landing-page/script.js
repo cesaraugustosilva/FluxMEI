@@ -33,14 +33,14 @@ function showLandingAlert(message, type = 'error') {
 }
 
 function getPaymentUrl(plan = DEFAULT_PLAN) {
-  const url = new URL('../app/payment/index.html', window.location.href);
+  const url = new URL('/pagamento', window.location.href);
   url.searchParams.set('intent', SUBSCRIBE_INTENT);
   url.searchParams.set('plan', plan);
   return url.href;
 }
 
 function getRegisterUrl(plan = DEFAULT_PLAN) {
-  const url = new URL('../auth/cadastro/index.html', window.location.href);
+  const url = new URL('/cadastro', window.location.href);
   url.searchParams.set('intent', SUBSCRIBE_INTENT);
   url.searchParams.set('plan', plan);
   return url.href;

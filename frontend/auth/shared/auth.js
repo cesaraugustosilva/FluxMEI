@@ -345,14 +345,14 @@ function getSubscribePlan() {
 }
 
 function getPaymentIntentUrl() {
-  const url = new URL('../../app/payment/index.html', window.location.href);
+  const url = new URL('/pagamento', window.location.href);
   url.searchParams.set('intent', SUBSCRIBE_INTENT);
   url.searchParams.set('plan', getSubscribePlan());
   return url.href;
 }
 
 function getLoginIntentUrl() {
-  const url = new URL('../login/index.html', window.location.href);
+  const url = new URL('/login', window.location.href);
   url.searchParams.set('intent', SUBSCRIBE_INTENT);
   url.searchParams.set('plan', getSubscribePlan());
   return url.href;
@@ -365,7 +365,7 @@ function redirectAfterAuth(defaultUrl) {
 function decorateIntentLinks() {
   if (!hasSubscribeIntent()) return;
 
-  document.querySelectorAll('a[href*="../login/index.html"], a[href*="../cadastro/index.html"]').forEach((link) => {
+  document.querySelectorAll('a[href="/login"], a[href="/cadastro"]').forEach((link) => {
     const url = new URL(link.getAttribute('href'), window.location.href);
     url.searchParams.set('intent', SUBSCRIBE_INTENT);
     url.searchParams.set('plan', getSubscribePlan());
@@ -388,7 +388,7 @@ async function handleLogin(form) {
   try {
     await login(payload);
     showAlert(form, 'Login realizado com sucesso.', 'success');
-    redirectAfterAuth('../../app/index.html');
+    redirectAfterAuth('/painel');
   } catch (error) {
     showAlert(form, error.message || AUTH_MESSAGES.loginError, 'error');
   } finally {
@@ -425,7 +425,7 @@ async function handleRegister(form) {
     form.querySelectorAll('.field').forEach((field) => field.classList.remove('has-error', 'is-valid'));
     setTermsError(form, '');
     window.setTimeout(() => {
-      window.location.href = hasSubscribeIntent() ? getLoginIntentUrl() : '../login/index.html';
+      window.location.href = hasSubscribeIntent() ? getLoginIntentUrl() : '/login';
     }, 900);
   } catch (error) {
     showAlert(form, error.message || 'Não foi possível criar sua conta agora.', 'error');
@@ -469,7 +469,7 @@ async function handleNewPassword(form) {
     await updatePassword(getField(form, 'password').value);
     showAlert(form, 'Senha atualizada com sucesso.', 'success');
     window.setTimeout(() => {
-      window.location.href = '../login/index.html';
+      window.location.href = '/login';
     }, 900);
   } catch (error) {
     showAlert(form, error.message || 'NÃ£o foi possÃ­vel atualizar a senha agora.', 'error');

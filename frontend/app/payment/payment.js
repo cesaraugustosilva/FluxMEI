@@ -20,7 +20,7 @@ const API_URLS = resolveApiUrls();
 
 function clearSessionAndRedirect() {
   localStorage.removeItem(TOKEN_KEY);
-  const url = new URL('../../auth/login/index.html', window.location.href);
+  const url = new URL('/login', window.location.href);
   if (hasSubscribeIntent()) {
     url.searchParams.set('intent', SUBSCRIBE_INTENT);
     url.searchParams.set('plan', getSubscribePlan());
@@ -167,7 +167,7 @@ async function syncReturnedPayment() {
       showAlert('Pagamento aprovado. Seu acesso Pro foi liberado.', 'success');
       window.history.replaceState({}, document.title, window.location.pathname);
       setTimeout(() => {
-        window.location.href = '../index.html';
+        window.location.href = '/painel';
       }, 1500);
       return;
     }
