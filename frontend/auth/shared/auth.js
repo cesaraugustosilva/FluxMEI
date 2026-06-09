@@ -344,6 +344,10 @@ function getSubscribePlan() {
   return localStorage.getItem(PLAN_KEY) || DEFAULT_SUBSCRIBE_PLAN;
 }
 
+function getSubscribePlanLabel() {
+  return getSubscribePlan() === 'pro_anual' ? 'Plano Pro Anual' : 'Plano Pro Mensal';
+}
+
 function getPaymentIntentUrl() {
   const url = new URL('../../app/payment/index.html', window.location.href);
   url.searchParams.set('intent', SUBSCRIBE_INTENT);
@@ -371,6 +375,28 @@ function decorateIntentLinks() {
     url.searchParams.set('plan', getSubscribePlan());
     link.href = url.href;
   });
+}
+
+function applySubscribeIntentCopy() {
+  if (!hasSubscribeIntent()) return;
+
+  const planLabel = getSubscribePlanLabel();
+  const eyebrow = document.querySelector('[data-register-eyebrow]');
+  const title = document.querySelector('[data-register-title]');
+  const subtitle = document.querySelector('[data-register-subtitle]');
+  const submit = document.querySelector('[data-register-submit]');
+  const registerLink = document.querySelector('[data-register-link]');
+
+  if (eyebrow) eyebrow.textContent = 'Assinatura direta';
+  if (title) title.textContent = `Criar conta para assinar o ${planLabel}`;
+  if (subtitle) subtitle.textContent = 'Depois do cadastro/login, você será levado ao checkout do Mercado Pago.';
+
+  if (submit) {
+    submit.dataset.defaultText = 'Continuar para pagamento';
+    submit.textContent = 'Continuar para pagamento';
+  }
+
+  if (registerLink) registerLink.textContent = 'Criar conta para assinar';
 }
 
 async function handleLogin(form) {
@@ -557,6 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindPasswordToggles();
   bindForms();
   decorateIntentLinks();
+  applySubscribeIntentCopy();
 });
 
 window.FluxMEIAuth = {
