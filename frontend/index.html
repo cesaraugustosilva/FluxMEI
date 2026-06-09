@@ -20,14 +20,12 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <title>FluxMEI</title>
   <script>
-    if (window.location.pathname.endsWith('/index.html')) {
-      const target = new URL('/', window.location.href);
-      target.hash = window.location.hash;
-      window.location.replace(target.href);
-    }
+    const target = new URL('landing-page/index.html', window.location.href);
+    target.hash = window.location.hash;
+    window.location.replace(target.href);
   </script>
 </head>
 <body>
-  <p><a href="/">Ir para o FluxMEI</a></p>
+  <p><a href="landing-page/index.html">Ir para o FluxMEI</a></p>
 </body>
 </html>

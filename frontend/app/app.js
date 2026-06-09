@@ -125,7 +125,7 @@ function getToken() {
 async function apiRequest(path, options = {}) {
   const token = getToken();
   if (!token) {
-    window.location.href = '/login';
+    window.location.href = '../auth/login/index.html';
     throw new Error('Faça login para continuar.');
   }
 
@@ -161,7 +161,7 @@ async function apiRequest(path, options = {}) {
 
   if (response.status === 401) {
     localStorage.removeItem(TOKEN_KEY);
-    window.location.href = '/login';
+    window.location.href = '../auth/login/index.html';
     throw new Error('Sessão expirada.');
   }
 
@@ -169,7 +169,7 @@ async function apiRequest(path, options = {}) {
     showSubscriptionLock(data || {});
     const error = new Error(data?.error || 'Teste grátis expirado');
     error.code = data?.code || 'TRIAL_EXPIRED';
-    error.redirectTo = data?.redirectTo || '/pagamento';
+    error.redirectTo = data?.redirectTo || '/app/payment/index.html';
     throw error;
   }
 
@@ -239,7 +239,7 @@ function showSubscriptionLock(payload = {}) {
   const banner = document.getElementById('subscriptionBanner');
   if (banner) banner.style.display = 'none';
   if (lock) lock.style.display = 'grid';
-  if (payload.redirectTo && window.location.pathname !== '/pagamento') {
+  if (payload.redirectTo && !window.location.pathname.endsWith('/app/payment/index.html')) {
     // Keep the user on the current screen with the modal; the CTA handles navigation.
   }
 }
