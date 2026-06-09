@@ -268,11 +268,7 @@ function renderSubscriptionNotice(status) {
   }
 
   if (estado === 'ativo') {
-    if (bannerTitle) bannerTitle.textContent = 'Assinatura ativa';
-    if (bannerText) bannerText.textContent = status.mensagem || 'Seu acesso ao FluxMEI esta liberado.';
-    banner.className = 'subscription-banner active';
-    if (bannerAction) bannerAction.style.display = 'none';
-    banner.style.display = 'flex';
+    banner.style.display = 'none';
     return;
   }
 
@@ -328,7 +324,7 @@ function getAccountStatusMeta(status = subscriptionStatus) {
   const estado = status?.estado || status?.status || 'teste_gratis';
   const dias = Number(status?.dias_restantes || 0);
 
-  if (estado === 'ativo') return { label: 'Plano ativo', className: 'active' };
+  if (estado === 'ativo') return { label: 'Plano liberado', className: 'active' };
   if (estado === 'pendente_pagamento' || estado === 'pendente') return { label: 'Pagamento pendente', className: 'pending' };
   if (estado === 'expirado' || estado === 'vencido' || estado === 'bloqueado') return { label: 'Teste gratis expirado', className: 'blocked' };
   if (estado === 'teste_gratis' && dias <= 2) return { label: 'Teste termina em breve', className: 'warning' };
@@ -365,9 +361,11 @@ function renderAccountPanel() {
   badge.textContent = statusMeta.label;
   badge.className = `account-status-badge ${statusMeta.className}`;
 
-  const statusText = status.mensagem || (estado === 'teste_gratis'
-    ? `Faltam ${dias} dia(s) para o fim do teste.`
-    : 'Acompanhe seu plano e assinatura por aqui.');
+  const statusText = estado === 'ativo'
+    ? 'Acesso completo habilitado.'
+    : (status.mensagem || (estado === 'teste_gratis'
+      ? `Faltam ${dias} dia(s) para o fim do teste.`
+      : 'Acompanhe seu plano e assinatura por aqui.'));
   document.getElementById('accountStatusText').textContent = statusText;
 
   const plansRoot = document.getElementById('accountPlans');

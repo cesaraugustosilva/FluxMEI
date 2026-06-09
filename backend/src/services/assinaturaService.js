@@ -89,7 +89,7 @@ function statusMessage(estado, diasRestantes = 0) {
   }
 
   if (estado === 'ativo') {
-    return 'Assinatura ativa. Seu acesso ao FluxMEI esta liberado.';
+    return 'Acesso completo habilitado.';
   }
 
   return 'Sua assinatura nao esta ativa. Escolha um plano para continuar usando o FluxMEI.';
