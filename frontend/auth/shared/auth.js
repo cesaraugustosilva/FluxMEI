@@ -440,6 +440,14 @@ async function handleRegister(form) {
 
   try {
     const data = await register(payload);
+
+    if (hasSubscribeIntent() && !data.email_confirmation_required) {
+      showAlert(form, 'Conta criada. Abrindo checkout...', 'success');
+      await login({ email: payload.email, password: payload.password });
+      redirectAfterAuth('../../app/index.html');
+      return;
+    }
+
     showAlert(
       form,
       data.email_confirmation_required
