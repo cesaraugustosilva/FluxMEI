@@ -284,16 +284,23 @@ async function login(payload) {
 }
 
 async function register(payload) {
+  const body = {
+    nome: payload.fullName,
+    nome_negocio: payload.businessName,
+    email: payload.email,
+    whatsapp: payload.whatsapp,
+    tipo_negocio: payload.businessType,
+    password: payload.password
+  };
+
+  if (hasSubscribeIntent()) {
+    body.subscription_intent = SUBSCRIBE_INTENT;
+    body.plano = getSubscribePlan();
+  }
+
   return apiRequest('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({
-      nome: payload.fullName,
-      nome_negocio: payload.businessName,
-      email: payload.email,
-      whatsapp: payload.whatsapp,
-      tipo_negocio: payload.businessType,
-      password: payload.password
-    })
+    body: JSON.stringify(body)
   });
 }
 

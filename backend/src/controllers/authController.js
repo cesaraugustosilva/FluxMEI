@@ -49,6 +49,18 @@ function requireFields(body, fields) {
   if (missing.length) throw new AppError(`Campos obrigatórios: ${missing.join(', ')}.`);
 }
 
+function isDirectSubscriptionIntent(body) {
+  return body.subscription_intent === 'subscribe';
+}
+
+function getDirectSubscriptionPlan(body) {
+  const plano = body.plano || 'pro_mensal';
+  if (!assinaturaService.PLANOS[plano] || plano === 'gratuito') {
+    throw new AppError('Plano invalido.');
+  }
+  return plano;
+}
+
 export async function updatePassword(req, res) {
   requireFields(req.body, ['password']);
 
@@ -68,6 +80,9 @@ export async function register(req, res) {
   requireFields(req.body, ['email', 'password', 'nome', 'whatsapp', 'tipo_negocio']);
 
   const { email, password, nome, nome_negocio, whatsapp, tipo_negocio } = req.body;
+  const directSubscriptionPlan = isDirectSubscriptionIntent(req.body)
+    ? getDirectSubscriptionPlan(req.body)
+    : null;
   const metadata = { nome, nome_negocio, whatsapp, tipo_negocio };
   const autoConfirmEmail = shouldAutoConfirmEmail();
   const redirectTo = `${getFrontendUrl()}/auth/login/index.html`;
@@ -103,7 +118,11 @@ export async function register(req, res) {
     .upsert(profilePayload, { onConflict: 'id' });
 
   if (profileError) throw new AppError('Usuário criado, mas houve erro ao salvar o perfil.', 500, profileError.message);
-  await assinaturaService.createTrialSubscription(data.user.id);
+  if (isDirectSubscriptionIntent(req.body)) {
+    await assinaturaService.createPendingSubscription(data.user.id, directSubscriptionPlan);
+  } else {
+    await assinaturaService.createTrialSubscription(data.user.id);
+  }
 
   res.status(201).json({
     user: data.user,

@@ -100,8 +100,8 @@ async function updateAssinaturaById(assinaturaId, payload) {
   return data;
 }
 
-async function ensureUserSubscription(userId) {
-  return await getLatestSubscription(userId) || await assinaturaService.createTrialSubscription(userId);
+async function ensureUserSubscription(userId, planId) {
+  return await getLatestSubscription(userId) || await assinaturaService.createPendingSubscription(userId, planId);
 }
 
 function getCheckoutUrl(preference) {
@@ -118,7 +118,7 @@ export async function criarCheckoutMercadoPago(req, res) {
   if (!plan || !PLANOS[plano]) throw new AppError('Plano invalido.');
 
   const profile = await getProfile(req.user.id);
-  const assinatura = await ensureUserSubscription(req.user.id);
+  const assinatura = await ensureUserSubscription(req.user.id, plano);
 
   const preference = await mercadoPagoService.criarPreferencia({
     plan,

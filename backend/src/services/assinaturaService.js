@@ -107,6 +107,37 @@ async function createTrialSubscription(userId) {
   return data;
 }
 
+async function createPendingSubscription(userId, planId = 'pro_mensal') {
+  const existing = await getLatestSubscription(userId);
+  if (existing) return existing;
+
+  const plano = PLANOS[planId];
+  if (!plano || planId === 'gratuito') throw new AppError('Plano invalido.');
+
+  const payload = {
+    user_id: userId,
+    plano: planId,
+    status: 'pendente',
+    valor: plano.preco,
+    tipo_cobranca: plano.tipo_cobranca,
+    data_inicio: todayIso(),
+    data_vencimento: null,
+    data_trial_fim: null,
+    teste_gratis_usado: false,
+    bloqueado: true,
+    renovacao_automatica: false
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from('assinaturas')
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) throw new AppError('Erro ao criar assinatura pendente.', 500, error.message);
+  return data;
+}
+
 async function ensureTrialSubscription(userId) {
   const existing = await getLatestSubscription(userId);
   if (existing) return existing;
@@ -172,6 +203,7 @@ export const assinaturaService = {
   TRIAL_DAYS,
   TRIAL_STATUS,
   createTrialSubscription,
+  createPendingSubscription,
   ensureTrialSubscription,
   evaluateAccess,
   getSubscriptionStatus,
