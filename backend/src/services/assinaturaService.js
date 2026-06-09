@@ -4,6 +4,7 @@ import { AppError } from '../middlewares/errorMiddleware.js';
 const TRIAL_DAYS = 7;
 const TRIAL_STATUS = 'teste_gratis';
 const BLOCKED_STATUSES = ['pendente', 'vencido', 'cancelado'];
+const PAYMENT_URL = '/app/payment/index.html';
 
 export const PLANOS = {
   gratuito: {
@@ -49,18 +50,59 @@ function diffDaysUntil(dateIso) {
   return Math.max(0, Math.ceil((target - today) / 86400000));
 }
 
+function getTrialEndDate(assinatura) {
+  return assinatura?.data_trial_fim || assinatura?.data_vencimento || null;
+}
+
 function trialExpired(assinatura) {
+  const trialEnd = getTrialEndDate(assinatura);
   return assinatura?.status === TRIAL_STATUS
-    && assinatura.data_vencimento
-    && assinatura.data_vencimento < todayIso();
+    && trialEnd
+    && trialEnd < todayIso();
+}
+
+function getSubscriptionState(assinatura, allowed = true) {
+  if (!assinatura) return TRIAL_STATUS;
+  if (assinatura.status === 'ativo' && !assinatura.bloqueado) return 'ativo';
+  if (assinatura.status === TRIAL_STATUS && !assinatura.bloqueado && allowed) return TRIAL_STATUS;
+  if (assinatura.status === 'pendente') return 'pendente_pagamento';
+  if (assinatura.status === 'vencido') return 'expirado';
+  if (assinatura.bloqueado || assinatura.status === 'cancelado') return 'bloqueado';
+  return assinatura.status || 'bloqueado';
+}
+
+function statusMessage(estado, diasRestantes = 0) {
+  if (estado === TRIAL_STATUS && diasRestantes <= 2) {
+    return 'Seu teste gratis termina em breve. Assine agora para continuar usando sem interrupcoes.';
+  }
+
+  if (estado === TRIAL_STATUS) {
+    return `Voce esta no teste gratis do FluxMEI. Faltam ${diasRestantes} dia(s) para o fim do teste.`;
+  }
+
+  if (estado === 'expirado') {
+    return 'Seu teste gratis acabou. Para continuar usando o FluxMEI e acessar seus dados, escolha um plano.';
+  }
+
+  if (estado === 'pendente_pagamento') {
+    return 'Sua assinatura esta aguardando confirmacao de pagamento.';
+  }
+
+  if (estado === 'ativo') {
+    return 'Assinatura ativa. Seu acesso ao FluxMEI esta liberado.';
+  }
+
+  return 'Sua assinatura nao esta ativa. Escolha um plano para continuar usando o FluxMEI.';
 }
 
 function blockedPayload(assinatura, code = 'TRIAL_EXPIRED') {
+  const estado = getSubscriptionState(assinatura, false);
   return {
     allowed: false,
-    error: 'Teste grátis expirado',
+    error: statusMessage(estado),
     code,
-    redirectTo: '/app/payment/index.html',
+    estado,
+    redirectTo: PAYMENT_URL,
     assinatura
   };
 }
@@ -182,15 +224,25 @@ async function evaluateAccess(userId) {
 async function getSubscriptionStatus(userId) {
   const access = await evaluateAccess(userId);
   const assinatura = access.assinatura;
+  const trialEnd = getTrialEndDate(assinatura);
+  const diasRestantes = assinatura?.status === TRIAL_STATUS ? diffDaysUntil(trialEnd) : 0;
+  const estado = getSubscriptionState(assinatura, access.allowed);
 
   return {
     plano: assinatura?.plano || 'gratuito',
     status: assinatura?.status || TRIAL_STATUS,
+    estado,
+    ativo: estado === 'ativo',
+    allowed: access.allowed,
     bloqueado: !access.allowed || Boolean(assinatura?.bloqueado),
     data_inicio: assinatura?.data_inicio || null,
     data_vencimento: assinatura?.data_vencimento || null,
-    data_trial_fim: assinatura?.data_trial_fim || assinatura?.data_vencimento || null,
-    dias_restantes: assinatura?.status === TRIAL_STATUS ? diffDaysUntil(assinatura.data_vencimento) : 0
+    data_trial_fim: trialEnd,
+    teste_gratis_usado: Boolean(assinatura?.teste_gratis_usado),
+    dias_restantes: diasRestantes,
+    aviso_urgente: estado === TRIAL_STATUS && diasRestantes <= 2,
+    mensagem: statusMessage(estado, diasRestantes),
+    cta_url: PAYMENT_URL
   };
 }
 

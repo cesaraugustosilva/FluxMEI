@@ -28,6 +28,7 @@ export function requirePlanFeature(feature) {
         return res.status(402).json({
           error: usage.error || 'Teste grátis expirado',
           code: usage.code || 'TRIAL_EXPIRED',
+          estado: usage.estado || 'bloqueado',
           redirectTo: usage.redirectTo || '/app/payment/index.html'
         });
       }

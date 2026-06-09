@@ -60,12 +60,22 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
-<div class="subscription-banner" id="subscriptionBanner" style="display:none"></div>
+<div class="subscription-banner" id="subscriptionBanner" style="display:none">
+  <div>
+    <strong id="subscriptionBannerTitle">Teste gratis ativo</strong>
+    <span id="subscriptionBannerText"></span>
+  </div>
+  <a class="btn btn-primary btn-sm" href="payment/index.html" id="subscriptionBannerAction">Assinar agora</a>
+</div>
 <div class="subscription-lock" id="subscriptionLock" style="display:none">
   <div class="subscription-lock-card">
-    <h2>Seu teste grátis terminou.</h2>
-    <p>Assine o FluxMEI para continuar usando.</p>
-    <a class="btn btn-primary" href="payment/index.html">Assinar agora</a>
+    <h2 id="subscriptionLockTitle">Seu teste gratis acabou</h2>
+    <p id="subscriptionLockText">Para continuar usando o FluxMEI e acessar seus dados, escolha um plano.</p>
+    <div class="subscription-lock-actions">
+      <a class="btn btn-primary" href="payment/index.html">Assinar agora</a>
+      <button class="btn btn-outline" type="button" data-open-account-settings>Configuracoes da conta</button>
+      <button class="btn btn-outline" type="button" data-logout>Sair</button>
+    </div>
   </div>
 </div>
 
@@ -99,13 +109,13 @@
     </a>
   </nav>
   <div class="sidebar-footer">
-    <div class="sidebar-user">
+    <button class="sidebar-user" type="button" id="accountMenuButton" aria-haspopup="dialog" aria-controls="accountModal">
       <div class="user-avatar">M</div>
       <div class="user-info">
         <span class="user-name">FluxMEI</span>
         <span class="user-plan">Carregando plano...</span>
       </div>
-    </div>
+    </button>
   </div>
 </aside>
 
@@ -593,6 +603,47 @@
       <button class="btn btn-primary" type="button" onclick="closeModal('modalDia')">Fechar</button>
     </div>
   </div>
+</div>
+
+<!-- Modal Conta e Plano -->
+<div class="account-modal-backdrop" id="accountModal" aria-hidden="true">
+  <section class="account-modal" role="dialog" aria-modal="true" aria-labelledby="accountModalTitle">
+    <header class="account-modal-header">
+      <div>
+        <p class="eyebrow">Minha conta</p>
+        <h2 id="accountModalTitle">Conta e plano</h2>
+      </div>
+      <button class="modal-close" type="button" id="accountModalClose" aria-label="Fechar">x</button>
+    </header>
+
+    <div class="account-summary">
+      <div class="account-avatar user-avatar">M</div>
+      <div>
+        <strong id="accountName">FluxMEI</strong>
+        <span id="accountEmail">email@exemplo.com</span>
+      </div>
+    </div>
+
+    <section class="account-current-plan">
+      <div>
+        <span>Plano atual</span>
+        <strong id="accountCurrentPlan">Carregando...</strong>
+      </div>
+      <span class="account-status-badge" id="accountStatusBadge">Status</span>
+    </section>
+    <p class="account-status-text" id="accountStatusText"></p>
+
+    <section>
+      <div class="account-section-title">Planos disponiveis</div>
+      <div class="account-plans" id="accountPlans"></div>
+    </section>
+
+    <footer class="account-actions">
+      <a class="btn btn-primary" href="payment/index.html" id="accountSubscribeAction">Assinar agora</a>
+      <a class="btn btn-outline" href="payment/index.html" id="accountManageAction">Gerenciar plano</a>
+      <button class="btn btn-outline" type="button" data-logout>Sair</button>
+    </footer>
+  </section>
 </div>
 
 <!-- Modal Confirmacao -->

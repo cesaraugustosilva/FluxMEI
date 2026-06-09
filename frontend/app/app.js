@@ -25,13 +25,41 @@ const DASHBOARD_MONTH_KEY = 'fluxmei_dashboard_mes';
 const CUSTOM_CATEGORIES_KEY = 'fluxmei_custom_categories';
 const MOV_CLIENT_LINKS_KEY = 'fluxmei_mov_client_links';
 const THEME_KEY = 'fluxmei_theme';
+const DEFAULT_ACCOUNT_PLANS = [
+  {
+    id: 'gratuito',
+    nome: 'Teste gratis',
+    preco: 0,
+    priceLabel: 'R$ 0 por 7 dias',
+    description: 'Ideal para conhecer a plataforma.',
+    recursos: ['Acesso completo', '7 dias de teste', 'Nao renovavel']
+  },
+  {
+    id: 'pro_mensal',
+    nome: 'Plano Pro Mensal',
+    preco: 49.9,
+    priceLabel: 'R$ 49,90 por mes',
+    description: 'Acesso completo para organizar o financeiro do MEI.',
+    recursos: ['Controle financeiro', 'DAS', 'Metas', 'Relatorios']
+  },
+  {
+    id: 'pro_anual',
+    nome: 'Plano Pro Anual',
+    preco: 478.8,
+    priceLabel: 'R$ 478,80 por ano',
+    description: 'Mesmo acesso completo com economia no ano.',
+    recursos: ['Controle financeiro', 'DAS', 'Metas', 'Relatorios']
+  }
+];
 
 // ===== STATE =====
 let state = {
   movimentacoes: [],
   clientes: [],
   das: [],
+  user: null,
   profile: null,
+  planos: DEFAULT_ACCOUNT_PLANS,
   config: { nome: '', cpf: '', cnpj: '', ramo: '', dasDia: '', dasValor: '' }
 };
 
@@ -200,50 +228,210 @@ function renderSubscriptionNotice(status) {
   subscriptionStatus = status;
   updateSidebarUser();
   const banner = document.getElementById('subscriptionBanner');
+  const bannerTitle = document.getElementById('subscriptionBannerTitle');
+  const bannerText = document.getElementById('subscriptionBannerText');
+  const bannerAction = document.getElementById('subscriptionBannerAction');
   const lock = document.getElementById('subscriptionLock');
+  const lockTitle = document.getElementById('subscriptionLockTitle');
+  const lockText = document.getElementById('subscriptionLockText');
   if (!banner || !lock || !status) return;
 
-  if (status.bloqueado || status.status === 'vencido') {
+  const estado = status.estado || status.status;
+  const isBlocked = status.bloqueado || ['expirado', 'bloqueado', 'pendente_pagamento', 'vencido', 'pendente'].includes(estado);
+
+  if (isBlocked) {
     banner.style.display = 'none';
+    if (lockTitle) lockTitle.textContent = estado === 'pendente_pagamento' ? 'Pagamento pendente' : 'Seu teste gratis acabou';
+    if (lockText) {
+      lockText.textContent = status.mensagem || 'Seu teste gratis acabou. Para continuar usando o FluxMEI e acessar seus dados, escolha um plano.';
+    }
     lock.style.display = 'grid';
     return;
   }
 
   lock.style.display = 'none';
 
-  if (status.status === 'teste_gratis') {
+  if (estado === 'teste_gratis') {
     const dias = Number(status.dias_restantes || 0);
-    banner.textContent = dias <= 2
-      ? `Seu teste grátis termina em ${dias} dia(s).`
-      : `Você está no teste grátis. Restam ${dias} dias.`;
+    if (bannerTitle) bannerTitle.textContent = dias <= 2 ? 'Seu teste gratis termina em breve' : 'Teste gratis ativo';
+    if (bannerText) {
+      bannerText.textContent = status.mensagem || (
+        dias <= 2
+          ? 'Assine agora para continuar usando sem interrupcoes.'
+          : `Voce esta no teste gratis do FluxMEI. Faltam ${dias} dia(s) para o fim do teste.`
+      );
+    }
     banner.className = `subscription-banner${dias <= 2 ? ' warning' : ''}`;
-    banner.style.display = 'block';
-  } else {
-    banner.style.display = 'none';
+    if (bannerAction) bannerAction.style.display = '';
+    banner.style.display = 'flex';
+    return;
   }
-}
 
+  if (estado === 'ativo') {
+    if (bannerTitle) bannerTitle.textContent = 'Assinatura ativa';
+    if (bannerText) bannerText.textContent = status.mensagem || 'Seu acesso ao FluxMEI esta liberado.';
+    banner.className = 'subscription-banner active';
+    if (bannerAction) bannerAction.style.display = 'none';
+    banner.style.display = 'flex';
+    return;
+  }
+
+  banner.style.display = 'none';
+}
 function getPlanLabel(status = subscriptionStatus) {
   const plano = status?.plano || 'gratuito';
   const statusAtual = status?.status || '';
+  const estado = status?.estado || statusAtual;
 
-  if (statusAtual === 'teste_gratis' || plano === 'gratuito') return 'Teste gratis';
+  if (estado === 'pendente_pagamento') return 'Pagamento pendente';
+  if (estado === 'expirado' || estado === 'bloqueado') return 'Teste expirado';
+  if (estado === 'teste_gratis' || plano === 'gratuito') return 'Teste gratis';
   if (plano === 'pro_anual' || plano === 'anual') return 'Plano Pro Anual';
   if (plano === 'pro_mensal' || plano === 'mensal') return 'Plano Pro Mensal';
-  if (statusAtual === 'ativo') return 'Plano Pro';
+  if (estado === 'ativo') return 'Plano Pro';
   return 'Plano gratuito';
+}
+
+function formatPlanPrice(plan) {
+  if (plan.priceLabel) return plan.priceLabel;
+  const preco = Number(plan.preco || 0);
+  if (!preco) return 'R$ 0 por 7 dias';
+  const suffix = plan.tipo_cobranca === 'anual' ? 'por ano' : 'por mes';
+  return `${formatBRL(preco)} ${suffix}`;
+}
+
+function normalizePlan(plan) {
+  const fallback = DEFAULT_ACCOUNT_PLANS.find((item) => item.id === plan.id) || {};
+  return {
+    ...fallback,
+    ...plan,
+    priceLabel: plan.priceLabel || formatPlanPrice({ ...fallback, ...plan }),
+    description: plan.description || fallback.description || 'Acesso completo ao FluxMEI.',
+    recursos: plan.recursos || fallback.recursos || []
+  };
+}
+
+async function loadAvailablePlans() {
+  try {
+    const planos = await apiRequest('/assinaturas/planos');
+    if (Array.isArray(planos) && planos.length) {
+      state.planos = planos.map(normalizePlan);
+      return;
+    }
+  } catch {
+    // Keep local fallback plans when the public plans endpoint is unavailable.
+  }
+  state.planos = DEFAULT_ACCOUNT_PLANS;
+}
+
+function getAccountStatusMeta(status = subscriptionStatus) {
+  const estado = status?.estado || status?.status || 'teste_gratis';
+  const dias = Number(status?.dias_restantes || 0);
+
+  if (estado === 'ativo') return { label: 'Plano ativo', className: 'active' };
+  if (estado === 'pendente_pagamento' || estado === 'pendente') return { label: 'Pagamento pendente', className: 'pending' };
+  if (estado === 'expirado' || estado === 'vencido' || estado === 'bloqueado') return { label: 'Teste gratis expirado', className: 'blocked' };
+  if (estado === 'teste_gratis' && dias <= 2) return { label: 'Teste termina em breve', className: 'warning' };
+  if (estado === 'teste_gratis') return { label: 'Teste gratis ativo', className: 'active' };
+  return { label: 'Status indisponivel', className: 'blocked' };
+}
+
+function getCurrentPlanId(status = subscriptionStatus) {
+  const estado = status?.estado || status?.status;
+  if (estado === 'teste_gratis' || status?.plano === 'gratuito') return 'gratuito';
+  return status?.plano || 'gratuito';
+}
+
+function renderAccountPanel() {
+  const nome = state.profile?.nome || state.config.nome || state.user?.user_metadata?.nome || 'Usuario FluxMEI';
+  const email = state.user?.email || 'Email nao informado';
+  const status = subscriptionStatus || {};
+  const currentPlanId = getCurrentPlanId(status);
+  const currentPlan = state.planos.find((plan) => plan.id === currentPlanId) || state.planos[0];
+  const statusMeta = getAccountStatusMeta(status);
+  const estado = status.estado || status.status;
+  const dias = Number(status.dias_restantes || 0);
+  const isActive = estado === 'ativo';
+  const isPending = estado === 'pendente_pagamento' || estado === 'pendente';
+
+  document.getElementById('accountName').textContent = nome;
+  document.getElementById('accountEmail').textContent = email;
+  document.querySelectorAll('.account-avatar').forEach((avatar) => {
+    avatar.textContent = nome.charAt(0).toUpperCase();
+  });
+  document.getElementById('accountCurrentPlan').textContent = currentPlan?.nome || getPlanLabel(status);
+
+  const badge = document.getElementById('accountStatusBadge');
+  badge.textContent = statusMeta.label;
+  badge.className = `account-status-badge ${statusMeta.className}`;
+
+  const statusText = status.mensagem || (estado === 'teste_gratis'
+    ? `Faltam ${dias} dia(s) para o fim do teste.`
+    : 'Acompanhe seu plano e assinatura por aqui.');
+  document.getElementById('accountStatusText').textContent = statusText;
+
+  const plansRoot = document.getElementById('accountPlans');
+  plansRoot.innerHTML = state.planos.map((plan) => {
+    const selected = plan.id === currentPlanId;
+    const disabledTrial = plan.id === 'gratuito' && status.teste_gratis_usado && currentPlanId !== 'gratuito';
+    return `
+      <article class="account-plan-card${selected ? ' selected' : ''}${disabledTrial ? ' disabled' : ''}">
+        <header>
+          <div>
+            <h3>${esc(plan.nome)}</h3>
+            <div class="account-plan-price">${esc(formatPlanPrice(plan))}</div>
+          </div>
+          ${selected ? '<span class="account-plan-chip">Atual</span>' : ''}
+          ${disabledTrial ? '<span class="account-plan-chip">Ja usado</span>' : ''}
+        </header>
+        <p>${esc(plan.description || '')}</p>
+        <ul>${(plan.recursos || []).map((item) => `<li>${esc(item)}</li>`).join('')}</ul>
+      </article>
+    `;
+  }).join('');
+
+  const subscribeAction = document.getElementById('accountSubscribeAction');
+  const manageAction = document.getElementById('accountManageAction');
+  subscribeAction.textContent = isPending ? 'Tentar novamente' : (estado === 'expirado' || estado === 'vencido' || estado === 'bloqueado' ? 'Escolher plano' : 'Assinar agora');
+  subscribeAction.style.display = isActive ? 'none' : '';
+  manageAction.style.display = isActive ? '' : 'none';
+}
+
+function openAccountPanel() {
+  renderAccountPanel();
+  const modal = document.getElementById('accountModal');
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeAccountPanel() {
+  const modal = document.getElementById('accountModal');
+  if (!modal) return;
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+function logoutUser() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('fluxmei_user');
+  window.location.href = '../auth/login/index.html';
 }
 
 function showSubscriptionLock(payload = {}) {
   const lock = document.getElementById('subscriptionLock');
   const banner = document.getElementById('subscriptionBanner');
+  const lockTitle = document.getElementById('subscriptionLockTitle');
+  const lockText = document.getElementById('subscriptionLockText');
   if (banner) banner.style.display = 'none';
+  if (lockTitle) lockTitle.textContent = payload.estado === 'pendente_pagamento' ? 'Pagamento pendente' : 'Seu teste gratis acabou';
+  if (lockText) {
+    lockText.textContent = payload.error || payload.mensagem || 'Seu teste gratis acabou. Para continuar usando o FluxMEI e acessar seus dados, escolha um plano.';
+  }
   if (lock) lock.style.display = 'grid';
   if (payload.redirectTo && !window.location.pathname.endsWith('/app/payment/index.html')) {
     // Keep the user on the current screen with the modal; the CTA handles navigation.
   }
 }
-
 function mapCliente(item) {
   const meta = parseMetaObservacao(item.observacao);
   return {
@@ -358,7 +546,10 @@ async function loadState() {
     apiRequest('/assinaturas/status')
   ]);
 
+  state.user = me.user;
   renderSubscriptionNotice(assinaturaStatus);
+  await loadAvailablePlans();
+
   if (assinaturaStatus?.bloqueado) {
     state.profile = me.profile;
     hydrateConfig(me.profile, []);
@@ -1863,6 +2054,15 @@ async function init() {
   });
   document.getElementById('mobileOverlay').addEventListener('click', closeMobileMenu);
 
+  document.getElementById('accountMenuButton')?.addEventListener('click', openAccountPanel);
+  document.getElementById('accountModalClose')?.addEventListener('click', closeAccountPanel);
+  document.getElementById('accountModal')?.addEventListener('click', (event) => {
+    if (event.target.id === 'accountModal') closeAccountPanel();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeAccountPanel();
+  });
+
   // Modal backdrops close on outside click
   document.querySelectorAll('.modal-backdrop').forEach(bd => {
     bd.addEventListener('click', e => {
@@ -1878,6 +2078,18 @@ async function init() {
 
   document.querySelectorAll('[data-open-movimentacao]').forEach((button) => {
     button.addEventListener('click', () => openNovaMovimentacao());
+  });
+
+  document.querySelectorAll('[data-open-account-settings]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const lock = document.getElementById('subscriptionLock');
+      if (lock) lock.style.display = 'none';
+      navigate('configuracoes');
+    });
+  });
+
+  document.querySelectorAll('[data-logout]').forEach((button) => {
+    button.addEventListener('click', logoutUser);
   });
 
   // Filters
