@@ -65,6 +65,8 @@ function isDevOrigin(origin) {
 
 app.use(cors({
   origin(origin, callback) {
+    if (!origin) return callback(null, true);
+
     const normalizedOrigin = origin ? origin.replace(/\/$/, '') : origin;
     if (allowedOrigins.includes(normalizedOrigin) || (!isProduction && isDevOrigin(origin))) {
       return callback(null, true);
