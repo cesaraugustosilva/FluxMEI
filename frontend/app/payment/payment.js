@@ -130,6 +130,8 @@ async function apiRequest(path, options = {}) {
 async function subscribe(plan, button) {
   if (!button) return;
 
+  const originalText = button.dataset.defaultText || button.textContent;
+  button.dataset.defaultText = originalText;
   button.disabled = true;
   button.textContent = 'Criando pagamento...';
 
@@ -148,7 +150,7 @@ async function subscribe(plan, button) {
     showAlert(error.message || 'Não foi possível criar o pagamento. Tente novamente em instantes.');
   } finally {
     button.disabled = false;
-    button.textContent = 'Assinar agora';
+    button.textContent = originalText;
   }
 }
 

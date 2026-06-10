@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Gestão financeira inteligente para MEIs" />
+  <meta name="description" content="Gest&atilde;o financeira inteligente para MEIs" />
   <meta name="theme-color" content="#48D52F" />
   <meta property="og:title" content="FluxMEI" />
-  <meta property="og:description" content="Gestão financeira inteligente para MEIs" />
+  <meta property="og:description" content="Gest&atilde;o financeira inteligente para MEIs" />
   <meta property="og:image" content="https://fluxmei.com.br/logo512.png" />
   <meta property="og:url" content="https://fluxmei.com.br" />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="FluxMEI" />
-  <meta name="twitter:description" content="Gestão financeira inteligente para MEIs" />
+  <meta name="twitter:description" content="Gest&atilde;o financeira inteligente para MEIs" />
   <meta name="twitter:image" content="https://fluxmei.com.br/logo512.png" />
   <link rel="icon" href="/favicon.ico" />
   <link rel="icon" type="image/png" href="/favicon.png" />
@@ -28,39 +28,80 @@
   <main class="payment-shell">
     <header class="payment-header">
       <img src="../../assets/logo-transparente-fluxmei.png" alt="FluxMEI" />
-      <a href="../index.html">Voltar ao app</a>
+      <div class="header-actions">
+        <span class="secure-chip">Checkout seguro</span>
+        <a href="../index.html">Voltar ao app</a>
+      </div>
     </header>
 
-    <section class="payment-hero">
-      <p class="eyebrow">Assinatura FluxMEI</p>
-      <h1>Escolha seu plano</h1>
-      <p>O acesso será liberado automaticamente após a confirmação do pagamento pelo Mercado Pago.</p>
+    <section class="payment-hero" aria-labelledby="paymentTitle">
+      <div class="hero-copy">
+        <p class="eyebrow">Assinatura FluxMEI Pro</p>
+        <h1 id="paymentTitle">Continue com sua gest&atilde;o financeira em dia</h1>
+        <p>Escolha o plano, finalize pelo Mercado Pago e tenha o acesso liberado automaticamente ap&oacute;s a confirma&ccedil;&atilde;o.</p>
+      </div>
+
+      <aside class="checkout-summary" aria-label="Resumo do checkout">
+        <span class="summary-label">Inclu&iacute;do no Pro</span>
+        <strong>DAS, clientes e relat&oacute;rios em um s&oacute; lugar</strong>
+        <div class="summary-metrics">
+          <span><b>0%</b> taxa extra</span>
+          <span><b>24h</b> acesso online</span>
+        </div>
+      </aside>
     </section>
 
-    <section class="plans">
+    <section class="trust-strip" aria-label="Informa&ccedil;&otilde;es do pagamento">
+      <div>
+        <strong>Pagamento via Mercado Pago</strong>
+        <span>PIX, cart&atilde;o e boleto conforme disponibilidade do checkout.</span>
+      </div>
+      <div>
+        <strong>Libera&ccedil;&atilde;o autom&aacute;tica</strong>
+        <span>Seu app atualiza assim que o pagamento for aprovado.</span>
+      </div>
+      <div>
+        <strong>Cancele quando precisar</strong>
+        <span>Plano sem fidelidade dentro da conta FluxMEI.</span>
+      </div>
+    </section>
+
+    <section class="plans" aria-label="Planos dispon&iacute;veis">
       <article class="plan-card">
-        <h2>Plano Pro Mensal</h2>
-        <strong>R$ 49,90</strong>
-        <span>cobrança mensal</span>
+        <div class="plan-topline">
+          <h2>Pro Mensal</h2>
+          <span class="plan-tag">Flex&iacute;vel</span>
+        </div>
+        <div class="price-row">
+          <strong>R$ 49,90</strong>
+          <span>/m&ecirc;s</span>
+        </div>
+        <p class="billing-note">Cobran&ccedil;a mensal, ideal para testar sem compromisso anual.</p>
         <ul>
-          <li>Movimentações ilimitadas</li>
+          <li>Movimenta&ccedil;&otilde;es ilimitadas</li>
           <li>Clientes ilimitados</li>
-          <li>DAS, calendário e relatórios</li>
+          <li>DAS, calend&aacute;rio e relat&oacute;rios</li>
         </ul>
         <button type="button" data-plan="pro_mensal">Assinar agora</button>
       </article>
 
       <article class="plan-card featured">
         <div class="badge">Melhor escolha</div>
-        <h2>Plano Pro Anual</h2>
-        <strong>R$ 39,90/mês</strong>
-        <span>cobrança anual de R$ 478,80</span>
+        <div class="plan-topline">
+          <h2>Pro Anual</h2>
+          <span class="plan-tag">Mais economia</span>
+        </div>
+        <div class="price-row">
+          <strong>R$ 39,90</strong>
+          <span>/m&ecirc;s</span>
+        </div>
+        <p class="billing-note">Cobran&ccedil;a anual de R$ 478,80 com economia no ano.</p>
         <ul>
           <li>Todos os recursos do mensal</li>
           <li>Mais economia no ano</li>
-          <li>Acesso liberado após confirmação</li>
+          <li>Acesso liberado ap&oacute;s confirma&ccedil;&atilde;o</li>
         </ul>
-        <button type="button" data-plan="pro_anual">Assinar agora</button>
+        <button type="button" data-plan="pro_anual">Assinar anual</button>
       </article>
     </section>
 
