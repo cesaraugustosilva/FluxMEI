@@ -174,8 +174,128 @@ h1 {
   line-height: 1.55;
 }
 
+.pix-panel {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 18px;
+  border: 1px solid rgba(50, 213, 210, 0.36);
+  border-radius: 16px;
+  background: rgba(50, 213, 210, 0.08);
+}
+
+.pix-panel[hidden] { display: none; }
+
+.pix-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.pix-heading span,
+.pix-code-label {
+  color: #d7f7dc;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.06rem;
+  text-transform: uppercase;
+}
+
+.pix-heading strong {
+  display: block;
+  margin-top: 6px;
+  color: #ffffff;
+  font-size: 1.14rem;
+}
+
+.pix-status {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  white-space: nowrap;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 211, 122, 0.18);
+  color: var(--warning);
+}
+
+.pix-panel p,
+.pix-panel small {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.pix-qr-wrap {
+  display: grid;
+  min-height: 220px;
+  place-items: center;
+  padding: 16px;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.pix-qr-wrap img {
+  display: block;
+  width: min(220px, 100%);
+  height: auto;
+}
+
+.pix-code-label {
+  display: block;
+  margin-top: 2px;
+}
+
+#pixCode {
+  width: 100%;
+  min-height: 98px;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--ink);
+  font: 500 0.88rem/1.45 "Inter", system-ui, sans-serif;
+}
+
+.pix-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pix-button {
+  min-height: 48px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--green), var(--green-2));
+  color: #06120a;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+}
+
+.pix-button.secondary {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.06);
+  color: #dff8e3;
+}
+
+.pix-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .selected-plan,
-.user-box,
+.user-box {
+  margin-top: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel-2);
+}
+
 .selected-plan {
   display: flex;
   align-items: center;
@@ -415,14 +535,17 @@ h1 {
     width: 148px;
   }
 
-  .selected-plan,
-  .checkout-actions {
-    grid-template-columns: 1fr;
-  }
-
   .selected-plan {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .pix-heading {
+    flex-direction: column;
+  }
+
+  .pix-actions {
+    grid-template-columns: 1fr;
   }
 
   .plan-price {

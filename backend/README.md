@@ -96,6 +96,7 @@ Principais rotas:
 - `POST /api/pagamentos/mercado-pago/criar-checkout`
 - `GET /api/pagamentos/mercado-pago/public-config`
 - `POST /api/pagamentos/mercado-pago/processar-brick`
+- `GET /api/pagamentos/mercado-pago/status/:paymentId`
 - `GET /api/pagamentos/mercado-pago/sincronizar?payment_id=ID`
 - `POST /api/webhooks/mercado-pago`
 

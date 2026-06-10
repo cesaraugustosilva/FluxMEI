@@ -207,6 +207,35 @@ async function registerBrickPaymentAttempt(assinatura, plan, payment) {
   });
 }
 
+function extractPixData(payment) {
+  const transactionData = payment?.point_of_interaction?.transaction_data || {};
+  const qrCode = transactionData.qr_code || null;
+  const qrCodeBase64 = transactionData.qr_code_base64 || null;
+  const ticketUrl = transactionData.ticket_url || null;
+
+  if (!qrCode && !qrCodeBase64 && !ticketUrl) return null;
+
+  return {
+    qr_code: qrCode,
+    qr_code_base64: qrCodeBase64,
+    ticket_url: ticketUrl
+  };
+}
+
+function paymentResponsePayload(payment, fallbackPaymentMethodId = null) {
+  const pix = extractPixData(payment);
+
+  return {
+    payment_id: payment?.id ? String(payment.id) : null,
+    payment_status: payment?.status || null,
+    status_detail: payment?.status_detail || null,
+    payment_method_id: payment?.payment_method_id || fallbackPaymentMethodId,
+    payment_type_id: payment?.payment_type_id || null,
+    transaction_details: payment?.transaction_details || null,
+    pix
+  };
+}
+
 export async function mercadoPagoPublicConfig(req, res) {
   res.json({
     public_key: getMercadoPagoPublicKey()
@@ -279,13 +308,7 @@ export async function processarPagamentoBrick(req, res) {
 
   res.status(201).json({
     success: true,
-    payment_id: payment?.id ? String(payment.id) : null,
-    payment_status: payment?.status || null,
-    status_detail: payment?.status_detail || null,
-    payment_method_id: payment?.payment_method_id || paymentPayload.payment_method_id,
-    payment_type_id: payment?.payment_type_id || null,
-    transaction_details: payment?.transaction_details || null,
-    point_of_interaction: payment?.point_of_interaction || null,
+    ...paymentResponsePayload(payment, paymentPayload.payment_method_id),
     message: 'Pagamento enviado ao Mercado Pago'
   });
 }
@@ -340,6 +363,26 @@ export async function sincronizarRetornoMercadoPago(req, res) {
   res.json({
     success: true,
     payment_status: payment.status,
+    assinatura: updated
+  });
+}
+
+export async function statusPagamentoMercadoPago(req, res) {
+  const paymentId = req.params.paymentId || req.query.payment_id;
+  if (!paymentId) throw new AppError('payment_id nao informado.');
+
+  const payment = await mercadoPagoService.consultarPagamento(paymentId);
+  const assinatura = await findSubscriptionFromPayment(payment);
+
+  if (!assinatura || assinatura.user_id !== req.user.id) {
+    throw new AppError('Pagamento nao encontrado para este usuario.', 404);
+  }
+
+  const updated = await aplicarPagamentoNaAssinatura(payment, assinatura);
+
+  res.json({
+    success: true,
+    ...paymentResponsePayload(payment),
     assinatura: updated
   });
 }

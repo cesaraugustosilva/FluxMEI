@@ -38,6 +38,27 @@
           </div>
         </div>
 
+        <section class="pix-panel" id="pixPanel" hidden aria-label="Pagamento via Pix">
+          <div class="pix-heading">
+            <div>
+              <span>Pagamento via Pix</span>
+              <strong>Aguardando pagamento</strong>
+            </div>
+            <span class="pix-status">Pix gerado</span>
+          </div>
+          <p>Escaneie o QR Code ou copie o codigo Pix abaixo.</p>
+          <div class="pix-qr-wrap">
+            <img id="pixQrImage" alt="QR Code Pix" />
+          </div>
+          <label class="pix-code-label" for="pixCode">Codigo Pix copia e cola</label>
+          <textarea id="pixCode" readonly rows="4"></textarea>
+          <div class="pix-actions">
+            <button class="pix-button" type="button" id="copyPixButton">Copiar codigo Pix</button>
+            <button class="pix-button secondary" type="button" id="verifyPixButton">Ja paguei, verificar pagamento</button>
+          </div>
+          <small>Apos o pagamento, a confirmacao pode levar alguns instantes.</small>
+        </section>
+
         <section class="selected-plan" aria-label="Plano escolhido">
           <div>
             <span>Plano escolhido</span>

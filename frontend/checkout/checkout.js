@@ -63,15 +63,25 @@ const PAYMENT_STATUS = {
 let selectedPlan = FALLBACK_PLANS.pro_mensal;
 let paymentBrickController = null;
 let statusPoller = null;
+let currentPaymentId = null;
 
 function normalizeApiUrl(url) {
   return String(url || '').replace(/\/$/, '');
 }
 
-function resolveApiUrl() {
+function resolveApiUrls() {
   const apiUrl = normalizeApiUrl(window.FLUXMEI_CONFIG?.API_URL);
   if (!apiUrl) throw new Error('FLUXMEI_CONFIG.API_URL nao configurada.');
-  return apiUrl;
+
+  const urls = [apiUrl];
+  const sameOriginApi = normalizeApiUrl(`${window.location.origin}/api`);
+  const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+  if (isLocalHost && !urls.includes(sameOriginApi)) {
+    urls.push(sameOriginApi);
+  }
+
+  return urls;
 }
 
 function getToken() {
@@ -152,6 +162,43 @@ function showStatus(statusKey, overrideText) {
   panel.hidden = false;
 }
 
+function hidePixPanel() {
+  const panel = document.getElementById('pixPanel');
+  panel.hidden = true;
+  document.getElementById('pixQrImage').removeAttribute('src');
+  document.getElementById('pixCode').value = '';
+  currentPaymentId = null;
+}
+
+function isPixPayment(payment) {
+  return payment?.payment_method_id === 'pix'
+    || payment?.payment_type_id === 'bank_transfer'
+    || Boolean(payment?.pix?.qr_code || payment?.pix?.qr_code_base64);
+}
+
+function renderPixPanel(payment) {
+  const pix = payment?.pix;
+  if (!isPixPayment(payment) || payment.payment_status !== 'pending' || !pix?.qr_code) {
+    hidePixPanel();
+    return;
+  }
+
+  currentPaymentId = payment.payment_id;
+  const panel = document.getElementById('pixPanel');
+  const image = document.getElementById('pixQrImage');
+  const code = document.getElementById('pixCode');
+
+  if (pix.qr_code_base64) {
+    image.src = `data:image/png;base64,${pix.qr_code_base64}`;
+    image.hidden = false;
+  } else {
+    image.hidden = true;
+  }
+
+  code.value = pix.qr_code;
+  panel.hidden = false;
+}
+
 function setBrickLoading(isLoading, message = 'Carregando meios de pagamento...') {
   const loading = document.getElementById('brickLoading');
   loading.classList.toggle('is-hidden', !isLoading);
@@ -173,18 +220,25 @@ async function request(path, options = {}, { auth = true } = {}) {
   if (auth && !token) throw new Error('LOGIN_REQUIRED');
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  let response;
+  let response = null;
   let url = '';
-  const apiUrl = resolveApiUrl();
+  const apiUrls = resolveApiUrls();
 
-  try {
-    url = `${apiUrl}${path}`;
-    response = await fetch(url, {
-      ...options,
-      headers
-    });
-  } catch {
-    throw new Error('Nao foi possivel conectar a API. Verifique sua conexao e tente novamente.');
+  for (const apiUrl of apiUrls) {
+    try {
+      url = `${apiUrl}${path}`;
+      response = await fetch(url, {
+        ...options,
+        headers
+      });
+      break;
+    } catch {
+      response = null;
+    }
+  }
+
+  if (!response) {
+    throw new Error(`Nao foi possivel conectar a API. Verifique se o backend esta online e tente novamente. Ultima URL: ${url}`);
   }
 
   const isJson = response.headers.get('content-type')?.includes('application/json');
@@ -282,6 +336,63 @@ async function pollSubscriptionActivation(maxAttempts = 12) {
   }, 4000);
 }
 
+async function checkPaymentStatus(paymentId = currentPaymentId, { silent = false } = {}) {
+  if (!paymentId) {
+    showAlert('Nao encontramos o identificador do pagamento Pix. Tente gerar o Pix novamente.');
+    return null;
+  }
+
+  const button = document.getElementById('verifyPixButton');
+  if (button && !silent) {
+    button.disabled = true;
+    button.textContent = 'Verificando...';
+  }
+
+  try {
+    const data = await request(`/pagamentos/mercado-pago/status/${encodeURIComponent(paymentId)}`);
+    const statusKey = getStatusKeyFromPayment(data);
+
+    if (data.assinatura?.status === 'ativo' || data.assinatura?.estado === 'ativo') {
+      hidePixPanel();
+      clearSubscribeIntent();
+      showStatus('active', 'Pagamento aprovado! Sua assinatura foi ativada.');
+      showAlert('Pagamento aprovado! Redirecionando para o painel...', 'success');
+      window.setTimeout(() => {
+        window.location.href = '/app/';
+      }, 1400);
+      return data;
+    }
+
+    if (statusKey === 'approved') {
+      hidePixPanel();
+      showStatus('approved', 'Pagamento aprovado. Estamos aguardando a confirmacao final do webhook.');
+      showAlert('Pagamento aprovado pelo Mercado Pago. A assinatura sera liberada apos a confirmacao final.', 'success');
+      pollSubscriptionActivation();
+      return data;
+    }
+
+    if (statusKey === 'pending' || statusKey === 'in_process') {
+      renderPixPanel(data);
+      showStatus('pending', 'Ainda nao identificamos o pagamento. Aguarde alguns instantes e tente novamente.');
+      showAlert('Ainda nao identificamos o pagamento. Aguarde alguns instantes e tente novamente.', 'success');
+      return data;
+    }
+
+    hidePixPanel();
+    showStatus('failure');
+    showAlert('O pagamento foi recusado ou cancelado. Gere um novo pagamento e tente novamente.');
+    return data;
+  } catch (error) {
+    showAlert(error.message || 'Nao foi possivel verificar o pagamento.');
+    return null;
+  } finally {
+    if (button && !silent) {
+      button.disabled = false;
+      button.textContent = 'Ja paguei, verificar pagamento';
+    }
+  }
+}
+
 function getStatusKeyFromPayment(payment) {
   if (payment.payment_status === 'approved') return 'approved';
   if (['pending', 'authorized'].includes(payment.payment_status)) return 'pending';
@@ -304,14 +415,21 @@ async function submitBrickPayment(formData) {
 
   const statusKey = getStatusKeyFromPayment(data);
   showStatus(statusKey);
+  renderPixPanel(data);
 
   if (statusKey === 'approved') {
     showAlert('Pagamento aprovado pelo Mercado Pago. Aguardando confirmacao do webhook para liberar a assinatura.', 'success');
     pollSubscriptionActivation();
   } else if (statusKey === 'pending' || statusKey === 'in_process') {
-    showAlert('Pagamento recebido pelo Mercado Pago e aguardando confirmacao.', 'success');
+    showAlert(
+      isPixPayment(data)
+        ? 'Pix gerado. Aguardando pagamento.'
+        : 'Pagamento recebido pelo Mercado Pago e aguardando confirmacao.',
+      'success'
+    );
     pollSubscriptionActivation();
   } else {
+    hidePixPanel();
     showAlert('O pagamento nao foi aprovado. Voce pode tentar novamente no formulario ao lado.');
   }
 
@@ -409,6 +527,23 @@ async function initCheckout() {
     setBrickVisible(false);
     showAlert(error.message || 'Nao foi possivel carregar o checkout.');
   }
+
+  document.getElementById('copyPixButton').addEventListener('click', async () => {
+    const code = document.getElementById('pixCode').value;
+    if (!code) return;
+
+    try {
+      await navigator.clipboard.writeText(code);
+      showAlert('Codigo Pix copiado.', 'success');
+    } catch {
+      document.getElementById('pixCode').select();
+      showAlert('Selecione e copie o codigo Pix manualmente.');
+    }
+  });
+
+  document.getElementById('verifyPixButton').addEventListener('click', () => {
+    checkPaymentStatus();
+  });
 }
 
 window.addEventListener('beforeunload', () => {
