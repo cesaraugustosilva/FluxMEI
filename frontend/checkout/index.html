@@ -58,30 +58,25 @@
           </div>
         </section>
 
-        <section class="payment-choice" aria-label="Forma de pagamento">
-          <span>Forma de pagamento</span>
-          <div class="choice-grid">
-            <label class="choice selected">
-              <input type="radio" name="paymentMethod" value="mercado_pago" checked />
-              <strong>Mercado Pago</strong>
-              <small>Pix, cartao ou boleto no checkout seguro</small>
-            </label>
-          </div>
-        </section>
-
         <div class="checkout-actions">
-          <button class="pay-button" type="button" id="payButton">Pagar com Mercado Pago</button>
           <a class="back-button" href="/app/">Voltar</a>
         </div>
 
         <div class="checkout-alert" id="checkoutAlert" role="status"></div>
       </article>
 
-      <aside class="summary-card" aria-label="Resumo da assinatura">
+      <aside class="summary-card" aria-label="Pagamento">
         <div class="summary-head">
-          <span>Resumo</span>
-          <strong id="summaryPlan">FluxMEI Pro</strong>
+          <span>Pagamento</span>
+          <strong>Mercado Pago</strong>
         </div>
+
+        <div class="brick-loading" id="brickLoading">
+          <strong>Carregando meios de pagamento...</strong>
+          <span>Pix, cartao e boleto aparecem aqui quando disponiveis.</span>
+        </div>
+
+        <div class="brick-container" id="paymentBrick_container"></div>
 
         <ul class="benefits-list">
           <li>Controle financeiro completo</li>
@@ -101,6 +96,7 @@
   </main>
 
   <script src="/env.js"></script>
+  <script src="https://sdk.mercadopago.com/js/v2"></script>
   <script src="checkout.js"></script>
 </body>
 </html>

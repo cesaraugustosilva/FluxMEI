@@ -144,11 +144,12 @@ MERCADO_PAGO_WEBHOOK_SECRET=seu_secret_do_webhook
 Fluxo esperado:
 
 1. Usuario acessa `https://seudominio.com/checkout/`.
-2. Frontend chama `https://api.seudominio.com/api/pagamentos/mercado-pago/criar-checkout`.
-3. Backend cria a preferencia no Mercado Pago.
-4. Usuario paga no Checkout Pro.
-5. Mercado Pago chama o webhook.
-6. Backend consulta o pagamento e, se `approved`, atualiza assinatura para `ativo` e `bloqueado = false`.
+2. Frontend carrega `MERCADO_PAGO_PUBLIC_KEY` via `https://api.seudominio.com/api/pagamentos/mercado-pago/public-config`.
+3. Payment Brick exibe Pix, cartao e boleto dentro do FluxMEI, conforme disponibilidade do Mercado Pago.
+4. Frontend chama `https://api.seudominio.com/api/pagamentos/mercado-pago/processar-brick`.
+5. Backend cria o pagamento no Mercado Pago usando `MERCADO_PAGO_ACCESS_TOKEN`.
+6. Mercado Pago chama o webhook.
+7. Backend consulta o pagamento e, se `approved`, atualiza assinatura para `ativo` e `bloqueado = false`.
 
 URLs de retorno sao geradas com `FRONTEND_URL`.
 
@@ -178,7 +179,7 @@ Depois atualize:
 7. Configurar webhook no Mercado Pago.
 8. Criar usuario real.
 9. Fazer login.
-10. Criar pagamento.
-11. Pagar via Checkout Pro.
+10. Abrir `/checkout/`.
+11. Pagar via Payment Brick.
 12. Confirmar assinatura `ativo` no Supabase.
 13. Confirmar acesso desbloqueado no app.

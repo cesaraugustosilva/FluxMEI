@@ -66,7 +66,6 @@ a {
 
 .secure-pill,
 .eyebrow,
-.payment-choice > span,
 .selected-plan span,
 .user-box span,
 .summary-head span {
@@ -177,14 +176,6 @@ h1 {
 
 .selected-plan,
 .user-box,
-.payment-choice {
-  margin-top: 14px;
-  padding: 18px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--panel-2);
-}
-
 .selected-plan {
   display: flex;
   align-items: center;
@@ -239,43 +230,13 @@ h1 {
   color: var(--muted);
 }
 
-.choice-grid {
-  display: grid;
-  margin-top: 12px;
-}
-
-.choice {
-  display: grid;
-  gap: 4px;
-  min-height: 78px;
-  padding: 15px 16px 15px 44px;
-  border: 1px solid var(--line-strong);
-  border-radius: 12px;
-  background: rgba(72, 213, 47, 0.08);
-  position: relative;
-}
-
-.choice input {
-  position: absolute;
-  left: 16px;
-  top: 19px;
-  accent-color: var(--green);
-}
-
-.choice small {
-  color: var(--muted);
-  line-height: 1.45;
-}
-
 .checkout-actions {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
   gap: 12px;
   align-items: center;
   margin-top: 20px;
 }
 
-.pay-button,
 .back-button {
   display: inline-flex;
   min-height: 54px;
@@ -284,25 +245,6 @@ h1 {
   border-radius: 12px;
   font: inherit;
   font-weight: 900;
-}
-
-.pay-button {
-  border: 0;
-  background: linear-gradient(135deg, var(--green), var(--green-2));
-  color: #06120a;
-  cursor: pointer;
-  transition: transform 0.18s ease, filter 0.18s ease;
-}
-
-.pay-button:hover {
-  filter: brightness(1.06);
-  transform: translateY(-1px);
-}
-
-.pay-button:disabled {
-  cursor: wait;
-  opacity: 0.65;
-  transform: none;
 }
 
 .back-button {
@@ -343,6 +285,42 @@ h1 {
   gap: 18px;
   padding-bottom: 18px;
   border-bottom: 1px solid var(--line);
+}
+
+.brick-loading {
+  display: grid;
+  gap: 7px;
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.brick-loading strong {
+  color: #ffffff;
+}
+
+.brick-loading span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.brick-loading.is-hidden {
+  display: none;
+}
+
+.brick-container {
+  overflow: hidden;
+  min-height: 380px;
+  margin: 18px 0 20px;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.brick-container.is-hidden {
+  display: none;
 }
 
 .summary-head strong {

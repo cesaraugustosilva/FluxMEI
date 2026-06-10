@@ -123,12 +123,23 @@ async function criarPreferencia({ plan, user, profile, assinatura, backUrls, not
   });
 }
 
+async function criarPagamento({ payment, idempotencyKey }) {
+  return request('/v1/payments', {
+    method: 'POST',
+    headers: {
+      'X-Idempotency-Key': idempotencyKey
+    },
+    body: JSON.stringify(payment)
+  });
+}
+
 async function consultarPagamento(paymentId) {
   return request(`/v1/payments/${paymentId}`, { method: 'GET' });
 }
 
 export const mercadoPagoService = {
   criarPreferencia,
+  criarPagamento,
   consultarPagamento,
   onlyDigits
 };

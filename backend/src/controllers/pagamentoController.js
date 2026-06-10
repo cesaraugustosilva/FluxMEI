@@ -64,6 +64,12 @@ function getNotificationUrl() {
   return publicUrl ? `${publicUrl}/api/webhooks/mercado-pago` : null;
 }
 
+function getMercadoPagoPublicKey() {
+  const publicKey = process.env.MERCADO_PAGO_PUBLIC_KEY;
+  if (!publicKey) throw new AppError('MERCADO_PAGO_PUBLIC_KEY nao configurada.', 500);
+  return publicKey;
+}
+
 async function getProfile(userId) {
   const { data, error } = await supabaseAdmin
     .from('profiles')
@@ -112,6 +118,101 @@ function getCheckoutUrl(preference) {
   return preference?.init_point || preference?.sandbox_init_point || null;
 }
 
+function splitName(fullName = '') {
+  const parts = String(fullName).trim().split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] || '',
+    lastName: parts.slice(1).join(' ')
+  };
+}
+
+function sanitizeBrickPaymentData(formData = {}) {
+  const payer = formData.payer || {};
+  const payerIdentification = payer.identification || {};
+
+  return {
+    token: formData.token || null,
+    payment_method_id: formData.payment_method_id || formData.paymentMethodId || null,
+    issuer_id: formData.issuer_id || formData.issuer || null,
+    installments: Number(formData.installments || 1),
+    payer: {
+      email: payer.email || formData.payer_email || formData.email || null,
+      identification: {
+        type: payerIdentification.type || formData.identificationType || null,
+        number: mercadoPagoService.onlyDigits(payerIdentification.number || formData.identificationNumber || formData.number)
+      },
+      address: payer.address || undefined
+    }
+  };
+}
+
+function buildBrickPaymentPayload({ formData, plan, user, profile, assinatura }) {
+  const ownerName = profile?.nome || user.user_metadata?.nome || user.email || '';
+  const payerName = splitName(ownerName);
+  const documentNumber = mercadoPagoService.onlyDigits(profile?.cpf || profile?.cnpj);
+  const brickData = sanitizeBrickPaymentData(formData);
+
+  if (!brickData.payment_method_id) throw new AppError('Meio de pagamento nao informado.');
+
+  const payer = {
+    email: user.email,
+    first_name: payerName.firstName || undefined,
+    last_name: payerName.lastName || undefined,
+    identification: {
+      type: documentNumber ? (documentNumber.length > 11 ? 'CNPJ' : 'CPF') : brickData.payer.identification.type,
+      number: documentNumber || brickData.payer.identification.number
+    },
+    address: brickData.payer.address
+  };
+
+  const payment = {
+    transaction_amount: plan.value,
+    description: plan.description,
+    payment_method_id: brickData.payment_method_id,
+    installments: Number.isFinite(brickData.installments) && brickData.installments > 0 ? brickData.installments : 1,
+    issuer_id: brickData.issuer_id || undefined,
+    payer,
+    external_reference: assinatura.id,
+    metadata: {
+      user_id: user.id,
+      assinatura_id: assinatura.id,
+      plano: plan.id
+    },
+    notification_url: getNotificationUrl() || undefined,
+    statement_descriptor: 'FLUXMEI'
+  };
+
+  if (brickData.token) payment.token = brickData.token;
+  if (!payment.payer.identification?.type || !payment.payer.identification?.number) {
+    delete payment.payer.identification;
+  }
+  if (!payment.payer.address) delete payment.payer.address;
+  if (!payment.notification_url) delete payment.notification_url;
+  if (!payment.issuer_id) delete payment.issuer_id;
+
+  return payment;
+}
+
+async function registerBrickPaymentAttempt(assinatura, plan, payment) {
+  return updateAssinaturaById(assinatura.id, {
+    plano: plan.id,
+    status: 'pendente',
+    valor: plan.value,
+    tipo_cobranca: plan.tipo_cobranca,
+    mercado_pago_payment_id: payment?.id ? String(payment.id) : null,
+    mercado_pago_status: payment?.status || 'payment_created',
+    checkout_url: null,
+    bloqueado: true,
+    renovacao_automatica: false
+  });
+}
+
+export async function mercadoPagoPublicConfig(req, res) {
+  res.json({
+    public_key: getMercadoPagoPublicKey()
+  });
+}
+
 export async function criarCheckoutMercadoPago(req, res) {
   const plano = req.body?.plano;
   const plan = PAYMENT_PLANS[plano];
@@ -150,6 +251,42 @@ export async function criarCheckoutMercadoPago(req, res) {
     checkout_url: checkoutUrl,
     preference_id: preference.id,
     message: 'Pagamento criado com sucesso'
+  });
+}
+
+export async function processarPagamentoBrick(req, res) {
+  const plano = req.body?.plano;
+  const plan = PAYMENT_PLANS[plano];
+  if (!plan || !PLANOS[plano]) throw new AppError('Plano invalido.');
+
+  const profile = await getProfile(req.user.id);
+  const assinatura = await ensureUserSubscription(req.user.id, plano);
+  const paymentPayload = buildBrickPaymentPayload({
+    formData: req.body?.payment || req.body?.formData || {},
+    plan,
+    user: req.user,
+    profile,
+    assinatura
+  });
+
+  const idempotencyKey = crypto.randomUUID();
+  const payment = await mercadoPagoService.criarPagamento({
+    payment: paymentPayload,
+    idempotencyKey
+  });
+
+  await registerBrickPaymentAttempt(assinatura, plan, payment);
+
+  res.status(201).json({
+    success: true,
+    payment_id: payment?.id ? String(payment.id) : null,
+    payment_status: payment?.status || null,
+    status_detail: payment?.status_detail || null,
+    payment_method_id: payment?.payment_method_id || paymentPayload.payment_method_id,
+    payment_type_id: payment?.payment_type_id || null,
+    transaction_details: payment?.transaction_details || null,
+    point_of_interaction: payment?.point_of_interaction || null,
+    message: 'Pagamento enviado ao Mercado Pago'
   });
 }
 

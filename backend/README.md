@@ -94,6 +94,8 @@ Principais rotas:
 - `GET /api/assinaturas`
 - `GET /api/assinaturas/status`
 - `POST /api/pagamentos/mercado-pago/criar-checkout`
+- `GET /api/pagamentos/mercado-pago/public-config`
+- `POST /api/pagamentos/mercado-pago/processar-brick`
 - `GET /api/pagamentos/mercado-pago/sincronizar?payment_id=ID`
 - `POST /api/webhooks/mercado-pago`
 
@@ -119,12 +121,15 @@ Fluxo de teste:
 4. Acessar rota protegida e verificar HTTP `402`.
 5. Abrir `http://localhost:3002/checkout/`.
 6. Criar assinatura pela tela.
-7. Pagar pelo Checkout Pro ou enviar uma notificacao de teste do Mercado Pago.
+7. Pagar pelo Payment Brick ou enviar uma notificacao de teste do Mercado Pago.
 8. Confirmar que a assinatura ficou `ativo` e `bloqueado = false`.
 
-Quando o usuario volta do Checkout Pro com `payment_id` ou `collection_id` na URL,
-`/checkout/` tambem chama a rota de sincronizacao para atualizar a assinatura
-em ambiente local, mesmo antes de configurar uma URL publica para webhook.
+`/checkout/` usa Payment Brick do Mercado Pago. O frontend recebe apenas
+`MERCADO_PAGO_PUBLIC_KEY`; o backend usa `MERCADO_PAGO_ACCESS_TOKEN` para criar
+pagamentos em `/v1/payments`. A assinatura deve ser liberada pelo webhook em
+producao. Em ambiente local, sem URL publica de webhook, a resposta do pagamento
+pode aparecer aprovada enquanto a assinatura permanece pendente ate a notificacao
+ser recebida ou a sincronizacao ser feita manualmente.
 
 ## Seguranca
 - Supabase Auth
