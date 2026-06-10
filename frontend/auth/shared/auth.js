@@ -349,7 +349,7 @@ function getSubscribePlanLabel() {
 }
 
 function getPaymentIntentUrl() {
-  const url = new URL('../../app/payment/index.html', window.location.href);
+  const url = new URL('../../checkout/', window.location.href);
   url.searchParams.set('intent', SUBSCRIBE_INTENT);
   url.searchParams.set('plan', getSubscribePlan());
   return url.href;
@@ -389,7 +389,7 @@ function applySubscribeIntentCopy() {
 
   if (eyebrow) eyebrow.textContent = 'Assinatura direta';
   if (title) title.textContent = `Criar conta para assinar o ${planLabel}`;
-  if (subtitle) subtitle.textContent = 'Depois do cadastro/login, você será levado ao checkout do Mercado Pago.';
+  if (subtitle) subtitle.textContent = 'Depois do cadastro/login, você será levado ao checkout seguro do FluxMEI.';
 
   if (submit) {
     submit.dataset.defaultText = 'Continuar para pagamento';

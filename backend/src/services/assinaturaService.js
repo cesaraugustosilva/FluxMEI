@@ -4,7 +4,7 @@ import { AppError } from '../middlewares/errorMiddleware.js';
 const TRIAL_DAYS = 7;
 const TRIAL_STATUS = 'teste_gratis';
 const BLOCKED_STATUSES = ['pendente', 'vencido', 'cancelado'];
-const PAYMENT_URL = '/app/payment/index.html';
+const PAYMENT_URL = '/checkout/';
 
 export const PLANOS = {
   gratuito: {

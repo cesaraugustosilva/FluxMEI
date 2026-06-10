@@ -143,7 +143,7 @@ MERCADO_PAGO_WEBHOOK_SECRET=seu_secret_do_webhook
 
 Fluxo esperado:
 
-1. Usuario acessa `https://seudominio.com/app/payment/index.html`.
+1. Usuario acessa `https://seudominio.com/checkout/`.
 2. Frontend chama `https://api.seudominio.com/api/pagamentos/mercado-pago/criar-checkout`.
 3. Backend cria a preferencia no Mercado Pago.
 4. Usuario paga no Checkout Pro.

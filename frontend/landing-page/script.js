@@ -33,7 +33,7 @@ function showLandingAlert(message, type = 'error') {
 }
 
 function getPaymentUrl(plan = DEFAULT_PLAN) {
-  const url = new URL('../app/payment/index.html', window.location.href);
+  const url = new URL('../checkout/', window.location.href);
   url.searchParams.set('intent', SUBSCRIBE_INTENT);
   url.searchParams.set('plan', plan);
   return url.href;
@@ -58,7 +58,7 @@ function handleSubscribeClick(event) {
 
   if (localStorage.getItem(TOKEN_KEY)) {
     button.disabled = true;
-    button.textContent = 'Abrindo pagamento...';
+    button.textContent = 'Abrindo checkout...';
     window.location.href = getPaymentUrl(plan);
     return;
   }

@@ -197,7 +197,7 @@ async function apiRequest(path, options = {}) {
     showSubscriptionLock(data || {});
     const error = new Error(data?.error || 'Teste grátis expirado');
     error.code = data?.code || 'TRIAL_EXPIRED';
-    error.redirectTo = data?.redirectTo || '/app/payment/index.html';
+    error.redirectTo = data?.redirectTo || '/checkout/';
     throw error;
   }
 
@@ -426,7 +426,7 @@ function showSubscriptionLock(payload = {}) {
     lockText.textContent = payload.error || payload.mensagem || 'Seu teste gratis acabou. Para continuar usando o FluxMEI e acessar seus dados, escolha um plano.';
   }
   if (lock) lock.style.display = 'grid';
-  if (payload.redirectTo && !window.location.pathname.endsWith('/app/payment/index.html')) {
+  if (payload.redirectTo && !window.location.pathname.startsWith('/checkout')) {
     // Keep the user on the current screen with the modal; the CTA handles navigation.
   }
 }

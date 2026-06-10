@@ -3,112 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Gest&atilde;o financeira inteligente para MEIs" />
-  <meta name="theme-color" content="#48D52F" />
-  <meta property="og:title" content="FluxMEI" />
-  <meta property="og:description" content="Gest&atilde;o financeira inteligente para MEIs" />
-  <meta property="og:image" content="https://fluxmei.com.br/logo512.png" />
-  <meta property="og:url" content="https://fluxmei.com.br" />
-  <meta property="og:type" content="website" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="FluxMEI" />
-  <meta name="twitter:description" content="Gest&atilde;o financeira inteligente para MEIs" />
-  <meta name="twitter:image" content="https://fluxmei.com.br/logo512.png" />
-  <link rel="icon" href="/favicon.ico" />
-  <link rel="icon" type="image/png" href="/favicon.png" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-  <link rel="manifest" href="/manifest.webmanifest" />
-  <title>Pagamento | FluxMEI</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="payment.css" />
+  <meta name="robots" content="noindex" />
+  <title>Redirecionando | FluxMEI</title>
+  <script>
+    (function () {
+      var target = '/checkout/' + window.location.search + window.location.hash;
+      window.location.replace(target);
+    }());
+  </script>
 </head>
 <body>
-  <main class="payment-shell">
-    <header class="payment-header">
-      <img src="../../assets/logo-transparente-fluxmei.png" alt="FluxMEI" />
-      <div class="header-actions">
-        <span class="secure-chip">Checkout seguro</span>
-        <a href="../index.html">Voltar ao app</a>
-      </div>
-    </header>
-
-    <section class="payment-hero" aria-labelledby="paymentTitle">
-      <div class="hero-copy">
-        <p class="eyebrow">Assinatura FluxMEI Pro</p>
-        <h1 id="paymentTitle">Continue com sua gest&atilde;o financeira em dia</h1>
-        <p>Escolha o plano, finalize pelo Mercado Pago e tenha o acesso liberado automaticamente ap&oacute;s a confirma&ccedil;&atilde;o.</p>
-      </div>
-
-      <aside class="checkout-summary" aria-label="Resumo do checkout">
-        <span class="summary-label">Inclu&iacute;do no Pro</span>
-        <strong>DAS, clientes e relat&oacute;rios em um s&oacute; lugar</strong>
-        <div class="summary-metrics">
-          <span><b>0%</b> taxa extra</span>
-          <span><b>24h</b> acesso online</span>
-        </div>
-      </aside>
-    </section>
-
-    <section class="trust-strip" aria-label="Informa&ccedil;&otilde;es do pagamento">
-      <div>
-        <strong>Pagamento via Mercado Pago</strong>
-        <span>PIX, cart&atilde;o e boleto conforme disponibilidade do checkout.</span>
-      </div>
-      <div>
-        <strong>Libera&ccedil;&atilde;o autom&aacute;tica</strong>
-        <span>Seu app atualiza assim que o pagamento for aprovado.</span>
-      </div>
-      <div>
-        <strong>Cancele quando precisar</strong>
-        <span>Plano sem fidelidade dentro da conta FluxMEI.</span>
-      </div>
-    </section>
-
-    <section class="plans" aria-label="Planos dispon&iacute;veis">
-      <article class="plan-card">
-        <div class="plan-topline">
-          <h2>Pro Mensal</h2>
-          <span class="plan-tag">Flex&iacute;vel</span>
-        </div>
-        <div class="price-row">
-          <strong>R$ 49,90</strong>
-          <span>/m&ecirc;s</span>
-        </div>
-        <p class="billing-note">Cobran&ccedil;a mensal, ideal para testar sem compromisso anual.</p>
-        <ul>
-          <li>Movimenta&ccedil;&otilde;es ilimitadas</li>
-          <li>Clientes ilimitados</li>
-          <li>DAS, calend&aacute;rio e relat&oacute;rios</li>
-        </ul>
-        <button type="button" data-plan="pro_mensal">Assinar agora</button>
-      </article>
-
-      <article class="plan-card featured">
-        <div class="badge">Melhor escolha</div>
-        <div class="plan-topline">
-          <h2>Pro Anual</h2>
-          <span class="plan-tag">Mais economia</span>
-        </div>
-        <div class="price-row">
-          <strong>R$ 39,90</strong>
-          <span>/m&ecirc;s</span>
-        </div>
-        <p class="billing-note">Cobran&ccedil;a anual de R$ 478,80 com economia no ano.</p>
-        <ul>
-          <li>Todos os recursos do mensal</li>
-          <li>Mais economia no ano</li>
-          <li>Acesso liberado ap&oacute;s confirma&ccedil;&atilde;o</li>
-        </ul>
-        <button type="button" data-plan="pro_anual">Assinar anual</button>
-      </article>
-    </section>
-
-    <div class="payment-alert" id="paymentAlert"></div>
-  </main>
-
-  <script src="/env.js"></script>
-  <script src="payment.js"></script>
+  <p>Redirecionando para o checkout do FluxMEI...</p>
+  <p><a href="/checkout/">Abrir checkout</a></p>
 </body>
 </html>
