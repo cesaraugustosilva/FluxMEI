@@ -61,6 +61,7 @@ Observacoes:
 
 - O Render define `PORT` automaticamente. Nao e necessario cadastrar `PORT`.
 - Nunca coloque `SUPABASE_SERVICE_ROLE_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `ASAAS_API_KEY` ou `GEMINI_API_KEY` na Vercel.
+- Em producao, `MERCADO_PAGO_WEBHOOK_SECRET` e `ASAAS_WEBHOOK_TOKEN` sao obrigatorios para processar webhooks. Se um deles faltar, o backend registra erro critico no startup e o webhook correspondente retorna 503 sem ativar assinatura.
 - Em producao, `/api/dev/*` nao e registrado.
 - Em producao, rotas duplicadas sem `/api` nao sao registradas.
 
@@ -149,6 +150,13 @@ https://api.seudominio.com/api/webhooks/asaas
 ASAAS_WEBHOOK_TOKEN=seu_token_webhook_asaas
 ```
 
+Seguranca do webhook Asaas:
+
+- O Asaas deve enviar o header `asaas-access-token` com o mesmo valor de `ASAAS_WEBHOOK_TOKEN`.
+- Em producao, se `ASAAS_WEBHOOK_TOKEN` estiver ausente, `POST /api/webhooks/asaas` retorna 503 e nao processa o pagamento.
+- Se o header estiver ausente ou incorreto, o webhook retorna 401 e nao ativa assinatura.
+- Os logs registram apenas provider, evento, `payment_id`, status e resultado do processamento; tokens nao sao logados.
+
 Fluxo esperado:
 
 1. Usuario acessa `https://seudominio.com/checkout/`.
@@ -169,6 +177,12 @@ Teste sandbox Asaas:
 6. Envie uma notificacao de webhook de teste com o header `asaas-access-token` igual ao `ASAAS_WEBHOOK_TOKEN`.
 7. Confira no Supabase se `assinaturas.status = 'ativo'`, `bloqueado = false`, `payment_provider = 'asaas'` e `provider_status` pago.
 
+Teste de rejeicao Asaas:
+
+1. Envie a mesma notificacao sem o header `asaas-access-token` ou com valor diferente.
+2. Confirme HTTP 401.
+3. Confirme no Supabase que a assinatura nao foi ativada.
+
 ## Mercado Pago Fallback
 
 No painel do Mercado Pago:
@@ -186,6 +200,14 @@ https://api.seudominio.com/api/webhooks/mercado-pago
 MERCADO_PAGO_WEBHOOK_SECRET=seu_secret_do_webhook
 ```
 
+Seguranca do webhook Mercado Pago:
+
+- O Mercado Pago deve enviar os headers `x-signature` e `x-request-id`.
+- O backend valida a assinatura HMAC usando `MERCADO_PAGO_WEBHOOK_SECRET`.
+- Em producao, se `MERCADO_PAGO_WEBHOOK_SECRET` estiver ausente, `POST /api/webhooks/mercado-pago` retorna 503 e nao processa o pagamento.
+- Se a assinatura estiver ausente ou invalida, o webhook retorna 401 e nao ativa assinatura.
+- Os logs registram apenas provider, evento, `payment_id`, status e resultado do processamento; secrets e headers completos nao sao logados.
+
 Fluxo esperado:
 
 1. Usuario acessa `https://seudominio.com/checkout/`.
@@ -195,6 +217,13 @@ Fluxo esperado:
 5. Backend cria o pagamento no Mercado Pago usando `MERCADO_PAGO_ACCESS_TOKEN`.
 6. Mercado Pago chama o webhook.
 7. Backend consulta o pagamento e, se `approved`, atualiza assinatura para `ativo` e `bloqueado = false`.
+
+Teste de rejeicao Mercado Pago:
+
+1. Em ambiente de homologacao com `MERCADO_PAGO_WEBHOOK_SECRET` configurado, envie uma notificacao sem `x-signature` ou com assinatura invalida.
+2. Confirme HTTP 401.
+3. Confirme no Supabase que a assinatura nao foi ativada.
+4. Em producao, se o segredo estiver ausente por erro de configuracao, confirme HTTP 503 e corrija a variavel no Render antes de testar novamente.
 
 URLs de retorno sao geradas com `FRONTEND_URL`.
 

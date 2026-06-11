@@ -19,6 +19,7 @@ import webhookRoutes from './routes/webhookRoutes.js';
 import devRoutes from './routes/devRoutes.js';
 import { planos } from './controllers/assinaturaController.js';
 import { asyncHandler, errorHandler, notFoundHandler } from './middlewares/errorMiddleware.js';
+import { checkPaymentWebhookConfiguration } from './services/webhookSecurityService.js';
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
@@ -27,6 +28,7 @@ const publicDir = path.resolve(__dirname, '..', '..', 'frontend');
 const envFile = process.env.FLUXMEI_ENV_FILE || path.resolve(__dirname, '..', '.env');
 
 dotenv.config({ path: envFile });
+checkPaymentWebhookConfiguration();
 
 app.set('trust proxy', 1);
 

@@ -129,10 +129,13 @@ A rota `GET /api/assinaturas/status` retorna o estado atual para o frontend exib
 https://seudominio.com/api/webhooks/asaas
 ```
 
-O webhook valida o header `asaas-access-token` quando `ASAAS_WEBHOOK_TOKEN` estiver configurado. O frontend pode consultar status para atualizar a tela, mas a assinatura so deve ser considerada liberada apos confirmacao validada pelo backend/webhook.
+O webhook valida o header `asaas-access-token`. Em producao, `ASAAS_WEBHOOK_TOKEN`
+e obrigatorio; se estiver ausente, o webhook retorna 503 e nao processa o pagamento.
+O frontend pode consultar status para atualizar a tela, mas a assinatura so deve ser
+considerada liberada apos confirmacao validada pelo backend/webhook.
 
 ## Mercado Pago Fallback
-1. Configure as variaveis `MERCADO_PAGO_PUBLIC_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` e `MERCADO_PAGO_NOTIFICATION_URL`.
+1. Configure as variaveis `MERCADO_PAGO_PUBLIC_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` e `MERCADO_PAGO_NOTIFICATION_URL`. Em producao, `MERCADO_PAGO_WEBHOOK_SECRET` e obrigatorio; se estiver ausente, o webhook retorna 503 e nao processa o pagamento.
 2. No painel do Mercado Pago, cadastre o webhook de pagamentos apontando para:
 
 ```text

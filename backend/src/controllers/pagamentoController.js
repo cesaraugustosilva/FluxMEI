@@ -4,6 +4,7 @@ import { AppError } from '../middlewares/errorMiddleware.js';
 import { PLANOS, assinaturaService } from '../services/assinaturaService.js';
 import { asaasService } from '../services/asaasService.js';
 import { mercadoPagoService } from '../services/mercadoPagoService.js';
+import { logWebhookEvent, validateAsaasWebhook, validateMercadoPagoWebhook } from '../services/webhookSecurityService.js';
 
 const PAYMENT_PLANS = {
   pro_mensal: {
@@ -604,42 +605,6 @@ async function findSubscriptionFromPayment(payment) {
   return null;
 }
 
-function getSignatureParts(signature = '') {
-  return String(signature)
-    .split(',')
-    .map((part) => part.split('='))
-    .reduce((acc, [key, value]) => {
-      if (key && value) acc[key.trim()] = value.trim();
-      return acc;
-    }, {});
-}
-
-function timingSafeEqualHex(left, right) {
-  const leftBuffer = Buffer.from(left || '', 'hex');
-  const rightBuffer = Buffer.from(right || '', 'hex');
-  return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
-}
-
-function validateMercadoPagoSignature(req, dataId) {
-  const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET;
-  if (!secret) return;
-
-  const signature = req.headers['x-signature'];
-  const requestId = req.headers['x-request-id'];
-  const { ts, v1 } = getSignatureParts(signature);
-
-  if (!dataId || !requestId || !ts || !v1) {
-    throw new AppError('Webhook Mercado Pago sem assinatura valida.', 401);
-  }
-
-  const manifest = `id:${String(dataId).toLowerCase()};request-id:${requestId};ts:${ts};`;
-  const expected = crypto.createHmac('sha256', secret).update(manifest).digest('hex');
-
-  if (!timingSafeEqualHex(expected, v1)) {
-    throw new AppError('Webhook Mercado Pago nao autorizado.', 401);
-  }
-}
-
 function getNotificationPaymentId(req) {
   return req.query?.['data.id']
     || req.query?.id
@@ -656,29 +621,37 @@ function isPaymentNotification(req) {
 
 export async function webhookMercadoPago(req, res) {
   const paymentId = getNotificationPaymentId(req);
-  validateMercadoPagoSignature(req, paymentId);
+  validateMercadoPagoWebhook(req, paymentId);
 
   if (!paymentId || !isPaymentNotification(req)) {
+    logWebhookEvent({ provider: 'mercado_pago', event: req.query?.type || req.body?.type || req.query?.topic || req.body?.topic, paymentId, outcome: 'ignored' });
     return res.json({ received: true, ignored: true });
   }
 
   const payment = await mercadoPagoService.consultarPagamento(paymentId);
+  logWebhookEvent({ provider: 'mercado_pago', event: 'payment', paymentId, status: payment?.status, outcome: 'processing' });
   const assinatura = await findSubscriptionFromPayment(payment);
-  if (!assinatura) return res.json({ received: true, ignored: true });
+  if (!assinatura) {
+    logWebhookEvent({ provider: 'mercado_pago', event: 'payment', paymentId, status: payment?.status, outcome: 'ignored_no_subscription' });
+    return res.json({ received: true, ignored: true });
+  }
 
   await aplicarPagamentoNaAssinatura(payment, assinatura);
+  logWebhookEvent({ provider: 'mercado_pago', event: 'payment', paymentId, status: payment?.status, outcome: 'applied' });
   res.json({ received: true });
 }
 
 export async function webhookAsaas(req, res) {
-  const expectedToken = process.env.ASAAS_WEBHOOK_TOKEN;
-  if (expectedToken && req.headers['asaas-access-token'] !== expectedToken) {
-    throw new AppError('Webhook Asaas nao autorizado.', 401);
-  }
+  validateAsaasWebhook(req);
 
   const event = req.body?.event;
   const payment = req.body?.payment;
-  if (!payment?.id) return res.json({ received: true, ignored: true });
+  if (!payment?.id) {
+    logWebhookEvent({ provider: 'asaas', event, outcome: 'ignored' });
+    return res.json({ received: true, ignored: true });
+  }
+
+  logWebhookEvent({ provider: 'asaas', event, paymentId: payment.id, status: payment.status, outcome: 'processing' });
 
   let assinatura = await findSubscriptionByProviderPayment('asaas', payment.id);
 
@@ -692,8 +665,12 @@ export async function webhookAsaas(req, res) {
     assinatura = data || null;
   }
 
-  if (!assinatura) return res.json({ received: true, ignored: true });
+  if (!assinatura) {
+    logWebhookEvent({ provider: 'asaas', event, paymentId: payment.id, status: payment.status, outcome: 'ignored_no_subscription' });
+    return res.json({ received: true, ignored: true });
+  }
 
   await aplicarPagamentoAsaasNaAssinatura(payment, assinatura);
+  logWebhookEvent({ provider: 'asaas', event, paymentId: payment.id, status: payment.status, outcome: 'applied' });
   res.json({ received: true, event });
 }
