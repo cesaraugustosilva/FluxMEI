@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
 import { PLANOS, assinaturaService } from '../services/assinaturaService.js';
+import { asaasService } from '../services/asaasService.js';
 import { mercadoPagoService } from '../services/mercadoPagoService.js';
 
 const PAYMENT_PLANS = {
@@ -94,6 +95,20 @@ async function getLatestSubscription(userId) {
   return data || null;
 }
 
+async function findSubscriptionByProviderPayment(provider, paymentId) {
+  if (!provider || !paymentId) return null;
+
+  const { data, error } = await supabaseAdmin
+    .from('assinaturas')
+    .select('*')
+    .eq('payment_provider', provider)
+    .eq('provider_payment_id', String(paymentId))
+    .maybeSingle();
+
+  if (error) throw new AppError('Erro ao buscar assinatura por pagamento.', 500, error.message);
+  return data || null;
+}
+
 async function updateAssinaturaById(assinaturaId, payload) {
   const { data, error } = await supabaseAdmin
     .from('assinaturas')
@@ -108,6 +123,13 @@ async function updateAssinaturaById(assinaturaId, payload) {
 
 async function ensureUserSubscription(userId, planId) {
   return await getLatestSubscription(userId) || await assinaturaService.createPendingSubscription(userId, planId);
+}
+
+function normalizeAsaasMethod(value = 'pix') {
+  const method = String(value || '').toLowerCase();
+  if (['boleto', 'pix', 'cartao'].includes(method)) return method;
+  if (['card', 'credit_card', 'creditcard'].includes(method)) return 'cartao';
+  return 'pix';
 }
 
 function getCheckoutUrl(preference) {
@@ -199,12 +221,108 @@ async function registerBrickPaymentAttempt(assinatura, plan, payment) {
     status: 'pendente',
     valor: plan.value,
     tipo_cobranca: plan.tipo_cobranca,
+    payment_provider: 'mercado_pago',
+    provider_payment_id: payment?.id ? String(payment.id) : null,
+    provider_status: payment?.status || 'payment_created',
+    provider_raw: payment || null,
     mercado_pago_payment_id: payment?.id ? String(payment.id) : null,
     mercado_pago_status: payment?.status || 'payment_created',
     checkout_url: null,
     bloqueado: true,
     renovacao_automatica: false
   });
+}
+
+function normalizeAsaasPixData(qrCode) {
+  if (!qrCode) return null;
+  const payload = qrCode.payload || qrCode.qr_code || null;
+  const encodedImage = qrCode.encodedImage || qrCode.encoded_image || qrCode.qr_code_base64 || null;
+  const expirationDate = qrCode.expirationDate || qrCode.expiration_date || null;
+
+  if (!payload && !encodedImage && !expirationDate) return null;
+
+  return {
+    qr_code: payload,
+    qr_code_base64: encodedImage,
+    expiration_date: expirationDate
+  };
+}
+
+function asaasPaymentResponsePayload(payment, pixQrCode = null) {
+  return {
+    payment_id: payment?.id ? String(payment.id) : null,
+    payment_status: payment?.status || null,
+    status_detail: payment?.status || null,
+    payment_method_id: String(payment?.billingType || '').toLowerCase(),
+    payment_type_id: payment?.billingType || null,
+    invoice_url: payment?.invoiceUrl || null,
+    bank_slip_url: payment?.bankSlipUrl || null,
+    due_date: payment?.dueDate || null,
+    pix: normalizeAsaasPixData(pixQrCode)
+  };
+}
+
+async function registerAsaasPaymentAttempt({ assinatura, plan, customer, payment, pixQrCode = null }) {
+  return updateAssinaturaById(assinatura.id, {
+    plano: plan.id,
+    status: 'pendente',
+    valor: plan.value,
+    tipo_cobranca: plan.tipo_cobranca,
+    payment_provider: 'asaas',
+    provider_payment_id: payment?.id ? String(payment.id) : null,
+    provider_customer_id: customer?.id || assinatura.provider_customer_id || null,
+    provider_subscription_id: payment?.subscription || assinatura.provider_subscription_id || null,
+    provider_status: payment?.status || 'CREATED',
+    provider_raw: {
+      payment,
+      pixQrCode
+    },
+    checkout_url: payment?.invoiceUrl || payment?.bankSlipUrl || null,
+    bloqueado: true,
+    renovacao_automatica: false
+  });
+}
+
+function isAsaasPaidStatus(status) {
+  return ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'].includes(String(status || '').toUpperCase());
+}
+
+function isAsaasPendingStatus(status) {
+  return ['PENDING', 'AWAITING_RISK_ANALYSIS'].includes(String(status || '').toUpperCase());
+}
+
+function isAsaasCancelledStatus(status) {
+  return ['OVERDUE', 'CANCELLED', 'REFUNDED', 'REFUND_REQUESTED', 'CHARGEBACK_REQUESTED', 'CHARGEBACK_DISPUTE', 'AWAITING_CHARGEBACK_REVERSAL'].includes(String(status || '').toUpperCase());
+}
+
+async function aplicarPagamentoAsaasNaAssinatura(payment, assinatura) {
+  const planConfig = PAYMENT_PLANS[assinatura.plano] || PAYMENT_PLANS.pro_mensal;
+  const status = payment?.status;
+  const updates = {
+    payment_provider: 'asaas',
+    provider_payment_id: payment?.id ? String(payment.id) : assinatura.provider_payment_id,
+    provider_customer_id: payment?.customer || assinatura.provider_customer_id || null,
+    provider_subscription_id: payment?.subscription || assinatura.provider_subscription_id || null,
+    provider_status: status || assinatura.provider_status,
+    provider_raw: payment || assinatura.provider_raw || null
+  };
+
+  if (isAsaasPaidStatus(status)) {
+    updates.status = 'ativo';
+    updates.bloqueado = false;
+    updates.data_inicio = new Date().toISOString().slice(0, 10);
+    updates.data_vencimento = todayPlusDays(planConfig.dias);
+    updates.renovacao_automatica = Boolean(payment?.subscription);
+  } else if (isAsaasPendingStatus(status)) {
+    updates.status = 'pendente';
+    updates.bloqueado = true;
+  } else if (isAsaasCancelledStatus(status)) {
+    updates.status = 'cancelado';
+    updates.bloqueado = true;
+    updates.renovacao_automatica = false;
+  }
+
+  return updateAssinaturaById(assinatura.id, updates);
 }
 
 function extractPixData(payment) {
@@ -267,6 +385,10 @@ export async function criarCheckoutMercadoPago(req, res) {
     status: 'pendente',
     valor: plan.value,
     tipo_cobranca: plan.tipo_cobranca,
+    payment_provider: 'mercado_pago',
+    provider_payment_id: null,
+    provider_status: 'preference_created',
+    provider_raw: preference || null,
     mercado_pago_preference_id: preference.id,
     mercado_pago_payment_id: null,
     mercado_pago_status: 'preference_created',
@@ -313,10 +435,51 @@ export async function processarPagamentoBrick(req, res) {
   });
 }
 
+export async function criarCobrancaAsaas(req, res) {
+  const plano = req.body?.plano || 'pro_mensal';
+  const plan = PAYMENT_PLANS[plano];
+  if (!plan || !PLANOS[plano]) throw new AppError('Plano invalido.');
+
+  const method = normalizeAsaasMethod(req.body?.metodo || req.body?.method || req.body?.billingType);
+  const profile = await getProfile(req.user.id);
+  const assinatura = await ensureUserSubscription(req.user.id, plano);
+
+  const customer = await asaasService.criarOuBuscarCliente({
+    user: req.user,
+    profile,
+    existingCustomerId: assinatura.payment_provider === 'asaas' ? assinatura.provider_customer_id : null
+  });
+
+  const payment = await asaasService.criarCobranca({
+    customerId: customer.id,
+    plan,
+    method: method === 'cartao' ? 'undefined' : method,
+    externalReference: assinatura.id
+  });
+
+  let pixQrCode = null;
+  if (asaasService.normalizeBillingType(method) === 'PIX') {
+    pixQrCode = await asaasService.obterPixQrCode(payment.id);
+  }
+
+  await registerAsaasPaymentAttempt({ assinatura, plan, customer, payment, pixQrCode });
+
+  res.status(201).json({
+    success: true,
+    provider: 'asaas',
+    ...asaasPaymentResponsePayload(payment, pixQrCode),
+    message: 'Cobranca criada no Asaas'
+  });
+}
+
 async function aplicarPagamentoNaAssinatura(payment, assinatura) {
   const planConfig = PAYMENT_PLANS[assinatura.plano] || PAYMENT_PLANS.pro_mensal;
   const status = payment.status;
   const updates = {
+    payment_provider: 'mercado_pago',
+    provider_payment_id: String(payment.id),
+    provider_status: status,
+    provider_raw: payment,
     mercado_pago_payment_id: String(payment.id),
     mercado_pago_status: status
   };
@@ -383,6 +546,31 @@ export async function statusPagamentoMercadoPago(req, res) {
   res.json({
     success: true,
     ...paymentResponsePayload(payment),
+    assinatura: updated
+  });
+}
+
+export async function statusPagamentoAsaas(req, res) {
+  const paymentId = req.params.paymentId;
+  if (!paymentId) throw new AppError('payment_id nao informado.');
+
+  const payment = await asaasService.consultarPagamento(paymentId);
+  const assinatura = await findSubscriptionByProviderPayment('asaas', payment.id);
+
+  if (!assinatura || assinatura.user_id !== req.user.id) {
+    throw new AppError('Pagamento nao encontrado para este usuario.', 404);
+  }
+
+  const updated = await aplicarPagamentoAsaasNaAssinatura(payment, assinatura);
+  let pixQrCode = null;
+  if (payment.billingType === 'PIX' && isAsaasPendingStatus(payment.status)) {
+    pixQrCode = await asaasService.obterPixQrCode(payment.id);
+  }
+
+  res.json({
+    success: true,
+    provider: 'asaas',
+    ...asaasPaymentResponsePayload(payment, pixQrCode),
     assinatura: updated
   });
 }
@@ -480,4 +668,32 @@ export async function webhookMercadoPago(req, res) {
 
   await aplicarPagamentoNaAssinatura(payment, assinatura);
   res.json({ received: true });
+}
+
+export async function webhookAsaas(req, res) {
+  const expectedToken = process.env.ASAAS_WEBHOOK_TOKEN;
+  if (expectedToken && req.headers['asaas-access-token'] !== expectedToken) {
+    throw new AppError('Webhook Asaas nao autorizado.', 401);
+  }
+
+  const event = req.body?.event;
+  const payment = req.body?.payment;
+  if (!payment?.id) return res.json({ received: true, ignored: true });
+
+  let assinatura = await findSubscriptionByProviderPayment('asaas', payment.id);
+
+  if (!assinatura && payment.externalReference) {
+    const { data, error } = await supabaseAdmin
+      .from('assinaturas')
+      .select('*')
+      .eq('id', payment.externalReference)
+      .maybeSingle();
+    if (error) throw new AppError('Erro ao buscar assinatura Asaas.', 500, error.message);
+    assinatura = data || null;
+  }
+
+  if (!assinatura) return res.json({ received: true, ignored: true });
+
+  await aplicarPagamentoAsaasNaAssinatura(payment, assinatura);
+  res.json({ received: true, event });
 }

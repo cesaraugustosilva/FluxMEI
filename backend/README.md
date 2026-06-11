@@ -34,9 +34,14 @@ MERCADO_PAGO_BASE_URL=https://api.mercadopago.com
 MERCADO_PAGO_USE_SANDBOX=false
 MERCADO_PAGO_WEBHOOK_SECRET=seu_secret_do_webhook
 MERCADO_PAGO_NOTIFICATION_URL=https://seudominio.com/api/webhooks/mercado-pago
+ASAAS_API_KEY=sua_api_key_asaas
+ASAAS_BASE_URL=https://api.asaas.com/v3
+ASAAS_WEBHOOK_TOKEN=seu_token_webhook_asaas
+ASAAS_ENVIRONMENT=production
+ASAAS_WALLET_ID=
 ```
 
-Importante: `SUPABASE_SERVICE_ROLE_KEY` so deve ficar no backend.
+Importante: `SUPABASE_SERVICE_ROLE_KEY`, `MERCADO_PAGO_ACCESS_TOKEN` e `ASAAS_API_KEY` so devem ficar no backend.
 
 ## Banco De Dados
 1. Abra o Supabase.
@@ -99,13 +104,28 @@ Principais rotas:
 - `GET /api/pagamentos/mercado-pago/status/:paymentId`
 - `GET /api/pagamentos/mercado-pago/sincronizar?payment_id=ID`
 - `POST /api/webhooks/mercado-pago`
+- `POST /api/pagamentos/asaas/criar-cobranca`
+- `GET /api/pagamentos/asaas/status/:paymentId`
+- `POST /api/webhooks/asaas`
 
 ## Teste Gratis E Bloqueio
 Ao cadastrar um usuario, o backend cria uma assinatura com `status = teste_gratis`, `plano = gratuito` e 7 dias de validade. O login continua funcionando depois do vencimento, mas rotas internas como movimentacoes, clientes, DAS, dashboard, calendario e relatorios retornam HTTP `402` quando a assinatura esta bloqueada.
 
 A rota `GET /api/assinaturas/status` retorna o estado atual para o frontend exibir avisos e redirecionar para `/checkout/`.
 
-## Mercado Pago
+## Asaas
+
+1. Execute `database/migrate_payment_provider_fields.sql` no Supabase para adicionar os campos genericos `payment_provider`, `provider_payment_id`, `provider_customer_id`, `provider_subscription_id`, `provider_status` e `provider_raw`.
+2. Configure `ASAAS_API_KEY`, `ASAAS_BASE_URL` e `ASAAS_WEBHOOK_TOKEN`.
+3. No painel do Asaas, cadastre o webhook apontando para:
+
+```text
+https://seudominio.com/api/webhooks/asaas
+```
+
+O webhook valida o header `asaas-access-token` quando `ASAAS_WEBHOOK_TOKEN` estiver configurado. O frontend pode consultar status para atualizar a tela, mas a assinatura so deve ser considerada liberada apos confirmacao validada pelo backend/webhook.
+
+## Mercado Pago Fallback
 1. Configure as variaveis `MERCADO_PAGO_PUBLIC_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` e `MERCADO_PAGO_NOTIFICATION_URL`.
 2. No painel do Mercado Pago, cadastre o webhook de pagamentos apontando para:
 

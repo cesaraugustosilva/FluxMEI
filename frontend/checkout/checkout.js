@@ -26,7 +26,7 @@ const PAYMENT_STATUS = {
     type: 'success',
     icon: 'OK',
     title: 'Pagamento aprovado',
-    text: 'Recebemos a aprovacao do Mercado Pago. A assinatura sera liberada assim que o webhook confirmar.'
+    text: 'Recebemos a aprovacao do processador. A assinatura sera liberada assim que o webhook confirmar.'
   },
   active: {
     type: 'success',
@@ -38,13 +38,13 @@ const PAYMENT_STATUS = {
     type: 'pending',
     icon: '!',
     title: 'Pagamento pendente',
-    text: 'Assim que o Mercado Pago confirmar o pagamento, sua assinatura sera ativada automaticamente.'
+    text: 'Assim que o processador confirmar o pagamento, sua assinatura sera ativada automaticamente.'
   },
   in_process: {
     type: 'pending',
     icon: '!',
     title: 'Pagamento em analise',
-    text: 'O Mercado Pago esta analisando o pagamento. Voce pode permanecer nesta tela ou voltar ao app.'
+    text: 'O processador esta analisando o pagamento. Voce pode permanecer nesta tela ou voltar ao app.'
   },
   failure: {
     type: 'error',
@@ -64,6 +64,8 @@ let selectedPlan = FALLBACK_PLANS.pro_mensal;
 let paymentBrickController = null;
 let statusPoller = null;
 let currentPaymentId = null;
+let currentProvider = 'asaas';
+let mercadoPagoLoaded = false;
 
 function normalizeApiUrl(url) {
   return String(url || '').replace(/\/$/, '');
@@ -170,15 +172,26 @@ function hidePixPanel() {
   currentPaymentId = null;
 }
 
+function hideBoletoPanel() {
+  const panel = document.getElementById('boletoPanel');
+  const link = document.getElementById('boletoLink');
+  panel.hidden = true;
+  link.removeAttribute('href');
+}
+
 function isPixPayment(payment) {
-  return payment?.payment_method_id === 'pix'
+  const method = String(payment?.payment_method_id || '').toLowerCase();
+  const type = String(payment?.payment_type_id || '').toLowerCase();
+  return method === 'pix'
+    || type === 'pix'
     || payment?.payment_type_id === 'bank_transfer'
     || Boolean(payment?.pix?.qr_code || payment?.pix?.qr_code_base64);
 }
 
 function renderPixPanel(payment) {
   const pix = payment?.pix;
-  if (!isPixPayment(payment) || payment.payment_status !== 'pending' || !pix?.qr_code) {
+  const status = String(payment?.payment_status || '').toLowerCase();
+  if (!isPixPayment(payment) || status !== 'pending' || !pix?.qr_code) {
     hidePixPanel();
     return;
   }
@@ -189,7 +202,10 @@ function renderPixPanel(payment) {
   const code = document.getElementById('pixCode');
 
   if (pix.qr_code_base64) {
-    image.src = `data:image/png;base64,${pix.qr_code_base64}`;
+    const qrImage = String(pix.qr_code_base64);
+    image.src = qrImage.startsWith('data:')
+      ? qrImage
+      : `data:image/png;base64,${qrImage}`;
     image.hidden = false;
   } else {
     image.hidden = true;
@@ -197,6 +213,28 @@ function renderPixPanel(payment) {
 
   code.value = pix.qr_code;
   panel.hidden = false;
+}
+
+function renderBoletoPanel(payment, kind = 'boleto') {
+  const url = payment?.bank_slip_url || payment?.invoice_url;
+  const status = String(payment?.payment_status || '').toLowerCase();
+  if (!url || status !== 'pending') {
+    hideBoletoPanel();
+    return;
+  }
+
+  currentPaymentId = payment.payment_id;
+  const link = document.getElementById('boletoLink');
+  const isCard = kind === 'cartao';
+  document.getElementById('boletoPanelLabel').textContent = isCard ? 'Pagamento com cartao' : 'Pagamento via boleto';
+  document.getElementById('boletoPanelTitle').textContent = isCard ? 'Fatura segura Asaas' : 'Aguardando pagamento';
+  document.getElementById('boletoPanelStatus').textContent = isCard ? 'Fatura criada' : 'Boleto gerado';
+  document.getElementById('boletoPanelText').textContent = isCard
+    ? 'Abra a fatura segura do Asaas para informar os dados do cartao. O FluxMEI nao coleta esses dados.'
+    : 'Abra o boleto em ambiente seguro e acompanhe a confirmacao nesta tela.';
+  link.textContent = isCard ? 'Abrir fatura Asaas' : 'Abrir boleto';
+  link.href = url;
+  document.getElementById('boletoPanel').hidden = false;
 }
 
 function setBrickLoading(isLoading, message = 'Carregando meios de pagamento...') {
@@ -208,6 +246,39 @@ function setBrickLoading(isLoading, message = 'Carregando meios de pagamento...'
 
 function setBrickVisible(isVisible) {
   document.getElementById('paymentBrick_container').classList.toggle('is-hidden', !isVisible);
+}
+
+function setAsaasVisible(isVisible) {
+  document.getElementById('asaasMethodPanel').classList.toggle('is-hidden', !isVisible);
+}
+
+function updateSelectableLabels(name) {
+  document.querySelectorAll(`input[name="${name}"]`).forEach((input) => {
+    input.closest('label')?.classList.toggle('selected', input.checked);
+  });
+}
+
+function getAsaasMethod() {
+  return document.querySelector('input[name="asaasMethod"]:checked')?.value || 'pix';
+}
+
+function setAsaasButtonLoading(isLoading, text = 'Gerar pagamento Asaas') {
+  const button = document.getElementById('asaasPayButton');
+  button.disabled = isLoading;
+  button.textContent = isLoading ? 'Gerando pagamento...' : text;
+}
+
+function updateProviderUi() {
+  const isAsaas = currentProvider === 'asaas';
+  document.getElementById('providerTitle').textContent = isAsaas ? 'Asaas' : 'Mercado Pago';
+  setAsaasVisible(isAsaas);
+  setBrickVisible(!isAsaas);
+  setBrickLoading(!isAsaas, 'Carregando Mercado Pago...');
+  if (isAsaas) {
+    setBrickLoading(false);
+    hidePixPanel();
+    hideBoletoPanel();
+  }
 }
 
 async function request(path, options = {}, { auth = true } = {}) {
@@ -336,24 +407,30 @@ async function pollSubscriptionActivation(maxAttempts = 12) {
   }, 4000);
 }
 
-async function checkPaymentStatus(paymentId = currentPaymentId, { silent = false } = {}) {
+async function checkPaymentStatus(paymentId = currentPaymentId, { silent = false, provider = currentProvider } = {}) {
   if (!paymentId) {
-    showAlert('Nao encontramos o identificador do pagamento Pix. Tente gerar o Pix novamente.');
+    showAlert('Nao encontramos o identificador do pagamento. Tente gerar novamente.');
     return null;
   }
 
-  const button = document.getElementById('verifyPixButton');
+  const button = provider === 'asaas' && !document.getElementById('boletoPanel').hidden
+    ? document.getElementById('verifyBoletoButton')
+    : document.getElementById('verifyPixButton');
   if (button && !silent) {
     button.disabled = true;
     button.textContent = 'Verificando...';
   }
 
   try {
-    const data = await request(`/pagamentos/mercado-pago/status/${encodeURIComponent(paymentId)}`);
+    const statusPath = provider === 'asaas'
+      ? `/pagamentos/asaas/status/${encodeURIComponent(paymentId)}`
+      : `/pagamentos/mercado-pago/status/${encodeURIComponent(paymentId)}`;
+    const data = await request(statusPath);
     const statusKey = getStatusKeyFromPayment(data);
 
     if (data.assinatura?.status === 'ativo' || data.assinatura?.estado === 'ativo') {
       hidePixPanel();
+      hideBoletoPanel();
       clearSubscribeIntent();
       showStatus('active', 'Pagamento aprovado! Sua assinatura foi ativada.');
       showAlert('Pagamento aprovado! Redirecionando para o painel...', 'success');
@@ -365,20 +442,23 @@ async function checkPaymentStatus(paymentId = currentPaymentId, { silent = false
 
     if (statusKey === 'approved') {
       hidePixPanel();
+      hideBoletoPanel();
       showStatus('approved', 'Pagamento aprovado. Estamos aguardando a confirmacao final do webhook.');
-      showAlert('Pagamento aprovado pelo Mercado Pago. A assinatura sera liberada apos a confirmacao final.', 'success');
+      showAlert('Pagamento aprovado pelo processador. A assinatura sera liberada apos a confirmacao final.', 'success');
       pollSubscriptionActivation();
       return data;
     }
 
     if (statusKey === 'pending' || statusKey === 'in_process') {
       renderPixPanel(data);
+      renderBoletoPanel(data);
       showStatus('pending', 'Ainda nao identificamos o pagamento. Aguarde alguns instantes e tente novamente.');
       showAlert('Ainda nao identificamos o pagamento. Aguarde alguns instantes e tente novamente.', 'success');
       return data;
     }
 
     hidePixPanel();
+    hideBoletoPanel();
     showStatus('failure');
     showAlert('O pagamento foi recusado ou cancelado. Gere um novo pagamento e tente novamente.');
     return data;
@@ -394,15 +474,68 @@ async function checkPaymentStatus(paymentId = currentPaymentId, { silent = false
 }
 
 function getStatusKeyFromPayment(payment) {
-  if (payment.payment_status === 'approved') return 'approved';
-  if (['pending', 'authorized'].includes(payment.payment_status)) return 'pending';
-  if (payment.payment_status === 'in_process') return 'in_process';
-  if (['rejected', 'cancelled', 'refunded', 'charged_back'].includes(payment.payment_status)) return 'failure';
+  const status = String(payment.payment_status || '').toLowerCase();
+  if (status === 'approved' || status === 'received' || status === 'confirmed' || status === 'received_in_cash') return 'approved';
+  if (['pending', 'authorized', 'awaiting_risk_analysis'].includes(status)) return 'pending';
+  if (status === 'in_process') return 'in_process';
+  if (['rejected', 'cancelled', 'canceled', 'refunded', 'charged_back', 'overdue', 'refund_requested', 'chargeback_requested'].includes(status)) return 'failure';
   return 'pending';
+}
+
+async function createAsaasCharge() {
+  clearAlert();
+  hidePixPanel();
+  hideBoletoPanel();
+  setAsaasButtonLoading(true);
+  showStatus('pending', 'Criando pagamento seguro no Asaas...');
+
+  try {
+    const method = getAsaasMethod();
+    const data = await request('/pagamentos/asaas/criar-cobranca', {
+      method: 'POST',
+      body: JSON.stringify({
+        plano: selectedPlan.id,
+        metodo: method
+      })
+    });
+
+    currentProvider = 'asaas';
+    currentPaymentId = data.payment_id;
+    const statusKey = getStatusKeyFromPayment(data);
+    showStatus(statusKey);
+    renderPixPanel(data);
+    renderBoletoPanel(data);
+
+    if (method === 'cartao' && data.invoice_url) {
+      showAlert('Cobranca criada. Abra a fatura segura do Asaas para informar os dados do cartao.', 'success');
+      renderBoletoPanel({
+        ...data,
+        bank_slip_url: data.invoice_url,
+        payment_status: data.payment_status || 'pending'
+      }, 'cartao');
+    } else if (isPixPayment(data)) {
+      showAlert('Pix Asaas gerado. Aguardando pagamento.', 'success');
+    } else if (data.bank_slip_url || data.invoice_url) {
+      showAlert('Boleto Asaas gerado. Aguardando pagamento.', 'success');
+    } else {
+      showAlert('Pagamento Asaas criado. Aguardando confirmacao.', 'success');
+    }
+
+    pollSubscriptionActivation();
+    return data;
+  } catch (error) {
+    showStatus('failure', 'Nao foi possivel criar o pagamento no Asaas. Voce pode tentar novamente ou usar o Mercado Pago como fallback.');
+    showAlert(error.message || 'Nao foi possivel criar o pagamento no Asaas.');
+    return null;
+  } finally {
+    setAsaasButtonLoading(false);
+  }
 }
 
 async function submitBrickPayment(formData) {
   clearAlert();
+  currentProvider = 'mercado_pago';
+  hideBoletoPanel();
   setBrickLoading(true, 'Enviando pagamento...');
 
   const data = await request('/pagamentos/mercado-pago/processar-brick', {
@@ -491,7 +624,86 @@ async function renderPaymentBrick(publicKey) {
   });
 }
 
+async function ensureMercadoPagoBrick() {
+  if (paymentBrickController) {
+    setBrickLoading(false);
+    setBrickVisible(true);
+    return;
+  }
+
+  const publicKey = await loadPublicKey();
+  mercadoPagoLoaded = true;
+  await renderPaymentBrick(publicKey);
+}
+
+async function switchProvider(provider) {
+  currentProvider = provider;
+  updateSelectableLabels('paymentProvider');
+  updateProviderUi();
+  clearAlert();
+  hidePixPanel();
+  hideBoletoPanel();
+
+  if (provider === 'mercado_pago') {
+    try {
+      await ensureMercadoPagoBrick();
+    } catch (error) {
+      setBrickLoading(false);
+      setBrickVisible(false);
+      showAlert(error.message || 'Nao foi possivel carregar o Mercado Pago.');
+    }
+  }
+}
+
+function bindCheckoutEvents() {
+  document.querySelectorAll('input[name="paymentProvider"]').forEach((input) => {
+    input.addEventListener('change', () => {
+      if (input.checked) switchProvider(input.value);
+    });
+  });
+
+  document.querySelectorAll('input[name="asaasMethod"]').forEach((input) => {
+    input.addEventListener('change', () => {
+      updateSelectableLabels('asaasMethod');
+      hidePixPanel();
+      hideBoletoPanel();
+      const hint = document.getElementById('asaasMethodHint');
+      hint.textContent = input.value === 'cartao'
+        ? 'Cartao usa a fatura segura do Asaas; o FluxMEI nao coleta dados do cartao.'
+        : 'O pagamento sera criado no Asaas e confirmado pelo webhook.';
+    });
+  });
+
+  document.getElementById('asaasPayButton').addEventListener('click', createAsaasCharge);
+
+  document.getElementById('copyPixButton').addEventListener('click', async () => {
+    const code = document.getElementById('pixCode').value;
+    if (!code) return;
+
+    try {
+      await navigator.clipboard.writeText(code);
+      showAlert('Codigo Pix copiado.', 'success');
+    } catch {
+      document.getElementById('pixCode').select();
+      showAlert('Selecione e copie o codigo Pix manualmente.');
+    }
+  });
+
+  document.getElementById('verifyPixButton').addEventListener('click', () => {
+    checkPaymentStatus();
+  });
+
+  document.getElementById('verifyBoletoButton').addEventListener('click', () => {
+    checkPaymentStatus();
+  });
+}
+
 async function initCheckout() {
+  bindCheckoutEvents();
+  updateSelectableLabels('paymentProvider');
+  updateSelectableLabels('asaasMethod');
+  updateProviderUi();
+
   const planId = getSelectedPlanId();
   saveSubscribeIntent(planId);
   selectedPlan = await loadPlan(planId);
@@ -512,12 +724,12 @@ async function initCheckout() {
     if (subscriptionStatus?.estado === 'ativo') {
       setBrickVisible(false);
       setBrickLoading(false);
+      setAsaasVisible(false);
       showStatus('active', 'Sua assinatura ja esta ativa. Voce pode voltar ao app.');
       return;
     }
 
-    const publicKey = await loadPublicKey();
-    await renderPaymentBrick(publicKey);
+    updateProviderUi();
   } catch (error) {
     if (error.message === 'LOGIN_REQUIRED') {
       handleLoginRequired(planId);
@@ -525,25 +737,9 @@ async function initCheckout() {
     }
     setBrickLoading(false);
     setBrickVisible(false);
+    setAsaasVisible(false);
     showAlert(error.message || 'Nao foi possivel carregar o checkout.');
   }
-
-  document.getElementById('copyPixButton').addEventListener('click', async () => {
-    const code = document.getElementById('pixCode').value;
-    if (!code) return;
-
-    try {
-      await navigator.clipboard.writeText(code);
-      showAlert('Codigo Pix copiado.', 'success');
-    } catch {
-      document.getElementById('pixCode').select();
-      showAlert('Selecione e copie o codigo Pix manualmente.');
-    }
-  });
-
-  document.getElementById('verifyPixButton').addEventListener('click', () => {
-    checkPaymentStatus();
-  });
 }
 
 window.addEventListener('beforeunload', () => {
