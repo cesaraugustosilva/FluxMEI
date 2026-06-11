@@ -50,6 +50,12 @@ Importante: `SUPABASE_SERVICE_ROLE_KEY`, `MERCADO_PAGO_ACCESS_TOKEN` e `ASAAS_AP
 
 O schema cria `profiles`, `movimentacoes`, `clientes`, `das`, `relatorios_ia` e `assinaturas`, com indices, triggers de `updated_at`, RLS e policies por usuario.
 
+Para bancos existentes, execute tambem `database/migrate_fix_assinaturas_rls.sql`.
+Essa migration remove policies de `INSERT`, `UPDATE` e `DELETE` em `assinaturas`
+para usuarios autenticados e mantem apenas `SELECT` da propria assinatura. O
+backend continua criando e atualizando assinaturas com `SUPABASE_SERVICE_ROLE_KEY`,
+que deve ficar somente no servidor.
+
 ## Rodar
 Na raiz do projeto:
 

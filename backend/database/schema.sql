@@ -207,12 +207,10 @@ for insert with check (auth.uid() = user_id);
 
 drop policy if exists "assinaturas_select_own" on public.assinaturas;
 create policy "assinaturas_select_own" on public.assinaturas
-for select using (auth.uid() = user_id);
+for select
+to authenticated
+using (auth.uid() = user_id);
 
 drop policy if exists "assinaturas_insert_own" on public.assinaturas;
-create policy "assinaturas_insert_own" on public.assinaturas
-for insert with check (auth.uid() = user_id);
-
 drop policy if exists "assinaturas_update_own" on public.assinaturas;
-create policy "assinaturas_update_own" on public.assinaturas
-for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "assinaturas_delete_own" on public.assinaturas;
