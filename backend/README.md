@@ -41,7 +41,7 @@ ASAAS_ENVIRONMENT=production
 ASAAS_WALLET_ID=
 ```
 
-Importante: `SUPABASE_SERVICE_ROLE_KEY`, `MERCADO_PAGO_ACCESS_TOKEN` e `ASAAS_API_KEY` so devem ficar no backend.
+Importante: `SUPABASE_SERVICE_ROLE_KEY`, `MERCADO_PAGO_ACCESS_TOKEN` e `ASAAS_API_KEY` so devem ficar no backend. O checkout principal usa Mercado Pago; Asaas permanece apenas como fluxo legado/fallback no backend.
 
 ## Banco De Dados
 1. Abra o Supabase.
@@ -121,7 +121,7 @@ A rota `GET /api/assinaturas/status` retorna o estado atual para o frontend exib
 
 O roteiro completo de validacao manual esta em `../docs/assinatura-fluxo-testes.md`.
 
-## Asaas
+## Asaas Legado/Fallback
 
 1. Execute `database/migrate_payment_provider_fields.sql` no Supabase para adicionar os campos genericos `payment_provider`, `provider_payment_id`, `provider_customer_id`, `provider_subscription_id`, `provider_status` e `provider_raw`.
 2. Configure `ASAAS_API_KEY`, `ASAAS_BASE_URL` e `ASAAS_WEBHOOK_TOKEN`.
@@ -133,15 +133,17 @@ https://seudominio.com/api/webhooks/asaas
 
 O webhook valida o header `asaas-access-token`. Em producao, `ASAAS_WEBHOOK_TOKEN`
 e obrigatorio; se estiver ausente, o webhook retorna 503 e nao processa o pagamento.
-O frontend pode consultar status para atualizar a tela, mas a assinatura so deve ser
-considerada liberada apos confirmacao validada pelo backend/webhook.
+O frontend principal nao usa mais Asaas. Se o fluxo legado for chamado diretamente,
+a assinatura so deve ser considerada liberada apos confirmacao validada pelo
+backend/webhook.
 
-Para o plano mensal, o checkout cria uma assinatura recorrente no Asaas. O campo
+No fluxo legado mensal, o backend pode criar uma assinatura recorrente no Asaas. O campo
 `provider_subscription_id` fica salvo em `assinaturas` e os pagamentos mensais
 gerados pelo Asaas atualizam `status`, `bloqueado` e `data_vencimento` por webhook.
-Plano anual e Mercado Pago continuam como fluxos avulsos/fallback.
+Essas rotas foram mantidas para compatibilidade, mas nao aparecem na experiencia
+principal de checkout.
 
-## Mercado Pago Fallback
+## Mercado Pago
 1. Configure as variaveis `MERCADO_PAGO_PUBLIC_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` e `MERCADO_PAGO_NOTIFICATION_URL`. Em producao, `MERCADO_PAGO_WEBHOOK_SECRET` e obrigatorio; se estiver ausente, o webhook retorna 503 e nao processa o pagamento.
 2. No painel do Mercado Pago, cadastre o webhook de pagamentos apontando para:
 

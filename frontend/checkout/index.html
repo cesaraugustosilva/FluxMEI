@@ -28,7 +28,7 @@
       <article class="checkout-card">
         <p class="eyebrow">Checkout FluxMEI</p>
         <h1>Finalize sua assinatura</h1>
-        <p class="checkout-lead">Confira seu plano, escolha o processador e pague com seguranca sem expor dados sensiveis ao FluxMEI.</p>
+        <p class="checkout-lead">Confira seu plano e pague com seguranca pelo Mercado Pago sem expor dados sensiveis ao FluxMEI.</p>
 
         <div class="status-panel" id="statusPanel" hidden>
           <span class="status-icon" id="statusIcon">!</span>
@@ -105,43 +105,13 @@
       <aside class="summary-card" aria-label="Pagamento">
         <div class="summary-head">
           <span>Pagamento</span>
-          <strong id="providerTitle">Asaas</strong>
+          <strong id="providerTitle">Mercado Pago</strong>
         </div>
 
         <section class="provider-panel" aria-label="Processador de pagamento">
           <span>Processador</span>
-          <div class="provider-grid">
-            <label class="provider-option selected">
-              <input type="radio" name="paymentProvider" value="asaas" checked />
-              <strong>Asaas</strong>
-              <small>Pix e boleto no checkout FluxMEI.</small>
-            </label>
-            <label class="provider-option">
-              <input type="radio" name="paymentProvider" value="mercado_pago" />
-              <strong>Mercado Pago</strong>
-              <small>Fallback com Payment Brick.</small>
-            </label>
-          </div>
-        </section>
-
-        <section class="method-panel" id="asaasMethodPanel" aria-label="Forma de pagamento Asaas">
-          <span>Forma de pagamento</span>
-          <div class="method-grid">
-            <label class="method-option selected">
-              <input type="radio" name="asaasMethod" value="pix" checked />
-              <strong>Pix</strong>
-            </label>
-            <label class="method-option">
-              <input type="radio" name="asaasMethod" value="boleto" />
-              <strong>Boleto</strong>
-            </label>
-            <label class="method-option">
-              <input type="radio" name="asaasMethod" value="cartao" />
-              <strong>Cartao</strong>
-            </label>
-          </div>
-          <button class="asaas-pay-button" type="button" id="asaasPayButton">Gerar pagamento Asaas</button>
-          <small id="asaasMethodHint">Cartao usa a fatura segura do Asaas; o FluxMEI nao coleta dados do cartao.</small>
+          <strong>Pagamento seguro processado pelo Mercado Pago.</strong>
+          <small>Pix, cartao e boleto aparecem abaixo quando disponiveis para sua conta e ambiente.</small>
         </section>
 
         <div class="brick-loading" id="brickLoading">
@@ -161,7 +131,7 @@
         </ul>
 
         <div class="security-box">
-          <strong>Pagamento processado com seguranca pelo Asaas ou Mercado Pago.</strong>
+          <strong>Pagamento seguro processado pelo Mercado Pago.</strong>
           <span>O FluxMEI nao armazena dados de cartao e nao processa pagamento diretamente.</span>
         </div>
       </aside>

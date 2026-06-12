@@ -1,5 +1,7 @@
 # Teste Asaas Sandbox - FluxMEI
 
+> Status: legado/fallback. O checkout principal do FluxMEI usa Mercado Pago Payment Brick. Use este roteiro apenas se for validar as rotas Asaas mantidas no backend.
+
 Este roteiro valida o fluxo Asaas sandbox ponta a ponta sem usar chaves de producao.
 
 ## Objetivo

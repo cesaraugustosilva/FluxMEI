@@ -13,15 +13,15 @@ O FluxMEI ajuda microempreendedores a controlar receitas, despesas, clientes, DA
 - Metas financeiras
 - Teste gratis de 7 dias
 - Assinatura
-- Checkout com Asaas e Mercado Pago fallback
+- Checkout com Mercado Pago Payment Brick
 
 ## Stack
 
 - Frontend HTML/CSS/JS
 - Backend Node.js/Express
 - Supabase
-- Asaas
-- Mercado Pago fallback
+- Mercado Pago
+- Asaas legado/fallback no backend
 - Vercel
 - Render
 
@@ -84,7 +84,7 @@ Para rodar:
 npm test
 ```
 
-Os testes nao usam banco de producao e nao chamam APIs reais de Asaas ou Mercado Pago.
+Os testes nao usam banco de producao e nao chamam APIs reais de Mercado Pago ou Asaas.
 
 ## Variaveis De Ambiente Principais
 
@@ -106,6 +106,7 @@ MERCADO_PAGO_ACCESS_TOKEN=seu_access_token
 MERCADO_PAGO_WEBHOOK_SECRET=seu_secret_do_webhook
 MERCADO_PAGO_NOTIFICATION_URL=https://api.seudominio.com/api/webhooks/mercado-pago
 
+# Asaas legado/fallback no backend. Nao e usado pelo checkout principal.
 ASAAS_API_KEY=sua_api_key
 ASAAS_WEBHOOK_TOKEN=seu_token_webhook
 ASAAS_BASE_URL=https://api.asaas.com/v3
@@ -124,7 +125,8 @@ Deploy recomendado:
 - Frontend na Vercel, com root directory `frontend`
 - Backend no Render, com root directory `backend`
 - Banco e Auth no Supabase
-- Webhooks configurados nos paineis do Asaas e Mercado Pago
+- Webhook configurado no painel do Mercado Pago
+- Webhook Asaas apenas se o fluxo legado estiver habilitado no backend
 
 Consulte o passo a passo completo em `DEPLOY.md`.
 
@@ -132,7 +134,7 @@ Consulte o passo a passo completo em `DEPLOY.md`.
 
 - Nunca commitar `.env`, `.env.*` ou chaves reais.
 - `SUPABASE_SERVICE_ROLE_KEY` deve ficar apenas no backend.
-- Chaves privadas de Asaas, Mercado Pago e Gemini nunca devem ir para a Vercel.
+- Chaves privadas de Mercado Pago, Asaas e Gemini nunca devem ir para a Vercel.
 - Webhooks de pagamento precisam de token/secret configurados.
 - Em producao, webhooks sem `ASAAS_WEBHOOK_TOKEN` ou `MERCADO_PAGO_WEBHOOK_SECRET` devem ser recusados.
 

@@ -447,8 +447,7 @@ h1 {
   border-bottom: 1px solid var(--line);
 }
 
-.provider-panel,
-.method-panel {
+.provider-panel {
   display: grid;
   gap: 12px;
   margin-top: 18px;
@@ -458,8 +457,7 @@ h1 {
   background: rgba(255, 255, 255, 0.06);
 }
 
-.provider-panel span,
-.method-panel span {
+.provider-panel span {
   color: #d7f7dc;
   font-size: 0.74rem;
   font-weight: 900;
@@ -467,69 +465,15 @@ h1 {
   text-transform: uppercase;
 }
 
-.provider-grid,
-.method-grid {
-  display: grid;
-  gap: 10px;
-}
-
-.provider-option,
-.method-option {
-  display: grid;
-  grid-template-columns: 18px 1fr;
-  gap: 10px;
-  align-items: start;
-  min-height: 54px;
-  padding: 13px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.18);
-  cursor: pointer;
-}
-
-.provider-option.selected,
-.method-option.selected {
-  border-color: var(--line-strong);
-  background: rgba(72, 213, 47, 0.12);
-}
-
-.provider-option input,
-.method-option input {
-  margin-top: 3px;
-  accent-color: var(--green);
-}
-
-.provider-option strong,
-.method-option strong {
+.provider-panel strong {
   display: block;
   color: #ffffff;
-  line-height: 1.25;
+  line-height: 1.35;
 }
 
-.provider-option small,
-.method-panel small {
+.provider-panel small {
   color: var(--muted);
   line-height: 1.45;
-}
-
-.asaas-pay-button {
-  min-height: 52px;
-  border: 0;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--green), var(--green-2));
-  color: #06120a;
-  cursor: pointer;
-  font: inherit;
-  font-weight: 900;
-}
-
-.asaas-pay-button:disabled {
-  cursor: wait;
-  opacity: 0.68;
-}
-
-.method-panel.is-hidden {
-  display: none;
 }
 
 .brick-loading {
