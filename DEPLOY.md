@@ -5,7 +5,7 @@ Este guia prepara o FluxMEI para:
 - Frontend na Vercel
 - Backend no Render
 - Banco e Auth no Supabase
-- Pagamentos no Mercado Pago Payment Brick
+- Pagamentos no Mercado Pago: Pix personalizado e Payment Brick para cartao/boleto
 - Dominio proprio
 
 ## Estrutura
@@ -162,19 +162,21 @@ Fluxo esperado do checkout principal:
 
 1. Usuario acessa `https://seudominio.com/checkout/`.
 2. Frontend carrega `MERCADO_PAGO_PUBLIC_KEY` via `https://api.seudominio.com/api/pagamentos/mercado-pago/public-config`.
-3. O Payment Brick exibe Pix, cartao e boleto dentro do FluxMEI, conforme disponibilidade do Mercado Pago.
-4. Frontend chama `https://api.seudominio.com/api/pagamentos/mercado-pago/processar-brick`.
-5. Backend cria o pagamento no Mercado Pago usando `MERCADO_PAGO_ACCESS_TOKEN`.
-6. Mercado Pago chama o webhook.
-7. Backend consulta o pagamento e, se `approved`, atualiza assinatura para `ativo` e `bloqueado = false`.
+3. Se o usuario escolher Pix, o frontend chama `https://api.seudominio.com/api/pagamentos/mercado-pago/criar-pix`.
+4. O backend cria o pagamento Pix no Mercado Pago usando `MERCADO_PAGO_ACCESS_TOKEN` e o e-mail do usuario autenticado.
+5. O frontend exibe QR Code Pix, codigo copia e cola, botao copiar e botao de verificar pagamento.
+6. Se o usuario escolher cartao ou boleto, o Payment Brick exibe esses meios dentro do FluxMEI.
+7. Frontend chama `https://api.seudominio.com/api/pagamentos/mercado-pago/processar-brick`.
+8. Mercado Pago chama o webhook.
+9. Backend consulta o pagamento e, se `approved`, atualiza assinatura para `ativo` e `bloqueado = false`.
 
-O checkout principal nao chama Asaas e nao chama a rota legada `/api/pagamentos/mercado-pago/criar-pix`. Pix, cartao, boleto e seguranca ficam sob responsabilidade do fluxo padrao do Mercado Pago.
+O checkout principal nao chama Asaas e nao usa Checkout Pro. Pix e Payment Brick usam Mercado Pago como unico gateway; `MERCADO_PAGO_ACCESS_TOKEN` permanece somente no backend.
 
 Teste de pagamento Mercado Pago:
 
 1. Configure `MERCADO_PAGO_PUBLIC_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` e `MERCADO_PAGO_NOTIFICATION_URL`.
 2. Abra `/checkout/?plan=pro_mensal` com usuario logado.
-3. Conclua o pagamento pelo Payment Brick usando Pix, cartao ou boleto.
+3. Gere Pix pelo FluxMEI ou conclua cartao/boleto pelo Payment Brick.
 4. Confirme que a tentativa fica registrada como `payment_provider = 'mercado_pago'`.
 5. Aguarde o webhook aprovado para liberar a assinatura.
 

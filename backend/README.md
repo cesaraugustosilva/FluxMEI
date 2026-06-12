@@ -160,10 +160,12 @@ Fluxo de teste:
 4. Acessar rota protegida e verificar HTTP `402`.
 5. Abrir `http://localhost:3002/checkout/`.
 6. Criar assinatura pela tela.
-7. Pagar pelo Payment Brick ou enviar uma notificacao de teste do Mercado Pago.
+7. Gerar Pix personalizado ou pagar cartao/boleto pelo Payment Brick.
 8. Confirmar que a assinatura ficou `ativo` e `bloqueado = false`.
 
-`/checkout/` usa Payment Brick do Mercado Pago. O frontend recebe apenas
+`/checkout/` usa Mercado Pago como unico gateway. Pix e criado pelo backend em
+`/api/pagamentos/mercado-pago/criar-pix` e exibido na tela do FluxMEI; cartao e
+boleto seguem pelo Payment Brick. O frontend recebe apenas
 `MERCADO_PAGO_PUBLIC_KEY`; o backend usa `MERCADO_PAGO_ACCESS_TOKEN` para criar
 pagamentos em `/v1/payments`. A assinatura deve ser liberada pelo webhook em
 producao. Em ambiente local, sem URL publica de webhook, a resposta do pagamento

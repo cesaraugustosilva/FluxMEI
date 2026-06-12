@@ -4,7 +4,7 @@ SaaS de gestao financeira para MEIs.
 
 O FluxMEI ajuda microempreendedores a controlar receitas, despesas, clientes, DAS, metas financeiras e assinatura em uma plataforma web simples, com teste gratis de 7 dias e checkout integrado.
 
-O checkout principal usa somente Mercado Pago Payment Brick. Pix, cartao e boleto ficam dentro do fluxo padrao do Mercado Pago; o FluxMEI nao gera QR Code Pix proprio no frontend.
+O checkout principal usa somente Mercado Pago como gateway: Pix personalizado no FluxMEI com QR Code na tela, e cartao/boleto pelo Mercado Pago Payment Brick.
 
 ## Principais Recursos
 
@@ -15,7 +15,7 @@ O checkout principal usa somente Mercado Pago Payment Brick. Pix, cartao e bolet
 - Metas financeiras
 - Teste gratis de 7 dias
 - Assinatura
-- Checkout com Mercado Pago Payment Brick para Pix, cartao e boleto
+- Checkout com Pix personalizado e Mercado Pago Payment Brick para cartao/boleto
 
 ## Stack
 

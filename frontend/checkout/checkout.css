@@ -158,7 +158,9 @@ h1 {
 .benefits-panel,
 .provider-panel,
 .security-box,
-.status-panel {
+.status-panel,
+.pix-generate-panel,
+.pix-panel {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel-2);
@@ -356,6 +358,52 @@ h1 {
   line-height: 1.45;
 }
 
+.payment-methods {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.method-card {
+  display: grid;
+  gap: 6px;
+  min-height: 104px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.method-card.is-selected {
+  border-color: var(--line-strong);
+  background: rgba(72, 213, 47, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(72, 213, 47, 0.18);
+}
+
+.method-card span {
+  color: var(--green-2);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.06rem;
+  text-transform: uppercase;
+}
+
+.method-card strong {
+  color: #ffffff;
+  font-size: 0.96rem;
+  line-height: 1.25;
+}
+
+.method-card small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .status-panel {
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr);
@@ -434,6 +482,30 @@ h1 {
   display: none;
 }
 
+.pix-generate-panel {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 16px;
+  border-color: rgba(50, 213, 210, 0.36);
+  background: rgba(50, 213, 210, 0.08);
+}
+
+.pix-generate-panel[hidden] {
+  display: none;
+}
+
+.pix-generate-panel strong {
+  color: #ffffff;
+  font-size: 1rem;
+}
+
+.pix-generate-panel p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .brick-shell {
   overflow: hidden;
   margin: 16px 0 0;
@@ -458,6 +530,120 @@ h1 {
 
 .brick-container.is-hidden {
   display: none;
+}
+
+.pix-panel {
+  display: grid;
+  gap: 13px;
+  margin-top: 16px;
+  padding: 16px;
+  border-color: rgba(50, 213, 210, 0.36);
+  background: rgba(50, 213, 210, 0.08);
+}
+
+.pix-panel[hidden] {
+  display: none;
+}
+
+.pix-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.pix-heading span,
+.pix-code-label {
+  color: #d7f7dc;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.06rem;
+  text-transform: uppercase;
+}
+
+.pix-heading strong {
+  display: block;
+  margin-top: 6px;
+  color: #ffffff;
+  font-size: 1.08rem;
+}
+
+.pix-status {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  white-space: nowrap;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 211, 122, 0.18);
+  color: var(--warning);
+}
+
+.pix-panel p,
+.pix-panel small {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.pix-qr-wrap {
+  display: grid;
+  min-height: 210px;
+  place-items: center;
+  padding: 14px;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.pix-qr-wrap img {
+  display: block;
+  width: min(210px, 100%);
+  height: auto;
+}
+
+.pix-code-label {
+  display: block;
+  margin-top: 2px;
+}
+
+#pixCode {
+  width: 100%;
+  min-height: 94px;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--ink);
+  font: 500 0.88rem/1.45 "Inter", system-ui, sans-serif;
+}
+
+.pix-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pix-button {
+  min-height: 46px;
+  border: 0;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--green), var(--green-2));
+  color: #06120a;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+}
+
+.pix-button.secondary {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.06);
+  color: #dff8e3;
+}
+
+.pix-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
 .checkout-alert {
@@ -537,8 +723,20 @@ h1 {
     padding: 7px;
   }
 
+  .payment-methods {
+    grid-template-columns: 1fr;
+  }
+
   .brick-container {
     min-height: 470px;
+  }
+
+  .pix-heading {
+    flex-direction: column;
+  }
+
+  .pix-actions {
+    grid-template-columns: 1fr;
   }
 
   .back-button {
