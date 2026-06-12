@@ -26,7 +26,7 @@ const PAYMENT_STATUS = {
     type: 'success',
     icon: 'OK',
     title: 'Pagamento aprovado',
-    text: 'Recebemos a aprovacao do processador. A assinatura sera liberada assim que o webhook confirmar.'
+    text: 'Pagamento aprovado! Estamos liberando seu acesso.'
   },
   active: {
     type: 'success',
@@ -65,6 +65,7 @@ let paymentBrickController = null;
 let statusPoller = null;
 let currentPaymentId = null;
 let mercadoPagoLoaded = false;
+let selectedPaymentMethod = 'pix';
 
 function normalizeApiUrl(url) {
   return String(url || '').replace(/\/$/, '');
@@ -178,6 +179,13 @@ function hideBoletoPanel() {
   link.removeAttribute('href');
 }
 
+function setGeneratePixLoading(isLoading) {
+  const button = document.getElementById('generatePixButton');
+  if (!button) return;
+  button.disabled = isLoading;
+  button.textContent = isLoading ? 'Gerando Pix...' : 'Gerar Pix';
+}
+
 function isPixPayment(payment) {
   const method = String(payment?.payment_method_id || '').toLowerCase();
   const type = String(payment?.payment_type_id || '').toLowerCase();
@@ -246,6 +254,11 @@ function setBrickLoading(isLoading, message = 'Carregando meios de pagamento...'
 function setBrickVisible(isVisible) {
   document.getElementById('paymentBrick_container').classList.toggle('is-hidden', !isVisible);
   document.querySelector('.brick-shell')?.classList.toggle('is-hidden', !isVisible);
+}
+
+function setPixGenerateVisible(isVisible) {
+  const panel = document.getElementById('pixGeneratePanel');
+  if (panel) panel.hidden = !isVisible;
 }
 
 async function request(path, options = {}, { auth = true } = {}) {
@@ -409,7 +422,7 @@ async function checkPaymentStatus(paymentId = currentPaymentId, { silent = false
       hidePixPanel();
       hideBoletoPanel();
       showStatus('approved', 'Pagamento aprovado. Estamos aguardando a confirmacao final do webhook.');
-      showAlert('Pagamento aprovado pelo processador. A assinatura sera liberada apos a confirmacao final.', 'success');
+      showAlert('Pagamento aprovado! Estamos liberando seu acesso.', 'success');
       pollSubscriptionActivation();
       return data;
     }
@@ -484,6 +497,34 @@ async function submitBrickPayment(formData) {
   return data;
 }
 
+async function generatePixPayment() {
+  clearAlert();
+  hidePixPanel();
+  hideBoletoPanel();
+  setGeneratePixLoading(true);
+  showStatus('pending', 'Aguardando pagamento');
+
+  try {
+    const data = await request('/pagamentos/mercado-pago/criar-pix', {
+      method: 'POST',
+      body: JSON.stringify({
+        plano: selectedPlan.id
+      })
+    });
+
+    renderPixPanel(data);
+    showStatus('pending', 'Aguardando pagamento');
+    showAlert('Pix gerado com sucesso', 'success');
+    pollSubscriptionActivation();
+    return data;
+  } catch (error) {
+    showAlert(error.message || 'Nao foi possivel gerar o Pix. Tente novamente em alguns instantes.');
+    return null;
+  } finally {
+    setGeneratePixLoading(false);
+  }
+}
+
 async function renderPaymentBrick(publicKey) {
   if (!window.MercadoPago) {
     throw new Error('SDK do Mercado Pago nao carregado.');
@@ -502,7 +543,7 @@ async function renderPaymentBrick(publicKey) {
     },
     customization: {
       paymentMethods: {
-        bankTransfer: 'all',
+        bankTransfer: 'none',
         creditCard: 'all',
         debitCard: 'all',
         prepaidCard: 'all',
@@ -539,6 +580,37 @@ async function renderPaymentBrick(publicKey) {
   });
 }
 
+async function selectPaymentMethod(method) {
+  selectedPaymentMethod = method;
+
+  document.querySelectorAll('[data-payment-method]').forEach((button) => {
+    const isSelected = button.dataset.paymentMethod === method;
+    button.classList.toggle('is-selected', isSelected);
+    button.setAttribute('aria-pressed', String(isSelected));
+  });
+
+  if (method === 'pix') {
+    setBrickLoading(false);
+    setBrickVisible(false);
+    setPixGenerateVisible(true);
+    hideBoletoPanel();
+    return;
+  }
+
+  setPixGenerateVisible(false);
+  hidePixPanel();
+  setBrickVisible(false);
+  setBrickLoading(true, 'Carregando cartao e boleto...');
+
+  try {
+    await ensureMercadoPagoBrick();
+  } catch (error) {
+    setBrickLoading(false);
+    setBrickVisible(false);
+    showAlert(error.message || 'Nao foi possivel carregar cartao e boleto.');
+  }
+}
+
 async function ensureMercadoPagoBrick() {
   if (paymentBrickController) {
     setBrickLoading(false);
@@ -552,6 +624,16 @@ async function ensureMercadoPagoBrick() {
 }
 
 function bindCheckoutEvents() {
+  document.querySelectorAll('[data-payment-method]').forEach((button) => {
+    button.addEventListener('click', () => {
+      selectPaymentMethod(button.dataset.paymentMethod);
+    });
+  });
+
+  document.getElementById('generatePixButton').addEventListener('click', () => {
+    generatePixPayment();
+  });
+
   document.getElementById('copyPixButton').addEventListener('click', async () => {
     const code = document.getElementById('pixCode').value;
     if (!code) return;
@@ -577,7 +659,8 @@ function bindCheckoutEvents() {
 async function initCheckout() {
   bindCheckoutEvents();
   setBrickVisible(false);
-  setBrickLoading(true, 'Carregando Mercado Pago...');
+  setBrickLoading(false);
+  setPixGenerateVisible(true);
 
   const planId = getSelectedPlanId();
   saveSubscribeIntent(planId);
@@ -599,11 +682,12 @@ async function initCheckout() {
     if (subscriptionStatus?.estado === 'ativo') {
       setBrickVisible(false);
       setBrickLoading(false);
+      setPixGenerateVisible(false);
       showStatus('active', 'Sua assinatura ja esta ativa. Voce pode voltar ao app.');
       return;
     }
 
-    await ensureMercadoPagoBrick();
+    await selectPaymentMethod(selectedPaymentMethod);
   } catch (error) {
     if (error.message === 'LOGIN_REQUIRED') {
       handleLoginRequired(planId);

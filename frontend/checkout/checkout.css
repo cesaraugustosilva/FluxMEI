@@ -159,6 +159,7 @@ h1 {
 .provider-panel,
 .security-box,
 .status-panel,
+.pix-generate-panel,
 .pix-panel,
 .boleto-panel {
   border: 1px solid var(--line);
@@ -358,6 +359,52 @@ h1 {
   line-height: 1.45;
 }
 
+.payment-methods {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.method-card {
+  display: grid;
+  gap: 6px;
+  min-height: 104px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.method-card.is-selected {
+  border-color: var(--line-strong);
+  background: rgba(72, 213, 47, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(72, 213, 47, 0.18);
+}
+
+.method-card span {
+  color: var(--green-2);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.06rem;
+  text-transform: uppercase;
+}
+
+.method-card strong {
+  color: #ffffff;
+  font-size: 0.96rem;
+  line-height: 1.25;
+}
+
+.method-card small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .status-panel {
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr);
@@ -434,6 +481,30 @@ h1 {
 
 .brick-loading.is-hidden {
   display: none;
+}
+
+.pix-generate-panel {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 16px;
+  border-color: rgba(50, 213, 210, 0.36);
+  background: rgba(50, 213, 210, 0.08);
+}
+
+.pix-generate-panel[hidden] {
+  display: none;
+}
+
+.pix-generate-panel strong {
+  color: #ffffff;
+  font-size: 1rem;
+}
+
+.pix-generate-panel p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 .brick-shell {
@@ -683,6 +754,10 @@ h1 {
 
   .brick-shell {
     padding: 7px;
+  }
+
+  .payment-methods {
+    grid-template-columns: 1fr;
   }
 
   .brick-container {

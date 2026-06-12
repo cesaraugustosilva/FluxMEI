@@ -228,6 +228,41 @@ function buildBrickPaymentPayload({ formData, plan, user, profile, assinatura })
   return payment;
 }
 
+function buildPixPaymentPayload({ plan, user, profile, assinatura }) {
+  const ownerName = profile?.nome || user.user_metadata?.nome || user.email || '';
+  const payerName = splitName(ownerName);
+  const documentNumber = mercadoPagoService.onlyDigits(profile?.cpf || profile?.cnpj);
+  const externalReference = `${user.id}:${assinatura.id}:${plan.id}`;
+
+  const payment = {
+    transaction_amount: plan.value,
+    description: plan.description,
+    payment_method_id: 'pix',
+    payer: {
+      email: user.email,
+      first_name: payerName.firstName || undefined,
+      last_name: payerName.lastName || undefined,
+      identification: documentNumber ? {
+        type: documentNumber.length > 11 ? 'CNPJ' : 'CPF',
+        number: documentNumber
+      } : undefined
+    },
+    external_reference: externalReference,
+    metadata: {
+      user_id: user.id,
+      assinatura_id: assinatura.id,
+      plano: plan.id
+    },
+    notification_url: getNotificationUrl() || undefined,
+    statement_descriptor: 'FLUXMEI'
+  };
+
+  if (!payment.payer.identification) delete payment.payer.identification;
+  if (!payment.notification_url) delete payment.notification_url;
+
+  return payment;
+}
+
 async function registerBrickPaymentAttempt(assinatura, plan, payment) {
   return updateAssinaturaById(assinatura.id, {
     plano: plan.id,
@@ -244,6 +279,10 @@ async function registerBrickPaymentAttempt(assinatura, plan, payment) {
     bloqueado: true,
     renovacao_automatica: false
   });
+}
+
+async function registerPixPaymentAttempt(assinatura, plan, payment) {
+  return registerBrickPaymentAttempt(assinatura, plan, payment);
 }
 
 function normalizeAsaasPixData(qrCode) {
@@ -409,6 +448,41 @@ export async function processarPagamentoBrick(req, res) {
     success: true,
     ...paymentResponsePayload(payment, paymentPayload.payment_method_id),
     message: 'Pagamento enviado ao Mercado Pago'
+  });
+}
+
+export async function criarPixMercadoPago(req, res) {
+  const plano = req.body?.plano;
+  const plan = PAYMENT_PLANS[plano];
+  if (!plan || !PLANOS[plano]) throw new AppError('Plano invalido.');
+  if (!req.user?.email) throw new AppError('Usuario autenticado sem e-mail cadastrado.', 400);
+
+  const profile = await getProfile(req.user.id);
+  const assinatura = await ensureUserSubscription(req.user.id, plano);
+  const paymentPayload = buildPixPaymentPayload({
+    plan,
+    user: req.user,
+    profile,
+    assinatura
+  });
+
+  const idempotencyKey = crypto.randomUUID();
+  const payment = await mercadoPagoService.criarPagamento({
+    payment: paymentPayload,
+    idempotencyKey
+  });
+
+  await registerPixPaymentAttempt(assinatura, plan, payment);
+  const pix = extractPixData(payment);
+
+  res.status(201).json({
+    success: true,
+    ...paymentResponsePayload(payment, 'pix'),
+    status: payment?.status || null,
+    qr_code: pix?.qr_code || null,
+    qr_code_base64: pix?.qr_code_base64 || null,
+    ticket_url: pix?.ticket_url || null,
+    message: 'Pix gerado com sucesso'
   });
 }
 
@@ -588,15 +662,29 @@ async function findSubscriptionFromPayment(payment) {
   }
 
   if (externalReference) {
-    const { data, error } = await supabaseAdmin
+    const reference = String(externalReference);
+    const assinaturaId = reference.includes(':') ? reference.split(':')[1] : reference;
+    const { data: assinaturaById, error: assinaturaError } = await supabaseAdmin
       .from('assinaturas')
       .select('*')
-      .or(`id.eq.${externalReference},user_id.eq.${externalReference}`)
+      .eq('id', assinaturaId)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (error) throw new AppError('Erro ao buscar assinatura.', 500, error.message);
-    if (data) return data;
+    if (assinaturaError) throw new AppError('Erro ao buscar assinatura.', 500, assinaturaError.message);
+    if (assinaturaById) return assinaturaById;
+
+    if (!reference.includes(':')) {
+      const { data: assinaturaByUser, error: userError } = await supabaseAdmin
+        .from('assinaturas')
+        .select('*')
+        .eq('user_id', reference)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (userError) throw new AppError('Erro ao buscar assinatura.', 500, userError.message);
+      if (assinaturaByUser) return assinaturaByUser;
+    }
   }
 
   return null;

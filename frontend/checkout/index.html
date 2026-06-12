@@ -85,7 +85,25 @@
 
         <section class="provider-panel" aria-label="Processador de pagamento">
           <strong>Pagamento seguro processado pelo Mercado Pago.</strong>
-          <small>O FluxMEI nao armazena dados de cartao. A liberacao da assinatura acontece apos confirmacao do webhook.</small>
+          <small>No Pix, usamos o e-mail da sua conta FluxMEI. A liberacao da assinatura acontece apos confirmacao do webhook.</small>
+        </section>
+
+        <section class="payment-methods" aria-label="Escolha a forma de pagamento">
+          <button class="method-card is-selected" type="button" data-payment-method="pix" aria-pressed="true">
+            <span>Pix</span>
+            <strong>QR Code na tela</strong>
+            <small>Sem e-mail extra</small>
+          </button>
+          <button class="method-card" type="button" data-payment-method="cartao" aria-pressed="false">
+            <span>Cartao</span>
+            <strong>Payment Brick</strong>
+            <small>Dados protegidos</small>
+          </button>
+          <button class="method-card" type="button" data-payment-method="boleto" aria-pressed="false">
+            <span>Boleto</span>
+            <strong>Payment Brick</strong>
+            <small>Pagamento bancario</small>
+          </button>
         </section>
 
         <div class="status-panel" id="statusPanel" hidden>
@@ -96,10 +114,16 @@
           </div>
         </div>
 
+        <section class="pix-generate-panel" id="pixGeneratePanel" aria-label="Gerar Pix">
+          <strong>Gerar Pix para o plano escolhido</strong>
+          <p>Escaneie o QR Code ou copie o codigo Pix abaixo. Apos o pagamento, a confirmacao pode levar alguns instantes.</p>
+          <button class="pix-button" type="button" id="generatePixButton">Gerar Pix</button>
+        </section>
+
         <div class="brick-loading" id="brickLoading">
           <span class="loading-spinner" aria-hidden="true"></span>
           <strong>Carregando meios de pagamento...</strong>
-          <span>Estamos preparando Pix, cartao e boleto no ambiente seguro do Mercado Pago.</span>
+          <span>Estamos preparando cartao e boleto no ambiente seguro do Mercado Pago.</span>
         </div>
 
         <div class="brick-shell">
