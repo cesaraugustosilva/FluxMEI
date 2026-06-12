@@ -89,6 +89,7 @@ export function validateAsaasWebhook(req) {
       provider: 'asaas',
       event: req.body?.event || null,
       paymentId: req.body?.payment?.id || null,
+      subscriptionId: req.body?.payment?.subscription || req.body?.subscription?.id || null,
       status: req.body?.payment?.status || null,
       outcome: 'rejected_invalid_token'
     });
@@ -98,11 +99,12 @@ export function validateAsaasWebhook(req) {
   return { validated: true };
 }
 
-export function logWebhookEvent({ provider, event = null, paymentId = null, status = null, outcome = 'received' }) {
+export function logWebhookEvent({ provider, event = null, paymentId = null, subscriptionId = null, status = null, outcome = 'received' }) {
   console.info('[webhook:event]', {
     provider,
     event,
     payment_id: paymentId ? String(paymentId) : null,
+    subscription_id: subscriptionId ? String(subscriptionId) : null,
     status,
     outcome
   });

@@ -646,9 +646,12 @@ export async function webhookAsaas(req, res) {
   const subscription = req.body?.subscription;
 
   if (!payment?.id && subscription?.id) {
-    logWebhookEvent({ provider: 'asaas', event, paymentId: null, status: subscription.status, outcome: 'subscription_event' });
+    logWebhookEvent({ provider: 'asaas', event, paymentId: null, subscriptionId: subscription.id, status: subscription.status, outcome: 'subscription_event' });
     const assinatura = await findSubscriptionByProviderSubscription('asaas', subscription.id);
-    if (!assinatura) return res.json({ received: true, ignored: true });
+    if (!assinatura) {
+      logWebhookEvent({ provider: 'asaas', event, subscriptionId: subscription.id, status: subscription.status, outcome: 'ignored_no_subscription' });
+      return res.json({ received: true, ignored: true });
+    }
 
     const updates = {
       payment_provider: 'asaas',
@@ -665,6 +668,7 @@ export async function webhookAsaas(req, res) {
     }
 
     await updateAssinaturaById(assinatura.id, updates);
+    logWebhookEvent({ provider: 'asaas', event, subscriptionId: subscription.id, status: subscription.status, outcome: 'subscription_updated' });
     return res.json({ received: true, event });
   }
 
@@ -673,7 +677,7 @@ export async function webhookAsaas(req, res) {
     return res.json({ received: true, ignored: true });
   }
 
-  logWebhookEvent({ provider: 'asaas', event, paymentId: payment.id, status: payment.status, outcome: 'processing' });
+  logWebhookEvent({ provider: 'asaas', event, paymentId: payment.id, subscriptionId: payment.subscription, status: payment.status, outcome: 'processing' });
 
   let assinatura = await findSubscriptionByProviderPayment('asaas', payment.id);
   if (!assinatura && payment.subscription) {
@@ -691,11 +695,11 @@ export async function webhookAsaas(req, res) {
   }
 
   if (!assinatura) {
-    logWebhookEvent({ provider: 'asaas', event, paymentId: payment.id, status: payment.status, outcome: 'ignored_no_subscription' });
+    logWebhookEvent({ provider: 'asaas', event, paymentId: payment.id, subscriptionId: payment.subscription, status: payment.status, outcome: 'ignored_no_subscription' });
     return res.json({ received: true, ignored: true });
   }
 
   await aplicarPagamentoAsaasNaAssinatura(payment, assinatura, event);
-  logWebhookEvent({ provider: 'asaas', event, paymentId: payment.id, status: payment.status, outcome: 'applied' });
+  logWebhookEvent({ provider: 'asaas', event, paymentId: payment.id, subscriptionId: payment.subscription || assinatura.provider_subscription_id, status: payment.status, outcome: 'applied' });
   res.json({ received: true, event });
 }
