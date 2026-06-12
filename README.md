@@ -1,57 +1,129 @@
 # FluxMEI
 
-<<<<<<< HEAD
-Sistema SaaS para ajudar MEIs no controle financeiro, com dashboard, movimentações, clientes, lembretes de DAS e relatórios.
+SaaS de gestao financeira para MEIs.
 
-## Funcionalidades
-=======
-Sistema SaaS web para ajudar MEIs no controle financeiro.
+O FluxMEI ajuda microempreendedores a controlar receitas, despesas, clientes, DAS, metas financeiras e assinatura em uma plataforma web simples, com teste gratis de 7 dias e checkout integrado.
 
-## Funcionalidades
+## Principais Recursos
+
+- Controle de receitas e despesas
 - Dashboard financeiro
-- Calendario de caixa
-- Entradas e saidas
-- Controle de clientes
-- Lembrete DAS
-- Relatorios
->>>>>>> 6f2c575 (reorganiza estrutura do frontend)
+- Clientes
+- DAS
+- Metas financeiras
+- Teste gratis de 7 dias
+- Assinatura
+- Checkout com Asaas e Mercado Pago fallback
 
-- Dashboard financeiro
-- Cadastro e login de usuários
-- Controle de entradas e saídas
-- Controle de clientes
-- Lembrete de DAS
-- Relatórios financeiros
-- Estrutura inicial para versão desktop com Electron
-- Banco de dados com Supabase/PostgreSQL
+## Stack
 
-## Tecnologias utilizadas
+- Frontend HTML/CSS/JS
+- Backend Node.js/Express
+- Supabase
+- Asaas
+- Mercado Pago fallback
+- Vercel
+- Render
 
-- HTML
-- CSS
-- JavaScript
-- Node.js
-<<<<<<< HEAD
-- Supabase/PostgreSQL
-- Electron
-- Batchfile
+## Estrutura De Pastas
 
-=======
-- Express
+```text
+FluxMEI/
+  backend/
+    database/        SQL de schema e migrations
+    src/             API Express, rotas, controllers, services e middlewares
+  frontend/
+    app/             Painel autenticado
+    auth/            Login, cadastro e recuperacao de senha
+    checkout/        Checkout de assinatura
+    landing-page/    Landing page
+    assets/          Logos e icones
+  docs/              Roteiros e documentacao de validacao
+  DEPLOY.md          Guia de deploy Vercel/Render/Supabase
+```
 
-## Rodar Web
+## Como Rodar Localmente
+
+Instale as dependencias na raiz do projeto:
+
 ```bash
 npm install
+```
+
+Crie e configure o arquivo de ambiente do backend:
+
+```bash
+copy backend\.env.example backend\.env
+```
+
+Depois rode:
+
+```bash
 npm start
 ```
 
-Depois acesse:
+Acesse:
 
 ```text
 http://localhost:3002
 ```
 
-## Estrutura
-- `frontend/`: telas, estilos e JavaScript do app
-- `backend/`: API, banco de dados e integracoes
->>>>>>> 6f2c575 (reorganiza estrutura do frontend)
+Health check da API:
+
+```text
+http://localhost:3002/api/health
+```
+
+## Variaveis De Ambiente Principais
+
+As principais variaveis ficam em `backend/.env`:
+
+```env
+NODE_ENV=production
+FRONTEND_URL=https://seudominio.com,https://www.seudominio.com
+APP_PUBLIC_URL=https://api.seudominio.com
+
+SUPABASE_URL=https://seu-projeto.supabase.co
+SUPABASE_ANON_KEY=sua_chave_anon
+SUPABASE_SERVICE_ROLE_KEY=sua_chave_service_role
+
+GEMINI_API_KEY=sua_chave_gemini
+
+MERCADO_PAGO_PUBLIC_KEY=sua_public_key
+MERCADO_PAGO_ACCESS_TOKEN=seu_access_token
+MERCADO_PAGO_WEBHOOK_SECRET=seu_secret_do_webhook
+MERCADO_PAGO_NOTIFICATION_URL=https://api.seudominio.com/api/webhooks/mercado-pago
+
+ASAAS_API_KEY=sua_api_key
+ASAAS_WEBHOOK_TOKEN=seu_token_webhook
+ASAAS_BASE_URL=https://api.asaas.com/v3
+```
+
+No frontend, o build usa:
+
+```env
+FLUXMEI_API_URL=https://api.seudominio.com/api
+```
+
+## Deploy
+
+Deploy recomendado:
+
+- Frontend na Vercel, com root directory `frontend`
+- Backend no Render, com root directory `backend`
+- Banco e Auth no Supabase
+- Webhooks configurados nos paineis do Asaas e Mercado Pago
+
+Consulte o passo a passo completo em `DEPLOY.md`.
+
+## Observacoes De Seguranca
+
+- Nunca commitar `.env`, `.env.*` ou chaves reais.
+- `SUPABASE_SERVICE_ROLE_KEY` deve ficar apenas no backend.
+- Chaves privadas de Asaas, Mercado Pago e Gemini nunca devem ir para a Vercel.
+- Webhooks de pagamento precisam de token/secret configurados.
+- Em producao, webhooks sem `ASAAS_WEBHOOK_TOKEN` ou `MERCADO_PAGO_WEBHOOK_SECRET` devem ser recusados.
+
+## Status Do Projeto
+
+MVP em desenvolvimento.
