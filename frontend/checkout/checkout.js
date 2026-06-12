@@ -245,6 +245,7 @@ function setBrickLoading(isLoading, message = 'Carregando meios de pagamento...'
 
 function setBrickVisible(isVisible) {
   document.getElementById('paymentBrick_container').classList.toggle('is-hidden', !isVisible);
+  document.querySelector('.brick-shell')?.classList.toggle('is-hidden', !isVisible);
 }
 
 async function request(path, options = {}, { auth = true } = {}) {
@@ -509,7 +510,7 @@ async function renderPaymentBrick(publicKey) {
       },
       visual: {
         style: {
-          theme: 'default'
+          theme: 'dark'
         }
       }
     },
@@ -531,6 +532,7 @@ async function renderPaymentBrick(publicKey) {
       },
       onError: () => {
         setBrickLoading(false);
+        setBrickVisible(false);
         showAlert('O Mercado Pago nao conseguiu carregar o formulario. Atualize a pagina e tente novamente.');
       }
     }

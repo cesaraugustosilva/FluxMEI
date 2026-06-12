@@ -25,10 +25,68 @@
     </header>
 
     <section class="checkout-layout">
-      <article class="checkout-card">
-        <p class="eyebrow">Checkout FluxMEI</p>
-        <h1>Finalize sua assinatura</h1>
-        <p class="checkout-lead">Confira seu plano e pague com seguranca pelo Mercado Pago sem expor dados sensiveis ao FluxMEI.</p>
+      <aside class="checkout-card summary-card" aria-label="Resumo da assinatura">
+        <div class="checkout-intro">
+          <p class="eyebrow">Checkout FluxMEI</p>
+          <h1>Finalize sua assinatura</h1>
+          <p class="checkout-lead">Plano, conta e beneficios reunidos antes do pagamento.</p>
+        </div>
+
+        <section class="selected-plan" aria-label="Plano escolhido">
+          <div>
+            <span>Plano escolhido</span>
+            <strong id="planName">Plano FluxMEI Mensal</strong>
+          </div>
+          <div class="plan-price">
+            <strong id="planPrice">R$ 49,90</strong>
+            <span id="planCycle">por mes</span>
+          </div>
+        </section>
+
+        <section class="user-box" aria-label="Dados do usuario">
+          <div class="avatar" id="userAvatar">F</div>
+          <div>
+            <span>Dados do usuario</span>
+            <strong id="userName">Verificando login...</strong>
+            <p id="userEmail">A assinatura sera vinculada a esta conta.</p>
+          </div>
+        </section>
+
+        <section class="benefits-panel" aria-label="Beneficios">
+          <span>Incluido no plano</span>
+          <ul class="benefits-list">
+            <li>Controle financeiro completo</li>
+            <li>Gestao de receitas e despesas</li>
+            <li>Acompanhamento do DAS</li>
+            <li>Metas financeiras</li>
+            <li>Relatorios e insights</li>
+            <li>Acesso liberado apos confirmacao</li>
+          </ul>
+        </section>
+
+        <section class="security-box" aria-label="Seguranca">
+          <strong>O pagamento e processado com seguranca pelo Mercado Pago.</strong>
+          <span>O FluxMEI nao armazena dados de cartao.</span>
+        </section>
+
+        <div class="checkout-actions">
+          <a class="back-button" href="/app/">Voltar</a>
+        </div>
+      </aside>
+
+      <article class="checkout-card payment-card" aria-label="Pagamento">
+        <div class="summary-head">
+          <div>
+            <span>Pagamento</span>
+            <strong id="providerTitle">Mercado Pago</strong>
+          </div>
+          <span class="payment-badge">Pix, cartao e boleto</span>
+        </div>
+
+        <section class="provider-panel" aria-label="Processador de pagamento">
+          <strong>Pagamento seguro processado pelo Mercado Pago.</strong>
+          <small>O FluxMEI nao armazena dados de cartao. A liberacao da assinatura acontece apos confirmacao do webhook.</small>
+        </section>
 
         <div class="status-panel" id="statusPanel" hidden>
           <span class="status-icon" id="statusIcon">!</span>
@@ -36,6 +94,16 @@
             <strong id="statusTitle"></strong>
             <p id="statusText"></p>
           </div>
+        </div>
+
+        <div class="brick-loading" id="brickLoading">
+          <span class="loading-spinner" aria-hidden="true"></span>
+          <strong>Carregando meios de pagamento...</strong>
+          <span>Estamos preparando Pix, cartao e boleto no ambiente seguro do Mercado Pago.</span>
+        </div>
+
+        <div class="brick-shell">
+          <div class="brick-container" id="paymentBrick_container"></div>
         </div>
 
         <section class="pix-panel" id="pixPanel" hidden aria-label="Pagamento via Pix">
@@ -75,66 +143,8 @@
           <small>A confirmacao do boleto pode levar mais tempo apos o pagamento.</small>
         </section>
 
-        <section class="selected-plan" aria-label="Plano escolhido">
-          <div>
-            <span>Plano escolhido</span>
-            <strong id="planName">Plano FluxMEI Mensal</strong>
-          </div>
-          <div class="plan-price">
-            <strong id="planPrice">R$ 49,90</strong>
-            <span id="planCycle">por mes</span>
-          </div>
-        </section>
-
-        <section class="user-box" aria-label="Dados do usuario">
-          <div class="avatar" id="userAvatar">F</div>
-          <div>
-            <span>Dados do usuario</span>
-            <strong id="userName">Verificando login...</strong>
-            <p id="userEmail">A assinatura sera vinculada a esta conta.</p>
-          </div>
-        </section>
-
-        <div class="checkout-actions">
-          <a class="back-button" href="/app/">Voltar</a>
-        </div>
-
         <div class="checkout-alert" id="checkoutAlert" role="status"></div>
       </article>
-
-      <aside class="summary-card" aria-label="Pagamento">
-        <div class="summary-head">
-          <span>Pagamento</span>
-          <strong id="providerTitle">Mercado Pago</strong>
-        </div>
-
-        <section class="provider-panel" aria-label="Processador de pagamento">
-          <span>Processador</span>
-          <strong>Pagamento seguro processado pelo Mercado Pago.</strong>
-          <small>Pix, cartao e boleto aparecem abaixo quando disponiveis para sua conta e ambiente.</small>
-        </section>
-
-        <div class="brick-loading" id="brickLoading">
-          <strong>Carregando meios de pagamento...</strong>
-          <span>Pix, cartao e boleto aparecem aqui quando disponiveis.</span>
-        </div>
-
-        <div class="brick-container" id="paymentBrick_container"></div>
-
-        <ul class="benefits-list">
-          <li>Controle financeiro completo</li>
-          <li>Gestao de receitas e despesas</li>
-          <li>Acompanhamento do DAS</li>
-          <li>Metas financeiras</li>
-          <li>Relatorios e insights</li>
-          <li>Acesso imediato apos confirmacao</li>
-        </ul>
-
-        <div class="security-box">
-          <strong>Pagamento seguro processado pelo Mercado Pago.</strong>
-          <span>O FluxMEI nao armazena dados de cartao e nao processa pagamento diretamente.</span>
-        </div>
-      </aside>
     </section>
   </main>
 
