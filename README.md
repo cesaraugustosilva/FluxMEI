@@ -74,6 +74,18 @@ Health check da API:
 http://localhost:3002/api/health
 ```
 
+## Testes Automatizados
+
+O projeto usa o runner nativo do Node.js (`node:test`) para testes criticos de trial, assinatura, webhook e controle de acesso.
+
+Para rodar:
+
+```bash
+npm test
+```
+
+Os testes nao usam banco de producao e nao chamam APIs reais de Asaas ou Mercado Pago.
+
 ## Variaveis De Ambiente Principais
 
 As principais variaveis ficam em `backend/.env`:

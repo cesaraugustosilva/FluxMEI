@@ -1,116 +1,19 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
+import {
+  PLANOS,
+  TRIAL_DAYS,
+  TRIAL_STATUS,
+  buildPendingSubscriptionPayload,
+  buildSubscriptionStatus,
+  buildTrialSubscriptionPayload,
+  evaluateSubscriptionAccess
+} from './assinaturaRules.js';
 
-const TRIAL_DAYS = 7;
-const TRIAL_STATUS = 'teste_gratis';
-const BLOCKED_STATUSES = ['pendente', 'vencido', 'cancelado'];
-const PAYMENT_URL = '/checkout/';
-
-export const PLANOS = {
-  gratuito: {
-    id: 'gratuito',
-    nome: 'Teste grátis',
-    preco: 0,
-    tipo_cobranca: 'mensal',
-    limites: { movimentacoes_mes: null, clientes: null, ia: true },
-    recursos: ['7 dias grátis para testar todos os recursos']
-  },
-  pro_mensal: {
-    id: 'pro_mensal',
-    nome: 'Plano Pro Mensal',
-    preco: 49.9,
-    tipo_cobranca: 'mensal',
-    limites: { movimentacoes_mes: null, clientes: null, ia: true },
-    recursos: ['Movimentações ilimitadas', 'Clientes ilimitados', 'DAS', 'Calendário', 'Relatórios', 'Exportação']
-  },
-  pro_anual: {
-    id: 'pro_anual',
-    nome: 'Plano Pro Anual',
-    preco: 478.8,
-    tipo_cobranca: 'anual',
-    limites: { movimentacoes_mes: null, clientes: null, ia: true },
-    recursos: ['Todos os recursos do Pro Mensal', 'Cobrança anual com desconto']
-  }
-};
+export { PLANOS };
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function addDaysIso(days) {
-  const date = new Date();
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
-function diffDaysUntil(dateIso) {
-  if (!dateIso) return 0;
-  const today = new Date(`${todayIso()}T00:00:00Z`);
-  const target = new Date(`${dateIso}T00:00:00Z`);
-  return Math.max(0, Math.ceil((target - today) / 86400000));
-}
-
-function getTrialEndDate(assinatura) {
-  return assinatura?.data_trial_fim || assinatura?.data_vencimento || null;
-}
-
-function trialExpired(assinatura) {
-  const trialEnd = getTrialEndDate(assinatura);
-  return assinatura?.status === TRIAL_STATUS
-    && trialEnd
-    && trialEnd < todayIso();
-}
-
-function activeSubscriptionExpired(assinatura) {
-  return assinatura?.status === 'ativo'
-    && assinatura?.data_vencimento
-    && assinatura.data_vencimento < todayIso();
-}
-
-function getSubscriptionState(assinatura, allowed = true) {
-  if (!assinatura) return TRIAL_STATUS;
-  if (assinatura.status === 'ativo' && !assinatura.bloqueado) return 'ativo';
-  if (assinatura.status === TRIAL_STATUS && !assinatura.bloqueado && allowed) return TRIAL_STATUS;
-  if (assinatura.status === 'pendente') return 'pendente_pagamento';
-  if (assinatura.status === 'vencido') return 'expirado';
-  if (assinatura.bloqueado || assinatura.status === 'cancelado') return 'bloqueado';
-  return assinatura.status || 'bloqueado';
-}
-
-function statusMessage(estado, diasRestantes = 0) {
-  if (estado === TRIAL_STATUS && diasRestantes <= 2) {
-    return 'Seu teste gratis termina em breve. Assine agora para continuar usando sem interrupcoes.';
-  }
-
-  if (estado === TRIAL_STATUS) {
-    return `Voce esta no teste gratis do FluxMEI. Faltam ${diasRestantes} dia(s) para o fim do teste.`;
-  }
-
-  if (estado === 'expirado') {
-    return 'Seu acesso expirou. Para continuar usando o FluxMEI e acessar seus dados, escolha um plano.';
-  }
-
-  if (estado === 'pendente_pagamento') {
-    return 'Sua assinatura esta aguardando confirmacao de pagamento.';
-  }
-
-  if (estado === 'ativo') {
-    return 'Acesso completo habilitado.';
-  }
-
-  return 'Sua assinatura nao esta ativa. Escolha um plano para continuar usando o FluxMEI.';
-}
-
-function blockedPayload(assinatura, code = 'TRIAL_EXPIRED') {
-  const estado = getSubscriptionState(assinatura, false);
-  return {
-    allowed: false,
-    error: statusMessage(estado),
-    code,
-    estado,
-    redirectTo: PAYMENT_URL,
-    assinatura
-  };
 }
 
 async function getLatestSubscription(userId) {
@@ -130,28 +33,14 @@ async function createTrialSubscription(userId) {
   const existing = await getLatestSubscription(userId);
   if (existing) return existing;
 
-  const trialEnd = addDaysIso(TRIAL_DAYS);
-  const payload = {
-    user_id: userId,
-    plano: 'gratuito',
-    status: TRIAL_STATUS,
-    valor: 0,
-    tipo_cobranca: 'mensal',
-    data_inicio: todayIso(),
-    data_vencimento: trialEnd,
-    data_trial_fim: trialEnd,
-    teste_gratis_usado: true,
-    bloqueado: false,
-    renovacao_automatica: false
-  };
-
+  const payload = buildTrialSubscriptionPayload(userId, todayIso());
   const { data, error } = await supabaseAdmin
     .from('assinaturas')
     .insert(payload)
     .select()
     .single();
 
-  if (error) throw new AppError('Erro ao criar assinatura de teste grátis.', 500, error.message);
+  if (error) throw new AppError('Erro ao criar assinatura de teste gratis.', 500, error.message);
   return data;
 }
 
@@ -159,22 +48,8 @@ async function createPendingSubscription(userId, planId = 'pro_mensal') {
   const existing = await getLatestSubscription(userId);
   if (existing) return existing;
 
-  const plano = PLANOS[planId];
-  if (!plano || planId === 'gratuito') throw new AppError('Plano invalido.');
-
-  const payload = {
-    user_id: userId,
-    plano: planId,
-    status: 'pendente',
-    valor: plano.preco,
-    tipo_cobranca: plano.tipo_cobranca,
-    data_inicio: todayIso(),
-    data_vencimento: null,
-    data_trial_fim: null,
-    teste_gratis_usado: false,
-    bloqueado: true,
-    renovacao_automatica: false
-  };
+  const payload = buildPendingSubscriptionPayload(userId, planId, todayIso());
+  if (!payload) throw new AppError('Plano invalido.');
 
   const { data, error } = await supabaseAdmin
     .from('assinaturas')
@@ -206,50 +81,19 @@ async function markSubscriptionExpired(assinatura) {
 
 async function evaluateAccess(userId) {
   let assinatura = await ensureTrialSubscription(userId);
+  let access = evaluateSubscriptionAccess(assinatura, todayIso());
 
-  if (trialExpired(assinatura) || activeSubscriptionExpired(assinatura)) {
+  if (access.shouldMarkExpired) {
     assinatura = await markSubscriptionExpired(assinatura);
-    return blockedPayload(assinatura);
+    access = evaluateSubscriptionAccess(assinatura, todayIso());
   }
 
-  if (assinatura.status === 'ativo' && !assinatura.bloqueado) {
-    return { allowed: true, assinatura };
-  }
-
-  if (assinatura.status === TRIAL_STATUS && !assinatura.bloqueado) {
-    return { allowed: true, assinatura };
-  }
-
-  if (assinatura.bloqueado || BLOCKED_STATUSES.includes(assinatura.status)) {
-    return blockedPayload(assinatura, assinatura.status === 'vencido' ? 'TRIAL_EXPIRED' : 'SUBSCRIPTION_BLOCKED');
-  }
-
-  return { allowed: true, assinatura };
+  return access;
 }
 
 async function getSubscriptionStatus(userId) {
   const access = await evaluateAccess(userId);
-  const assinatura = access.assinatura;
-  const trialEnd = getTrialEndDate(assinatura);
-  const diasRestantes = assinatura?.status === TRIAL_STATUS ? diffDaysUntil(trialEnd) : 0;
-  const estado = getSubscriptionState(assinatura, access.allowed);
-
-  return {
-    plano: assinatura?.plano || 'gratuito',
-    status: assinatura?.status || TRIAL_STATUS,
-    estado,
-    ativo: estado === 'ativo',
-    allowed: access.allowed,
-    bloqueado: !access.allowed || Boolean(assinatura?.bloqueado),
-    data_inicio: assinatura?.data_inicio || null,
-    data_vencimento: assinatura?.data_vencimento || null,
-    data_trial_fim: trialEnd,
-    teste_gratis_usado: Boolean(assinatura?.teste_gratis_usado),
-    dias_restantes: diasRestantes,
-    aviso_urgente: estado === TRIAL_STATUS && diasRestantes <= 2,
-    mensagem: statusMessage(estado, diasRestantes),
-    cta_url: PAYMENT_URL
-  };
+  return buildSubscriptionStatus(access, todayIso());
 }
 
 async function checkFeature(userId) {

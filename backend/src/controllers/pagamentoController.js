@@ -4,32 +4,13 @@ import { AppError } from '../middlewares/errorMiddleware.js';
 import { PLANOS, assinaturaService } from '../services/assinaturaService.js';
 import { asaasService } from '../services/asaasService.js';
 import { mercadoPagoService } from '../services/mercadoPagoService.js';
+import {
+  PAYMENT_PLANS,
+  buildAsaasSubscriptionUpdates,
+  buildMercadoPagoSubscriptionUpdates,
+  isAsaasPendingStatus
+} from '../services/paymentStatusRules.js';
 import { logWebhookEvent, validateAsaasWebhook, validateMercadoPagoWebhook } from '../services/webhookSecurityService.js';
-
-const PAYMENT_PLANS = {
-  pro_mensal: {
-    id: 'pro_mensal',
-    title: 'FluxMEI Pro Mensal',
-    description: 'Assinatura mensal do FluxMEI Pro',
-    value: 49.9,
-    tipo_cobranca: 'mensal',
-    dias: 30
-  },
-  pro_anual: {
-    id: 'pro_anual',
-    title: 'FluxMEI Pro Anual',
-    description: 'Assinatura anual do FluxMEI Pro',
-    value: 478.8,
-    tipo_cobranca: 'anual',
-    dias: 365
-  }
-};
-
-function todayPlusDays(days) {
-  const date = new Date();
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
 
 function getRequestBaseUrl(req) {
   const host = req.get('host');
@@ -284,45 +265,8 @@ async function registerAsaasPaymentAttempt({ assinatura, plan, customer, payment
   });
 }
 
-function isAsaasPaidStatus(status) {
-  return ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'].includes(String(status || '').toUpperCase());
-}
-
-function isAsaasPendingStatus(status) {
-  return ['PENDING', 'AWAITING_RISK_ANALYSIS'].includes(String(status || '').toUpperCase());
-}
-
-function isAsaasCancelledStatus(status) {
-  return ['OVERDUE', 'CANCELLED', 'REFUNDED', 'REFUND_REQUESTED', 'CHARGEBACK_REQUESTED', 'CHARGEBACK_DISPUTE', 'AWAITING_CHARGEBACK_REVERSAL'].includes(String(status || '').toUpperCase());
-}
-
 async function aplicarPagamentoAsaasNaAssinatura(payment, assinatura) {
-  const planConfig = PAYMENT_PLANS[assinatura.plano] || PAYMENT_PLANS.pro_mensal;
-  const status = payment?.status;
-  const updates = {
-    payment_provider: 'asaas',
-    provider_payment_id: payment?.id ? String(payment.id) : assinatura.provider_payment_id,
-    provider_customer_id: payment?.customer || assinatura.provider_customer_id || null,
-    provider_subscription_id: payment?.subscription || assinatura.provider_subscription_id || null,
-    provider_status: status || assinatura.provider_status,
-    provider_raw: payment || assinatura.provider_raw || null
-  };
-
-  if (isAsaasPaidStatus(status)) {
-    updates.status = 'ativo';
-    updates.bloqueado = false;
-    updates.data_inicio = new Date().toISOString().slice(0, 10);
-    updates.data_vencimento = todayPlusDays(planConfig.dias);
-    updates.renovacao_automatica = Boolean(payment?.subscription);
-  } else if (isAsaasPendingStatus(status)) {
-    updates.status = 'pendente';
-    updates.bloqueado = true;
-  } else if (isAsaasCancelledStatus(status)) {
-    updates.status = 'cancelado';
-    updates.bloqueado = true;
-    updates.renovacao_automatica = false;
-  }
-
+  const updates = buildAsaasSubscriptionUpdates(payment, assinatura);
   return updateAssinaturaById(assinatura.id, updates);
 }
 
@@ -474,32 +418,7 @@ export async function criarCobrancaAsaas(req, res) {
 }
 
 async function aplicarPagamentoNaAssinatura(payment, assinatura) {
-  const planConfig = PAYMENT_PLANS[assinatura.plano] || PAYMENT_PLANS.pro_mensal;
-  const status = payment.status;
-  const updates = {
-    payment_provider: 'mercado_pago',
-    provider_payment_id: String(payment.id),
-    provider_status: status,
-    provider_raw: payment,
-    mercado_pago_payment_id: String(payment.id),
-    mercado_pago_status: status
-  };
-
-  if (status === 'approved') {
-    updates.status = 'ativo';
-    updates.bloqueado = false;
-    updates.data_inicio = new Date().toISOString().slice(0, 10);
-    updates.data_vencimento = todayPlusDays(planConfig.dias);
-    updates.renovacao_automatica = false;
-  } else if (['pending', 'in_process', 'authorized'].includes(status)) {
-    updates.status = 'pendente';
-    updates.bloqueado = true;
-  } else if (['rejected', 'cancelled', 'refunded', 'charged_back'].includes(status)) {
-    updates.status = 'cancelado';
-    updates.bloqueado = true;
-    updates.renovacao_automatica = false;
-  }
-
+  const updates = buildMercadoPagoSubscriptionUpdates(payment, assinatura);
   const { data, error } = await supabaseAdmin
     .from('assinaturas')
     .update(updates)
