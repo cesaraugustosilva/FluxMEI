@@ -91,6 +91,20 @@ async function findSubscriptionByProviderPayment(provider, paymentId) {
   return data || null;
 }
 
+async function findSubscriptionByProviderSubscription(provider, subscriptionId) {
+  if (!provider || !subscriptionId) return null;
+
+  const { data, error } = await supabaseAdmin
+    .from('assinaturas')
+    .select('*')
+    .eq('payment_provider', provider)
+    .eq('provider_subscription_id', String(subscriptionId))
+    .maybeSingle();
+
+  if (error) throw new AppError('Erro ao buscar assinatura por assinatura do processador.', 500, error.message);
+  return data || null;
+}
+
 async function updateAssinaturaById(assinaturaId, payload) {
   const { data, error } = await supabaseAdmin
     .from('assinaturas')
@@ -112,6 +126,23 @@ function normalizeAsaasMethod(value = 'pix') {
   if (['boleto', 'pix', 'cartao'].includes(method)) return method;
   if (['card', 'credit_card', 'creditcard'].includes(method)) return 'cartao';
   return 'pix';
+}
+
+function shouldCreateRecurringAsaasSubscription({ plan, method, recurring }) {
+  if (!recurring) return false;
+  if (plan.tipo_cobranca !== 'mensal') return false;
+  return ['pix', 'boleto', 'cartao'].includes(method);
+}
+
+async function getFirstSubscriptionPayment(subscriptionId) {
+  if (!subscriptionId) return null;
+  const payments = await asaasService.listarCobrancas({
+    subscription: subscriptionId,
+    limit: 1,
+    order: 'asc',
+    sort: 'dueDate'
+  });
+  return payments?.data?.[0] || null;
 }
 
 function getCheckoutUrl(preference) {
@@ -244,7 +275,7 @@ function asaasPaymentResponsePayload(payment, pixQrCode = null) {
   };
 }
 
-async function registerAsaasPaymentAttempt({ assinatura, plan, customer, payment, pixQrCode = null }) {
+async function registerAsaasPaymentAttempt({ assinatura, plan, customer, payment, pixQrCode = null, subscription = null, recurring = false }) {
   return updateAssinaturaById(assinatura.id, {
     plano: plan.id,
     status: 'pendente',
@@ -253,20 +284,21 @@ async function registerAsaasPaymentAttempt({ assinatura, plan, customer, payment
     payment_provider: 'asaas',
     provider_payment_id: payment?.id ? String(payment.id) : null,
     provider_customer_id: customer?.id || assinatura.provider_customer_id || null,
-    provider_subscription_id: payment?.subscription || assinatura.provider_subscription_id || null,
-    provider_status: payment?.status || 'CREATED',
+    provider_subscription_id: subscription?.id || payment?.subscription || assinatura.provider_subscription_id || null,
+    provider_status: subscription?.status || payment?.status || 'CREATED',
     provider_raw: {
+      subscription,
       payment,
       pixQrCode
     },
     checkout_url: payment?.invoiceUrl || payment?.bankSlipUrl || null,
     bloqueado: true,
-    renovacao_automatica: false
+    renovacao_automatica: Boolean(recurring)
   });
 }
 
-async function aplicarPagamentoAsaasNaAssinatura(payment, assinatura) {
-  const updates = buildAsaasSubscriptionUpdates(payment, assinatura);
+async function aplicarPagamentoAsaasNaAssinatura(payment, assinatura, event = null) {
+  const updates = buildAsaasSubscriptionUpdates(payment, assinatura, new Date(), event);
   return updateAssinaturaById(assinatura.id, updates);
 }
 
@@ -386,14 +418,61 @@ export async function criarCobrancaAsaas(req, res) {
   if (!plan || !PLANOS[plano]) throw new AppError('Plano invalido.');
 
   const method = normalizeAsaasMethod(req.body?.metodo || req.body?.method || req.body?.billingType);
+  const recurring = req.body?.recorrente !== false && req.body?.recurring !== false;
   const profile = await getProfile(req.user.id);
   const assinatura = await ensureUserSubscription(req.user.id, plano);
+
+  if (assinatura.status === 'ativo' && !assinatura.bloqueado) {
+    throw new AppError('Sua assinatura ja esta ativa.', 409);
+  }
+
+  if (assinatura.payment_provider === 'asaas' && assinatura.provider_subscription_id && assinatura.status === 'pendente') {
+    throw new AppError('Ja existe uma assinatura Asaas pendente para este usuario.', 409);
+  }
 
   const customer = await asaasService.criarOuBuscarCliente({
     user: req.user,
     profile,
     existingCustomerId: assinatura.payment_provider === 'asaas' ? assinatura.provider_customer_id : null
   });
+
+  if (shouldCreateRecurringAsaasSubscription({ plan, method, recurring })) {
+    const subscription = await asaasService.criarAssinatura({
+      customerId: customer.id,
+      plan,
+      method: method === 'cartao' ? 'undefined' : method,
+      externalReference: assinatura.id
+    });
+
+    const payment = await getFirstSubscriptionPayment(subscription.id);
+    let pixQrCode = null;
+    if (payment?.id && asaasService.normalizeBillingType(method) === 'PIX') {
+      pixQrCode = await asaasService.obterPixQrCode(payment.id);
+    }
+
+    await registerAsaasPaymentAttempt({
+      assinatura,
+      plan,
+      customer,
+      payment,
+      pixQrCode,
+      subscription,
+      recurring: true
+    });
+
+    res.status(201).json({
+      success: true,
+      provider: 'asaas',
+      recurring: true,
+      subscription_id: subscription.id,
+      subscription_status: subscription.status || null,
+      ...asaasPaymentResponsePayload(payment, pixQrCode),
+      message: payment?.id
+        ? 'Assinatura recorrente criada no Asaas'
+        : 'Assinatura recorrente criada no Asaas. Aguardando geracao da primeira cobranca.'
+    });
+    return;
+  }
 
   const payment = await asaasService.criarCobranca({
     customerId: customer.id,
@@ -412,6 +491,7 @@ export async function criarCobrancaAsaas(req, res) {
   res.status(201).json({
     success: true,
     provider: 'asaas',
+    recurring: false,
     ...asaasPaymentResponsePayload(payment, pixQrCode),
     message: 'Cobranca criada no Asaas'
   });
@@ -563,6 +643,31 @@ export async function webhookAsaas(req, res) {
 
   const event = req.body?.event;
   const payment = req.body?.payment;
+  const subscription = req.body?.subscription;
+
+  if (!payment?.id && subscription?.id) {
+    logWebhookEvent({ provider: 'asaas', event, paymentId: null, status: subscription.status, outcome: 'subscription_event' });
+    const assinatura = await findSubscriptionByProviderSubscription('asaas', subscription.id);
+    if (!assinatura) return res.json({ received: true, ignored: true });
+
+    const updates = {
+      payment_provider: 'asaas',
+      provider_subscription_id: String(subscription.id),
+      provider_customer_id: subscription.customer || assinatura.provider_customer_id || null,
+      provider_status: subscription.status || event,
+      provider_raw: subscription
+    };
+
+    if (event === 'SUBSCRIPTION_DELETED') {
+      updates.status = 'cancelado';
+      updates.bloqueado = true;
+      updates.renovacao_automatica = false;
+    }
+
+    await updateAssinaturaById(assinatura.id, updates);
+    return res.json({ received: true, event });
+  }
+
   if (!payment?.id) {
     logWebhookEvent({ provider: 'asaas', event, outcome: 'ignored' });
     return res.json({ received: true, ignored: true });
@@ -571,6 +676,9 @@ export async function webhookAsaas(req, res) {
   logWebhookEvent({ provider: 'asaas', event, paymentId: payment.id, status: payment.status, outcome: 'processing' });
 
   let assinatura = await findSubscriptionByProviderPayment('asaas', payment.id);
+  if (!assinatura && payment.subscription) {
+    assinatura = await findSubscriptionByProviderSubscription('asaas', payment.subscription);
+  }
 
   if (!assinatura && payment.externalReference) {
     const { data, error } = await supabaseAdmin
@@ -587,7 +695,7 @@ export async function webhookAsaas(req, res) {
     return res.json({ received: true, ignored: true });
   }
 
-  await aplicarPagamentoAsaasNaAssinatura(payment, assinatura);
+  await aplicarPagamentoAsaasNaAssinatura(payment, assinatura, event);
   logWebhookEvent({ provider: 'asaas', event, paymentId: payment.id, status: payment.status, outcome: 'applied' });
   res.json({ received: true, event });
 }

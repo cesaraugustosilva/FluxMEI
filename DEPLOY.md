@@ -161,11 +161,21 @@ Fluxo esperado:
 
 1. Usuario acessa `https://seudominio.com/checkout/`.
 2. Frontend escolhe Asaas por padrao e chama `POST /api/pagamentos/asaas/criar-cobranca`.
-3. Backend cria o customer/cobranca no Asaas usando `ASAAS_API_KEY`.
-4. Para Pix, backend busca o QR Code em `/payments/{id}/pixQrCode` e retorna payload seguro ao frontend.
-5. Para boleto/cartao seguro, frontend exibe a URL da fatura/cobranca retornada pelo Asaas.
-6. Asaas chama `POST /api/webhooks/asaas` com header `asaas-access-token`.
-7. Backend valida o token, consulta/atualiza a assinatura e, quando pago, marca `status = ativo` e `bloqueado = false`.
+3. Para plano mensal, o backend cria uma assinatura recorrente no Asaas em `/subscriptions`.
+4. Para plano anual ou fallback avulso, o backend cria uma cobranca em `/payments`.
+5. Para Pix, backend busca o QR Code em `/payments/{id}/pixQrCode` quando houver cobranca inicial.
+6. Para boleto/cartao seguro, frontend exibe a URL da fatura/cobranca retornada pelo Asaas.
+7. Asaas chama `POST /api/webhooks/asaas` com header `asaas-access-token`.
+8. Backend valida o token, atualiza a assinatura e, quando pago, marca `status = ativo`, `bloqueado = false`, salva `provider_subscription_id` quando existir e atualiza `data_vencimento`.
+
+Recorrencia Asaas:
+
+- Plano mensal usa assinatura recorrente (`cycle = MONTHLY`) por padrao.
+- Pix e boleto continuam exigindo pagamento pelo cliente a cada cobranca gerada pelo Asaas, mas o Asaas gera as cobrancas mensalmente.
+- Cartao usa assinatura com `billingType = UNDEFINED` neste fluxo para permitir fatura segura Asaas sem coletar cartao no FluxMEI.
+- Mercado Pago permanece como fallback legado e nao cria recorrencia.
+- Webhook continua sendo a fonte oficial de ativacao; consulta manual de status nao ativa assinatura.
+- Webhooks duplicados do mesmo pagamento nao devem avancar `data_vencimento` novamente.
 
 Teste sandbox Asaas:
 
@@ -176,12 +186,24 @@ Teste sandbox Asaas:
 5. Gere boleto e confirme se `invoice_url` ou `bank_slip_url` abre corretamente.
 6. Envie uma notificacao de webhook de teste com o header `asaas-access-token` igual ao `ASAAS_WEBHOOK_TOKEN`.
 7. Confira no Supabase se `assinaturas.status = 'ativo'`, `bloqueado = false`, `payment_provider = 'asaas'` e `provider_status` pago.
+8. Para plano mensal recorrente, confira tambem `provider_subscription_id`, `provider_customer_id`, `provider_payment_id`, `renovacao_automatica = true` e `data_vencimento` avancada.
 
 Teste de rejeicao Asaas:
 
 1. Envie a mesma notificacao sem o header `asaas-access-token` ou com valor diferente.
 2. Confirme HTTP 401.
 3. Confirme no Supabase que a assinatura nao foi ativada.
+
+Teste sandbox de recorrencia Asaas:
+
+1. Configure `ASAAS_API_KEY` sandbox, `ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3` e `ASAAS_WEBHOOK_TOKEN`.
+2. Cadastre um usuario e abra `/checkout/?plan=pro_mensal`.
+3. Gere pagamento Asaas via Pix ou boleto.
+4. Confirme no painel Asaas que uma assinatura foi criada e que ha uma cobranca inicial vinculada.
+5. Pague/simule o pagamento da cobranca.
+6. Aguarde o webhook `PAYMENT_RECEIVED` ou `PAYMENT_CONFIRMED`.
+7. Confirme no Supabase que `status = ativo`, `bloqueado = false`, `provider_subscription_id` preenchido e `data_vencimento` avancada.
+8. Simule vencimento (`PAYMENT_OVERDUE`) e confirme `status = vencido` e `bloqueado = true`.
 
 ## Mercado Pago Fallback
 

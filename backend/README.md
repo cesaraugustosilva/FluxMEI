@@ -136,6 +136,11 @@ e obrigatorio; se estiver ausente, o webhook retorna 503 e nao processa o pagame
 O frontend pode consultar status para atualizar a tela, mas a assinatura so deve ser
 considerada liberada apos confirmacao validada pelo backend/webhook.
 
+Para o plano mensal, o checkout cria uma assinatura recorrente no Asaas. O campo
+`provider_subscription_id` fica salvo em `assinaturas` e os pagamentos mensais
+gerados pelo Asaas atualizam `status`, `bloqueado` e `data_vencimento` por webhook.
+Plano anual e Mercado Pago continuam como fluxos avulsos/fallback.
+
 ## Mercado Pago Fallback
 1. Configure as variaveis `MERCADO_PAGO_PUBLIC_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` e `MERCADO_PAGO_NOTIFICATION_URL`. Em producao, `MERCADO_PAGO_WEBHOOK_SECRET` e obrigatorio; se estiver ausente, o webhook retorna 503 e nao processa o pagamento.
 2. No painel do Mercado Pago, cadastre o webhook de pagamentos apontando para:

@@ -22,6 +22,8 @@ test('webhook valido Asaas com pagamento aprovado ativa assinatura', () => {
   const updates = buildAsaasSubscriptionUpdates({
     id: 'pay_1',
     customer: 'cus_1',
+    subscription: 'sub_asaas_1',
+    dueDate: '2026-06-12',
     status: 'RECEIVED'
   }, assinatura, baseDate);
 
@@ -29,6 +31,7 @@ test('webhook valido Asaas com pagamento aprovado ativa assinatura', () => {
   assert.equal(updates.bloqueado, false);
   assert.equal(updates.payment_provider, 'asaas');
   assert.equal(updates.provider_payment_id, 'pay_1');
+  assert.equal(updates.provider_subscription_id, 'sub_asaas_1');
   assert.equal(updates.data_inicio, '2026-06-12');
   assert.equal(updates.data_vencimento, '2026-07-12');
 });
@@ -65,5 +68,38 @@ test('pagamento recusado nao ativa assinatura', () => {
 
   assert.equal(updates.status, 'cancelado');
   assert.equal(updates.bloqueado, true);
+  assert.equal(updates.data_vencimento, undefined);
+});
+
+test('pagamento recorrente vencido bloqueia assinatura', () => {
+  const updates = buildAsaasSubscriptionUpdates({
+    id: 'pay_overdue',
+    subscription: 'sub_asaas_1',
+    status: 'OVERDUE'
+  }, assinatura, baseDate);
+
+  assert.equal(updates.status, 'vencido');
+  assert.equal(updates.bloqueado, true);
+  assert.equal(updates.renovacao_automatica, false);
+});
+
+test('webhook duplicado do mesmo pagamento nao avanca vencimento de novo', () => {
+  const updates = buildAsaasSubscriptionUpdates({
+    id: 'pay_duplicated',
+    subscription: 'sub_asaas_1',
+    status: 'RECEIVED',
+    dueDate: '2026-06-12'
+  }, {
+    ...assinatura,
+    status: 'ativo',
+    bloqueado: false,
+    provider_payment_id: 'pay_duplicated',
+    provider_status: 'RECEIVED',
+    data_vencimento: '2026-07-12'
+  }, new Date('2026-06-13T00:00:00Z'));
+
+  assert.equal(updates.provider_payment_id, 'pay_duplicated');
+  assert.equal(updates.provider_status, 'RECEIVED');
+  assert.equal(updates.status, undefined);
   assert.equal(updates.data_vencimento, undefined);
 });

@@ -137,6 +137,10 @@ async function consultarPagamento(paymentId) {
   return request(`/payments/${encodeURIComponent(paymentId)}`, { method: 'GET' });
 }
 
+async function listarCobrancas(params = {}) {
+  return request(`/payments${asQuery(params)}`, { method: 'GET' });
+}
+
 async function criarAssinatura({ customerId, plan, method = 'pix', externalReference, nextDueDate }) {
   return request('/subscriptions', {
     method: 'POST',
@@ -152,12 +156,18 @@ async function criarAssinatura({ customerId, plan, method = 'pix', externalRefer
   });
 }
 
+async function consultarAssinatura(subscriptionId) {
+  return request(`/subscriptions/${encodeURIComponent(subscriptionId)}`, { method: 'GET' });
+}
+
 export const asaasService = {
   criarOuBuscarCliente,
   criarCobranca,
   consultarPagamento,
+  listarCobrancas,
   obterPixQrCode,
   criarAssinatura,
+  consultarAssinatura,
   normalizeBillingType,
   onlyDigits
 };

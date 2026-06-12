@@ -495,7 +495,8 @@ async function createAsaasCharge() {
       method: 'POST',
       body: JSON.stringify({
         plano: selectedPlan.id,
-        metodo: method
+        metodo: method,
+        recorrente: selectedPlan.tipo_cobranca === 'mensal'
       })
     });
 
@@ -506,17 +507,21 @@ async function createAsaasCharge() {
     renderPixPanel(data);
     renderBoletoPanel(data);
 
-    if (method === 'cartao' && data.invoice_url) {
-      showAlert('Cobranca criada. Abra a fatura segura do Asaas para informar os dados do cartao.', 'success');
+    if (data.recurring && !data.payment_id) {
+      showAlert('Assinatura recorrente criada. Aguarde a geracao da primeira cobranca pelo Asaas.', 'success');
+    } else if (method === 'cartao' && data.invoice_url) {
+      showAlert(data.recurring
+        ? 'Assinatura recorrente criada. Abra a fatura segura do Asaas para informar os dados do cartao.'
+        : 'Cobranca criada. Abra a fatura segura do Asaas para informar os dados do cartao.', 'success');
       renderBoletoPanel({
         ...data,
         bank_slip_url: data.invoice_url,
         payment_status: data.payment_status || 'pending'
       }, 'cartao');
     } else if (isPixPayment(data)) {
-      showAlert('Pix Asaas gerado. Aguardando pagamento.', 'success');
+      showAlert(data.recurring ? 'Assinatura recorrente criada e Pix inicial gerado. Aguardando pagamento.' : 'Pix Asaas gerado. Aguardando pagamento.', 'success');
     } else if (data.bank_slip_url || data.invoice_url) {
-      showAlert('Boleto Asaas gerado. Aguardando pagamento.', 'success');
+      showAlert(data.recurring ? 'Assinatura recorrente criada e boleto inicial gerado. Aguardando pagamento.' : 'Boleto Asaas gerado. Aguardando pagamento.', 'success');
     } else {
       showAlert('Pagamento Asaas criado. Aguardando confirmacao.', 'success');
     }

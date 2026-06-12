@@ -23,6 +23,11 @@ export function todayPlusDays(days, baseDate = new Date()) {
   return date.toISOString().slice(0, 10);
 }
 
+function parseIsoDate(value, fallbackDate) {
+  if (!value) return new Date(fallbackDate);
+  return new Date(`${String(value).slice(0, 10)}T00:00:00Z`);
+}
+
 export function isAsaasPaidStatus(status) {
   return ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'].includes(String(status || '').toUpperCase());
 }
@@ -32,10 +37,26 @@ export function isAsaasPendingStatus(status) {
 }
 
 export function isAsaasCancelledStatus(status) {
-  return ['OVERDUE', 'CANCELLED', 'REFUNDED', 'REFUND_REQUESTED', 'CHARGEBACK_REQUESTED', 'CHARGEBACK_DISPUTE', 'AWAITING_CHARGEBACK_REVERSAL'].includes(String(status || '').toUpperCase());
+  return ['CANCELLED', 'REFUNDED', 'REFUND_REQUESTED', 'CHARGEBACK_REQUESTED', 'CHARGEBACK_DISPUTE', 'AWAITING_CHARGEBACK_REVERSAL'].includes(String(status || '').toUpperCase());
 }
 
-export function buildAsaasSubscriptionUpdates(payment, assinatura, baseDate = new Date()) {
+export function isAsaasOverdueStatus(status) {
+  return String(status || '').toUpperCase() === 'OVERDUE';
+}
+
+export function buildAsaasSubscriptionUpdates(payment, assinatura, baseDate = new Date(), event = null) {
+  const paymentId = payment?.id ? String(payment.id) : null;
+  if (paymentId && assinatura.provider_payment_id === paymentId && assinatura.provider_status === payment?.status) {
+    return {
+      payment_provider: 'asaas',
+      provider_payment_id: paymentId,
+      provider_customer_id: payment?.customer || assinatura.provider_customer_id || null,
+      provider_subscription_id: payment?.subscription || assinatura.provider_subscription_id || null,
+      provider_status: payment?.status || assinatura.provider_status,
+      provider_raw: payment || assinatura.provider_raw || null
+    };
+  }
+
   const planConfig = PAYMENT_PLANS[assinatura.plano] || PAYMENT_PLANS.pro_mensal;
   const status = payment?.status;
   const updates = {
@@ -48,15 +69,26 @@ export function buildAsaasSubscriptionUpdates(payment, assinatura, baseDate = ne
   };
 
   if (isAsaasPaidStatus(status)) {
+    const accessBaseDate = parseIsoDate(payment?.dueDate || payment?.paymentDate || payment?.confirmedDate, baseDate);
     updates.status = 'ativo';
     updates.bloqueado = false;
     updates.data_inicio = baseDate.toISOString().slice(0, 10);
-    updates.data_vencimento = todayPlusDays(planConfig.dias, baseDate);
+    updates.data_vencimento = todayPlusDays(planConfig.dias, accessBaseDate);
     updates.renovacao_automatica = Boolean(payment?.subscription);
   } else if (isAsaasPendingStatus(status)) {
     updates.status = 'pendente';
     updates.bloqueado = true;
+  } else if (isAsaasOverdueStatus(status)) {
+    updates.status = 'vencido';
+    updates.bloqueado = true;
+    updates.renovacao_automatica = false;
   } else if (isAsaasCancelledStatus(status)) {
+    updates.status = 'cancelado';
+    updates.bloqueado = true;
+    updates.renovacao_automatica = false;
+  }
+
+  if (event === 'PAYMENT_DELETED') {
     updates.status = 'cancelado';
     updates.bloqueado = true;
     updates.renovacao_automatica = false;
