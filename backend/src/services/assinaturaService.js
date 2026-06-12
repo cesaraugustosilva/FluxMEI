@@ -61,6 +61,12 @@ function trialExpired(assinatura) {
     && trialEnd < todayIso();
 }
 
+function activeSubscriptionExpired(assinatura) {
+  return assinatura?.status === 'ativo'
+    && assinatura?.data_vencimento
+    && assinatura.data_vencimento < todayIso();
+}
+
 function getSubscriptionState(assinatura, allowed = true) {
   if (!assinatura) return TRIAL_STATUS;
   if (assinatura.status === 'ativo' && !assinatura.bloqueado) return 'ativo';
@@ -81,7 +87,7 @@ function statusMessage(estado, diasRestantes = 0) {
   }
 
   if (estado === 'expirado') {
-    return 'Seu teste gratis acabou. Para continuar usando o FluxMEI e acessar seus dados, escolha um plano.';
+    return 'Seu acesso expirou. Para continuar usando o FluxMEI e acessar seus dados, escolha um plano.';
   }
 
   if (estado === 'pendente_pagamento') {
@@ -186,7 +192,7 @@ async function ensureTrialSubscription(userId) {
   return createTrialSubscription(userId);
 }
 
-async function markTrialExpired(assinatura) {
+async function markSubscriptionExpired(assinatura) {
   const { data, error } = await supabaseAdmin
     .from('assinaturas')
     .update({ status: 'vencido', bloqueado: true, renovacao_automatica: false })
@@ -201,8 +207,8 @@ async function markTrialExpired(assinatura) {
 async function evaluateAccess(userId) {
   let assinatura = await ensureTrialSubscription(userId);
 
-  if (trialExpired(assinatura)) {
-    assinatura = await markTrialExpired(assinatura);
+  if (trialExpired(assinatura) || activeSubscriptionExpired(assinatura)) {
+    assinatura = await markSubscriptionExpired(assinatura);
     return blockedPayload(assinatura);
   }
 

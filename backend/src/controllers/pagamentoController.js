@@ -522,12 +522,11 @@ export async function sincronizarRetornoMercadoPago(req, res) {
     throw new AppError('Pagamento nao encontrado para este usuario.', 404);
   }
 
-  const updated = await aplicarPagamentoNaAssinatura(payment, assinatura);
-
   res.json({
     success: true,
     payment_status: payment.status,
-    assinatura: updated
+    assinatura,
+    message: 'Status consultado. A assinatura sera alterada somente apos webhook valido do Mercado Pago.'
   });
 }
 
@@ -542,12 +541,11 @@ export async function statusPagamentoMercadoPago(req, res) {
     throw new AppError('Pagamento nao encontrado para este usuario.', 404);
   }
 
-  const updated = await aplicarPagamentoNaAssinatura(payment, assinatura);
-
   res.json({
     success: true,
     ...paymentResponsePayload(payment),
-    assinatura: updated
+    assinatura,
+    message: 'Status consultado. A assinatura sera alterada somente apos webhook valido do Mercado Pago.'
   });
 }
 
@@ -562,7 +560,6 @@ export async function statusPagamentoAsaas(req, res) {
     throw new AppError('Pagamento nao encontrado para este usuario.', 404);
   }
 
-  const updated = await aplicarPagamentoAsaasNaAssinatura(payment, assinatura);
   let pixQrCode = null;
   if (payment.billingType === 'PIX' && isAsaasPendingStatus(payment.status)) {
     pixQrCode = await asaasService.obterPixQrCode(payment.id);
@@ -572,7 +569,8 @@ export async function statusPagamentoAsaas(req, res) {
     success: true,
     provider: 'asaas',
     ...asaasPaymentResponsePayload(payment, pixQrCode),
-    assinatura: updated
+    assinatura,
+    message: 'Status consultado. A assinatura sera alterada somente apos webhook valido do Asaas.'
   });
 }
 

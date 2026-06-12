@@ -119,6 +119,8 @@ Ao cadastrar um usuario, o backend cria uma assinatura com `status = teste_grati
 
 A rota `GET /api/assinaturas/status` retorna o estado atual para o frontend exibir avisos e redirecionar para `/checkout/`.
 
+O roteiro completo de validacao manual esta em `../docs/assinatura-fluxo-testes.md`.
+
 ## Asaas
 
 1. Execute `database/migrate_payment_provider_fields.sql` no Supabase para adicionar os campos genericos `payment_provider`, `provider_payment_id`, `provider_customer_id`, `provider_subscription_id`, `provider_status` e `provider_raw`.

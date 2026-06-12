@@ -241,9 +241,13 @@ function renderSubscriptionNotice(status) {
 
   if (isBlocked) {
     banner.style.display = 'none';
-    if (lockTitle) lockTitle.textContent = estado === 'pendente_pagamento' ? 'Pagamento pendente' : 'Seu teste gratis acabou';
+    if (lockTitle) {
+      lockTitle.textContent = estado === 'pendente_pagamento'
+        ? 'Pagamento pendente'
+        : 'Seu acesso expirou';
+    }
     if (lockText) {
-      lockText.textContent = status.mensagem || 'Seu teste gratis acabou. Para continuar usando o FluxMEI e acessar seus dados, escolha um plano.';
+      lockText.textContent = status.mensagem || 'Para continuar usando o FluxMEI e acessar seus dados, escolha um plano.';
     }
     lock.style.display = 'grid';
     return;
@@ -421,9 +425,13 @@ function showSubscriptionLock(payload = {}) {
   const lockTitle = document.getElementById('subscriptionLockTitle');
   const lockText = document.getElementById('subscriptionLockText');
   if (banner) banner.style.display = 'none';
-  if (lockTitle) lockTitle.textContent = payload.estado === 'pendente_pagamento' ? 'Pagamento pendente' : 'Seu teste gratis acabou';
+  if (lockTitle) {
+    lockTitle.textContent = payload.estado === 'pendente_pagamento'
+      ? 'Pagamento pendente'
+      : 'Seu acesso expirou';
+  }
   if (lockText) {
-    lockText.textContent = payload.error || payload.mensagem || 'Seu teste gratis acabou. Para continuar usando o FluxMEI e acessar seus dados, escolha um plano.';
+    lockText.textContent = payload.error || payload.mensagem || 'Para continuar usando o FluxMEI e acessar seus dados, escolha um plano.';
   }
   if (lock) lock.style.display = 'grid';
   if (payload.redirectTo && !window.location.pathname.startsWith('/checkout')) {
