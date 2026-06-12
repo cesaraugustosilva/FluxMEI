@@ -5,7 +5,7 @@ Este guia prepara o FluxMEI para:
 - Frontend na Vercel
 - Backend no Render
 - Banco e Auth no Supabase
-- Pagamentos no Asaas, com Mercado Pago como fallback
+- Pagamentos no Mercado Pago Payment Brick
 - Dominio proprio
 
 ## Estrutura
@@ -61,7 +61,7 @@ Observacoes:
 
 - O Render define `PORT` automaticamente. Nao e necessario cadastrar `PORT`.
 - Nunca coloque `SUPABASE_SERVICE_ROLE_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `ASAAS_API_KEY` ou `GEMINI_API_KEY` na Vercel.
-- Em producao, `MERCADO_PAGO_WEBHOOK_SECRET` e `ASAAS_WEBHOOK_TOKEN` sao obrigatorios para processar webhooks. Se um deles faltar, o backend registra erro critico no startup e o webhook correspondente retorna 503 sem ativar assinatura.
+- Em producao, `MERCADO_PAGO_WEBHOOK_SECRET` e obrigatorio para processar o webhook do checkout principal. As variaveis Asaas existem apenas para rotas legadas/fallback tecnico; configure `ASAAS_WEBHOOK_TOKEN` somente se esse legado for usado.
 - Em producao, `/api/dev/*` nao e registrado.
 - Em producao, rotas duplicadas sem `/api` nao sao registradas.
 
@@ -133,79 +133,7 @@ RLS:
 - Em `assinaturas`, usuarios autenticados podem somente fazer `SELECT` da propria assinatura; nao ha policy de `INSERT`, `UPDATE` ou `DELETE` para o cliente.
 - O backend usa `SUPABASE_SERVICE_ROLE_KEY`; mantenha essa chave somente no Render.
 
-## Asaas
-
-No painel do Asaas:
-
-1. Use credenciais sandbox para testes e producao somente no deploy final.
-2. Configure o webhook de pagamentos:
-
-```text
-https://api.seudominio.com/api/webhooks/asaas
-```
-
-3. Configure o token do webhook no Asaas e no Render:
-
-```env
-ASAAS_WEBHOOK_TOKEN=seu_token_webhook_asaas
-```
-
-Seguranca do webhook Asaas:
-
-- O Asaas deve enviar o header `asaas-access-token` com o mesmo valor de `ASAAS_WEBHOOK_TOKEN`.
-- Em producao, se `ASAAS_WEBHOOK_TOKEN` estiver ausente, `POST /api/webhooks/asaas` retorna 503 e nao processa o pagamento.
-- Se o header estiver ausente ou incorreto, o webhook retorna 401 e nao ativa assinatura.
-- Os logs registram apenas provider, evento, `payment_id`, status e resultado do processamento; tokens nao sao logados.
-
-Fluxo esperado:
-
-1. Usuario acessa `https://seudominio.com/checkout/`.
-2. Frontend escolhe Asaas por padrao e chama `POST /api/pagamentos/asaas/criar-cobranca`.
-3. Para plano mensal, o backend cria uma assinatura recorrente no Asaas em `/subscriptions`.
-4. Para plano anual ou fallback avulso, o backend cria uma cobranca em `/payments`.
-5. Para Pix, backend busca o QR Code em `/payments/{id}/pixQrCode` quando houver cobranca inicial.
-6. Para boleto/cartao seguro, frontend exibe a URL da fatura/cobranca retornada pelo Asaas.
-7. Asaas chama `POST /api/webhooks/asaas` com header `asaas-access-token`.
-8. Backend valida o token, atualiza a assinatura e, quando pago, marca `status = ativo`, `bloqueado = false`, salva `provider_subscription_id` quando existir e atualiza `data_vencimento`.
-
-Recorrencia Asaas:
-
-- Plano mensal usa assinatura recorrente (`cycle = MONTHLY`) por padrao.
-- Pix e boleto continuam exigindo pagamento pelo cliente a cada cobranca gerada pelo Asaas, mas o Asaas gera as cobrancas mensalmente.
-- Cartao usa assinatura com `billingType = UNDEFINED` neste fluxo para permitir fatura segura Asaas sem coletar cartao no FluxMEI.
-- Mercado Pago permanece como fallback legado e nao cria recorrencia.
-- Webhook continua sendo a fonte oficial de ativacao; consulta manual de status nao ativa assinatura.
-- Webhooks duplicados do mesmo pagamento nao devem avancar `data_vencimento` novamente.
-
-Teste sandbox Asaas:
-
-1. Configure `ASAAS_API_KEY` sandbox e, se necessario, `ASAAS_BASE_URL` do ambiente sandbox informado pelo Asaas.
-2. Rode a migration `backend/database/migrate_payment_provider_fields.sql`.
-3. Abra `/checkout/`, mantenha Asaas selecionado e gere Pix.
-4. Confirme se a resposta contem `payment_id`, `payment_status` e `pix.qr_code`.
-5. Gere boleto e confirme se `invoice_url` ou `bank_slip_url` abre corretamente.
-6. Envie uma notificacao de webhook de teste com o header `asaas-access-token` igual ao `ASAAS_WEBHOOK_TOKEN`.
-7. Confira no Supabase se `assinaturas.status = 'ativo'`, `bloqueado = false`, `payment_provider = 'asaas'` e `provider_status` pago.
-8. Para plano mensal recorrente, confira tambem `provider_subscription_id`, `provider_customer_id`, `provider_payment_id`, `renovacao_automatica = true` e `data_vencimento` avancada.
-
-Teste de rejeicao Asaas:
-
-1. Envie a mesma notificacao sem o header `asaas-access-token` ou com valor diferente.
-2. Confirme HTTP 401.
-3. Confirme no Supabase que a assinatura nao foi ativada.
-
-Teste sandbox de recorrencia Asaas:
-
-1. Configure `ASAAS_API_KEY` sandbox, `ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3` e `ASAAS_WEBHOOK_TOKEN`.
-2. Cadastre um usuario e abra `/checkout/?plan=pro_mensal`.
-3. Gere pagamento Asaas via Pix ou boleto.
-4. Confirme no painel Asaas que uma assinatura foi criada e que ha uma cobranca inicial vinculada.
-5. Pague/simule o pagamento da cobranca.
-6. Aguarde o webhook `PAYMENT_RECEIVED` ou `PAYMENT_CONFIRMED`.
-7. Confirme no Supabase que `status = ativo`, `bloqueado = false`, `provider_subscription_id` preenchido e `data_vencimento` avancada.
-8. Simule vencimento (`PAYMENT_OVERDUE`) e confirme `status = vencido` e `bloqueado = true`.
-
-## Mercado Pago Fallback
+## Mercado Pago
 
 No painel do Mercado Pago:
 
@@ -230,15 +158,25 @@ Seguranca do webhook Mercado Pago:
 - Se a assinatura estiver ausente ou invalida, o webhook retorna 401 e nao ativa assinatura.
 - Os logs registram apenas provider, evento, `payment_id`, status e resultado do processamento; secrets e headers completos nao sao logados.
 
-Fluxo esperado:
+Fluxo esperado do checkout principal:
 
 1. Usuario acessa `https://seudominio.com/checkout/`.
 2. Frontend carrega `MERCADO_PAGO_PUBLIC_KEY` via `https://api.seudominio.com/api/pagamentos/mercado-pago/public-config`.
-3. Se o usuario escolher Mercado Pago como fallback, o Payment Brick exibe Pix, cartao e boleto dentro do FluxMEI, conforme disponibilidade do Mercado Pago.
+3. O Payment Brick exibe Pix, cartao e boleto dentro do FluxMEI, conforme disponibilidade do Mercado Pago.
 4. Frontend chama `https://api.seudominio.com/api/pagamentos/mercado-pago/processar-brick`.
 5. Backend cria o pagamento no Mercado Pago usando `MERCADO_PAGO_ACCESS_TOKEN`.
 6. Mercado Pago chama o webhook.
 7. Backend consulta o pagamento e, se `approved`, atualiza assinatura para `ativo` e `bloqueado = false`.
+
+O checkout principal nao chama Asaas e nao chama a rota legada `/api/pagamentos/mercado-pago/criar-pix`. Pix, cartao, boleto e seguranca ficam sob responsabilidade do fluxo padrao do Mercado Pago.
+
+Teste de pagamento Mercado Pago:
+
+1. Configure `MERCADO_PAGO_PUBLIC_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` e `MERCADO_PAGO_NOTIFICATION_URL`.
+2. Abra `/checkout/?plan=pro_mensal` com usuario logado.
+3. Conclua o pagamento pelo Payment Brick usando Pix, cartao ou boleto.
+4. Confirme que a tentativa fica registrada como `payment_provider = 'mercado_pago'`.
+5. Aguarde o webhook aprovado para liberar a assinatura.
 
 Teste de rejeicao Mercado Pago:
 
@@ -248,6 +186,18 @@ Teste de rejeicao Mercado Pago:
 4. Em producao, se o segredo estiver ausente por erro de configuracao, confirme HTTP 503 e corrija a variavel no Render antes de testar novamente.
 
 URLs de retorno sao geradas com `FRONTEND_URL`.
+
+## Asaas Legado/Fallback Tecnico
+
+As rotas Asaas permanecem no backend para compatibilidade e validacoes tecnicas antigas:
+
+- `POST /api/pagamentos/asaas/criar-cobranca`
+- `GET /api/pagamentos/asaas/status/:paymentId`
+- `POST /api/webhooks/asaas`
+
+Essas rotas nao sao chamadas pelo checkout principal e nao devem aparecer na experiencia do usuario. Nao remova colunas ou dados antigos do banco neste momento.
+
+Se o legado Asaas for testado diretamente, configure `ASAAS_API_KEY`, `ASAAS_BASE_URL` e `ASAAS_WEBHOOK_TOKEN`. O webhook Asaas valida `asaas-access-token` e pagamentos aprovados por esse legado continuam seguindo as regras do backend, mas isso nao faz parte do fluxo principal de checkout.
 
 ## DNS
 
@@ -276,6 +226,6 @@ Depois atualize:
 8. Criar usuario real.
 9. Fazer login.
 10. Abrir `/checkout/`.
-11. Pagar via Asaas Pix/boleto ou usar Mercado Pago como fallback.
+11. Pagar pelo Payment Brick do Mercado Pago.
 12. Confirmar assinatura `ativo` no Supabase.
 13. Confirmar acesso desbloqueado no app.

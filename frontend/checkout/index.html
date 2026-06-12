@@ -85,25 +85,7 @@
 
         <section class="provider-panel" aria-label="Processador de pagamento">
           <strong>Pagamento seguro processado pelo Mercado Pago.</strong>
-          <small>No Pix, usamos o e-mail da sua conta FluxMEI. A liberacao da assinatura acontece apos confirmacao do webhook.</small>
-        </section>
-
-        <section class="payment-methods" aria-label="Escolha a forma de pagamento">
-          <button class="method-card is-selected" type="button" data-payment-method="pix" aria-pressed="true">
-            <span>Pix</span>
-            <strong>QR Code na tela</strong>
-            <small>Sem e-mail extra</small>
-          </button>
-          <button class="method-card" type="button" data-payment-method="cartao" aria-pressed="false">
-            <span>Cartao</span>
-            <strong>Payment Brick</strong>
-            <small>Dados protegidos</small>
-          </button>
-          <button class="method-card" type="button" data-payment-method="boleto" aria-pressed="false">
-            <span>Boleto</span>
-            <strong>Payment Brick</strong>
-            <small>Pagamento bancario</small>
-          </button>
+          <small>Pagamento processado com segurança pelo Mercado Pago.</small>
         </section>
 
         <div class="status-panel" id="statusPanel" hidden>
@@ -114,58 +96,15 @@
           </div>
         </div>
 
-        <section class="pix-generate-panel" id="pixGeneratePanel" aria-label="Gerar Pix">
-          <strong>Gerar Pix para o plano escolhido</strong>
-          <p>Escaneie o QR Code ou copie o codigo Pix abaixo. Apos o pagamento, a confirmacao pode levar alguns instantes.</p>
-          <button class="pix-button" type="button" id="generatePixButton">Gerar Pix</button>
-        </section>
-
         <div class="brick-loading" id="brickLoading">
           <span class="loading-spinner" aria-hidden="true"></span>
           <strong>Carregando meios de pagamento...</strong>
-          <span>Estamos preparando cartao e boleto no ambiente seguro do Mercado Pago.</span>
+          <span>Estamos preparando Pix, cartao e boleto no ambiente seguro do Mercado Pago.</span>
         </div>
 
         <div class="brick-shell">
           <div class="brick-container" id="paymentBrick_container"></div>
         </div>
-
-        <section class="pix-panel" id="pixPanel" hidden aria-label="Pagamento via Pix">
-          <div class="pix-heading">
-            <div>
-              <span>Pagamento via Pix</span>
-              <strong>Aguardando pagamento</strong>
-            </div>
-            <span class="pix-status">Pix gerado</span>
-          </div>
-          <p>Escaneie o QR Code ou copie o codigo Pix abaixo.</p>
-          <div class="pix-qr-wrap">
-            <img id="pixQrImage" alt="QR Code Pix" />
-          </div>
-          <label class="pix-code-label" for="pixCode">Codigo Pix copia e cola</label>
-          <textarea id="pixCode" readonly rows="4"></textarea>
-          <div class="pix-actions">
-            <button class="pix-button" type="button" id="copyPixButton">Copiar codigo Pix</button>
-            <button class="pix-button secondary" type="button" id="verifyPixButton">Ja paguei, verificar pagamento</button>
-          </div>
-          <small>Apos o pagamento, a confirmacao pode levar alguns instantes.</small>
-        </section>
-
-        <section class="boleto-panel" id="boletoPanel" hidden aria-label="Pagamento via boleto">
-          <div class="boleto-heading">
-            <div>
-              <span id="boletoPanelLabel">Pagamento via boleto</span>
-              <strong id="boletoPanelTitle">Aguardando pagamento</strong>
-            </div>
-            <span class="boleto-status" id="boletoPanelStatus">Boleto gerado</span>
-          </div>
-          <p id="boletoPanelText">Abra o boleto em ambiente seguro e acompanhe a confirmacao nesta tela.</p>
-          <a class="boleto-link" id="boletoLink" href="#" target="_blank" rel="noopener">Abrir boleto</a>
-          <div class="boleto-actions">
-            <button class="pix-button secondary" type="button" id="verifyBoletoButton">Ja paguei, verificar pagamento</button>
-          </div>
-          <small>A confirmacao do boleto pode levar mais tempo apos o pagamento.</small>
-        </section>
 
         <div class="checkout-alert" id="checkoutAlert" role="status"></div>
       </article>

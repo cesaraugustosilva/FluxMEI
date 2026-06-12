@@ -8,10 +8,10 @@ Este roteiro valida o fluxo Asaas sandbox ponta a ponta sem usar chaves de produ
 
 Validar:
 
-1. usuario logado abre `/checkout/`;
+1. operador chama a rota legada Asaas diretamente, sem usar o checkout principal;
 2. plano mensal cria assinatura recorrente no Asaas;
 3. Asaas gera cobranca vinculada a assinatura;
-4. frontend mostra Pix/boleto quando a cobranca inicial existir;
+4. resposta da rota legada mostra dados de Pix/boleto quando a cobranca inicial existir;
 5. webhook chega em `/api/webhooks/asaas`;
 6. backend valida `asaas-access-token`;
 7. Supabase atualiza a assinatura;
@@ -81,15 +81,10 @@ https://api.seudominio.com/api/webhooks/asaas
 ## Gerar Assinatura/Cobranca
 
 1. Faca login no FluxMEI com usuario de teste.
-2. Acesse:
-
-```text
-/checkout/?plan=pro_mensal
-```
-
-3. Mantenha Asaas selecionado.
-4. Escolha Pix ou boleto.
-5. Clique em gerar pagamento.
+2. Nao use `/checkout/` para este teste; o checkout principal usa Mercado Pago.
+3. Chame diretamente `POST /api/pagamentos/asaas/criar-cobranca`.
+4. Informe Pix ou boleto no payload legado.
+5. Confirme a resposta da API.
 
 Resultado esperado:
 
@@ -98,8 +93,8 @@ Resultado esperado:
 - `assinaturas.provider_customer_id` preenchido.
 - `assinaturas.provider_subscription_id` preenchido.
 - Se o Asaas ja gerar a primeira cobranca, `provider_payment_id` tambem deve ficar preenchido.
-- Frontend mostra QR Code Pix ou link de boleto quando a cobranca inicial estiver disponivel.
-- Se o Asaas ainda nao retornar cobranca inicial, frontend mostra mensagem de pendencia.
+- A resposta da API mostra QR Code Pix ou link de boleto quando a cobranca inicial estiver disponivel.
+- Se o Asaas ainda nao retornar cobranca inicial, a resposta deve indicar a pendencia.
 
 ## Simular Pagamento
 

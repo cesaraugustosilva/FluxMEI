@@ -4,6 +4,8 @@ SaaS de gestao financeira para MEIs.
 
 O FluxMEI ajuda microempreendedores a controlar receitas, despesas, clientes, DAS, metas financeiras e assinatura em uma plataforma web simples, com teste gratis de 7 dias e checkout integrado.
 
+O checkout principal usa somente Mercado Pago Payment Brick. Pix, cartao e boleto ficam dentro do fluxo padrao do Mercado Pago; o FluxMEI nao gera QR Code Pix proprio no frontend.
+
 ## Principais Recursos
 
 - Controle de receitas e despesas
@@ -13,7 +15,7 @@ O FluxMEI ajuda microempreendedores a controlar receitas, despesas, clientes, DA
 - Metas financeiras
 - Teste gratis de 7 dias
 - Assinatura
-- Checkout com Mercado Pago Payment Brick
+- Checkout com Mercado Pago Payment Brick para Pix, cartao e boleto
 
 ## Stack
 
@@ -136,7 +138,8 @@ Consulte o passo a passo completo em `DEPLOY.md`.
 - `SUPABASE_SERVICE_ROLE_KEY` deve ficar apenas no backend.
 - Chaves privadas de Mercado Pago, Asaas e Gemini nunca devem ir para a Vercel.
 - Webhooks de pagamento precisam de token/secret configurados.
-- Em producao, webhooks sem `ASAAS_WEBHOOK_TOKEN` ou `MERCADO_PAGO_WEBHOOK_SECRET` devem ser recusados.
+- O webhook Mercado Pago e a fonte oficial para ativar assinatura no checkout principal.
+- Asaas permanece como legado/fallback tecnico no backend e nao e usado pelo checkout principal.
 
 ## Status Do Projeto
 
