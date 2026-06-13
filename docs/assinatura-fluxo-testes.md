@@ -29,11 +29,12 @@ Este roteiro valida o fluxo atual de assinatura sem ativar assinatura pelo front
 
 5. Checkout e pagamento
    - Checkout exige token para criar cobranca.
-   - `POST /api/pagamentos/asaas/criar-cobranca` ou `POST /api/pagamentos/mercado-pago/processar-brick` registra tentativa como `pendente`.
+   - `POST /api/pagamentos/mercado-pago/processar-brick` registra tentativa como `pendente`.
+   - O fluxo legado `POST /api/pagamentos/asaas/criar-cobranca` so deve ser testado com `ENABLE_ASAAS=true`.
    - Consulta de status do pagamento nao ativa assinatura; a ativacao depende de webhook valido.
 
 6. Webhook e ativacao
-   - Asaas: `POST /api/webhooks/asaas`, com header `asaas-access-token`.
+   - Asaas legado: `POST /api/webhooks/asaas`, com header `asaas-access-token`, apenas com `ENABLE_ASAAS=true`.
    - Mercado Pago: `POST /api/webhooks/mercado-pago`, com assinatura `x-signature`.
    - Apenas webhook validado chama a aplicacao de pagamento na assinatura.
 
@@ -131,7 +132,7 @@ Esperado:
 
 ### 6. Webhook invalido
 
-1. Envie webhook Asaas sem `asaas-access-token` correto.
+1. Se o legado Asaas estiver habilitado com `ENABLE_ASAAS=true`, envie webhook Asaas sem `asaas-access-token` correto.
 2. Envie webhook Mercado Pago sem assinatura valida.
 
 Esperado em producao/homologacao:

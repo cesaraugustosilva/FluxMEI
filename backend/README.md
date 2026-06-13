@@ -34,6 +34,7 @@ MERCADO_PAGO_BASE_URL=https://api.mercadopago.com
 MERCADO_PAGO_USE_SANDBOX=false
 MERCADO_PAGO_WEBHOOK_SECRET=seu_secret_do_webhook
 MERCADO_PAGO_NOTIFICATION_URL=https://seudominio.com/api/webhooks/mercado-pago
+ENABLE_ASAAS=false
 ASAAS_API_KEY=sua_api_key_asaas
 ASAAS_BASE_URL=https://api.asaas.com/v3
 ASAAS_WEBHOOK_TOKEN=seu_token_webhook_asaas
@@ -41,7 +42,7 @@ ASAAS_ENVIRONMENT=production
 ASAAS_WALLET_ID=
 ```
 
-Importante: `SUPABASE_SERVICE_ROLE_KEY`, `MERCADO_PAGO_ACCESS_TOKEN` e `ASAAS_API_KEY` so devem ficar no backend. O checkout principal usa Mercado Pago; Asaas permanece apenas como fluxo legado/fallback no backend.
+Importante: `SUPABASE_SERVICE_ROLE_KEY`, `MERCADO_PAGO_ACCESS_TOKEN` e `ASAAS_API_KEY` so devem ficar no backend. O checkout principal usa Mercado Pago; Asaas permanece apenas como fluxo legado/fallback no backend e fica desativado por padrao com `ENABLE_ASAAS=false`.
 
 ## Banco De Dados
 Banco novo:
@@ -130,8 +131,11 @@ O roteiro completo de validacao manual esta em `../docs/assinatura-fluxo-testes.
 
 ## Asaas Legado/Fallback
 
-1. Em banco novo, confirme que `database/schema.sql` ja foi executado. Em banco existente, execute `database/migrate_payment_provider_fields.sql` no Supabase para adicionar os campos genericos `payment_provider`, `provider_payment_id`, `provider_customer_id`, `provider_subscription_id`, `provider_status` e `provider_raw`.
-2. Configure `ASAAS_API_KEY`, `ASAAS_BASE_URL` e `ASAAS_WEBHOOK_TOKEN`.
+O Mercado Pago e o gateway principal. Asaas e legado tecnico e nao deve ficar exposto para usuarios. Com `ENABLE_ASAAS=false`, `/api/pagamentos/asaas/*` nao e registrado e `/api/webhooks/asaas` retorna `410 ASAAS_DISABLED`.
+
+1. Para reativar o legado, defina `ENABLE_ASAAS=true`.
+2. Em banco novo, confirme que `database/schema.sql` ja foi executado. Em banco existente, execute `database/migrate_payment_provider_fields.sql` no Supabase para adicionar os campos genericos `payment_provider`, `provider_payment_id`, `provider_customer_id`, `provider_subscription_id`, `provider_status` e `provider_raw`.
+3. Configure `ASAAS_API_KEY`, `ASAAS_BASE_URL` e `ASAAS_WEBHOOK_TOKEN`.
 3. No painel do Asaas, cadastre o webhook apontando para:
 
 ```text

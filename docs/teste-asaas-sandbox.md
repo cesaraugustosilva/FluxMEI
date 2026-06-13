@@ -28,6 +28,7 @@ FRONTEND_URL=https://seudominio.com,https://www.seudominio.com
 
 ASAAS_API_KEY=sua_api_key_sandbox
 ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3
+ENABLE_ASAAS=true
 ASAAS_WEBHOOK_TOKEN=um_token_forte_configurado_no_asaas
 
 SUPABASE_URL=https://seu-projeto.supabase.co
@@ -45,6 +46,7 @@ Importante:
 
 - `ASAAS_API_KEY` sandbox deve ser diferente da chave de producao.
 - `ASAAS_BASE_URL` sandbox deve apontar para `https://api-sandbox.asaas.com/v3`.
+- `ENABLE_ASAAS=true` e necessario para registrar as rotas legadas Asaas.
 - `ASAAS_WEBHOOK_TOKEN` deve ser igual ao token cadastrado no webhook do Asaas.
 - Nunca colocar `ASAAS_API_KEY` ou `SUPABASE_SERVICE_ROLE_KEY` na Vercel.
 

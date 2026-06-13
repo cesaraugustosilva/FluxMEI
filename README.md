@@ -109,6 +109,7 @@ MERCADO_PAGO_WEBHOOK_SECRET=seu_secret_do_webhook
 MERCADO_PAGO_NOTIFICATION_URL=https://api.seudominio.com/api/webhooks/mercado-pago
 
 # Asaas legado/fallback no backend. Nao e usado pelo checkout principal.
+ENABLE_ASAAS=false
 ASAAS_API_KEY=sua_api_key
 ASAAS_WEBHOOK_TOKEN=seu_token_webhook
 ASAAS_BASE_URL=https://api.asaas.com/v3
@@ -139,7 +140,7 @@ Consulte o passo a passo completo em `DEPLOY.md`.
 - Chaves privadas de Mercado Pago, Asaas e Gemini nunca devem ir para a Vercel.
 - Webhooks de pagamento precisam de token/secret configurados.
 - O webhook Mercado Pago e a fonte oficial para ativar assinatura no checkout principal.
-- Asaas permanece como legado/fallback tecnico no backend e nao e usado pelo checkout principal.
+- Asaas permanece como legado/fallback tecnico no backend, nao e usado pelo checkout principal e fica desativado por padrao com `ENABLE_ASAAS=false`.
 
 ## Status Do Projeto
 

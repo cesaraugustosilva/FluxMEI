@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { isAsaasEnabled } from '../config/features.js';
 import { authMiddleware } from '../middlewares/authMiddleware.js';
 import { asyncHandler } from '../middlewares/errorMiddleware.js';
 import {
@@ -21,7 +22,12 @@ router.post('/mercado-pago/processar-brick', authMiddleware, asyncHandler(proces
 router.get('/mercado-pago/status/:paymentId', authMiddleware, asyncHandler(statusPagamentoMercadoPago));
 router.get('/mercado-pago/sincronizar', authMiddleware, asyncHandler(sincronizarRetornoMercadoPago));
 router.post('/mercado-pago/sincronizar', authMiddleware, asyncHandler(sincronizarRetornoMercadoPago));
-router.post('/asaas/criar-cobranca', authMiddleware, asyncHandler(criarCobrancaAsaas));
-router.get('/asaas/status/:paymentId', authMiddleware, asyncHandler(statusPagamentoAsaas));
+
+if (isAsaasEnabled()) {
+  router.post('/asaas/criar-cobranca', authMiddleware, asyncHandler(criarCobrancaAsaas));
+  router.get('/asaas/status/:paymentId', authMiddleware, asyncHandler(statusPagamentoAsaas));
+} else {
+  console.info('[routes] Rotas publicas Asaas desativadas por ENABLE_ASAAS=false.');
+}
 
 export default router;

@@ -50,6 +50,7 @@ MERCADO_PAGO_BASE_URL=https://api.mercadopago.com
 MERCADO_PAGO_USE_SANDBOX=false
 MERCADO_PAGO_WEBHOOK_SECRET=seu_secret_do_webhook
 MERCADO_PAGO_NOTIFICATION_URL=https://api.seudominio.com/api/webhooks/mercado-pago
+ENABLE_ASAAS=false
 ASAAS_API_KEY=sua_api_key_asaas
 ASAAS_BASE_URL=https://api.asaas.com/v3
 ASAAS_WEBHOOK_TOKEN=seu_token_webhook_asaas
@@ -61,7 +62,7 @@ Observacoes:
 
 - O Render define `PORT` automaticamente. Nao e necessario cadastrar `PORT`.
 - Nunca coloque `SUPABASE_SERVICE_ROLE_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `ASAAS_API_KEY` ou `GEMINI_API_KEY` na Vercel.
-- Em producao, `MERCADO_PAGO_WEBHOOK_SECRET` e obrigatorio para processar o webhook do checkout principal. As variaveis Asaas existem apenas para rotas legadas/fallback tecnico; configure `ASAAS_WEBHOOK_TOKEN` somente se esse legado for usado.
+- Em producao, `MERCADO_PAGO_WEBHOOK_SECRET` e obrigatorio para processar o webhook do checkout principal. As variaveis Asaas existem apenas para legado/fallback tecnico. Mantenha `ENABLE_ASAAS=false` para desativar rotas publicas Asaas; use `ENABLE_ASAAS=true` somente se esse legado for operado de forma controlada.
 - Em producao, `/api/dev/*` nao e registrado.
 - Em producao, rotas duplicadas sem `/api` nao sao registradas.
 
@@ -191,15 +192,15 @@ URLs de retorno sao geradas com `FRONTEND_URL`.
 
 ## Asaas Legado/Fallback Tecnico
 
-As rotas Asaas permanecem no backend para compatibilidade e validacoes tecnicas antigas:
+As rotas Asaas permanecem no backend para compatibilidade e validacoes tecnicas antigas, mas ficam desativadas por padrao com `ENABLE_ASAAS=false`. O Mercado Pago e o gateway principal do checkout.
 
 - `POST /api/pagamentos/asaas/criar-cobranca`
 - `GET /api/pagamentos/asaas/status/:paymentId`
 - `POST /api/webhooks/asaas`
 
-Essas rotas nao sao chamadas pelo checkout principal e nao devem aparecer na experiencia do usuario. Nao remova colunas ou dados antigos do banco neste momento.
+Com `ENABLE_ASAAS=false`, as rotas publicas `/api/pagamentos/asaas/*` nao sao registradas e o webhook `/api/webhooks/asaas` retorna `410 ASAAS_DISABLED`. Essas rotas nao sao chamadas pelo checkout principal e nao devem aparecer na experiencia do usuario. Nao remova colunas ou dados antigos do banco neste momento.
 
-Se o legado Asaas for testado diretamente, configure `ASAAS_API_KEY`, `ASAAS_BASE_URL` e `ASAAS_WEBHOOK_TOKEN`. O webhook Asaas valida `asaas-access-token` e pagamentos aprovados por esse legado continuam seguindo as regras do backend, mas isso nao faz parte do fluxo principal de checkout.
+Se o legado Asaas for testado diretamente, configure `ENABLE_ASAAS=true`, `ASAAS_API_KEY`, `ASAAS_BASE_URL` e `ASAAS_WEBHOOK_TOKEN`. O webhook Asaas valida `asaas-access-token` e pagamentos aprovados por esse legado continuam seguindo as regras do backend, mas isso nao faz parte do fluxo principal de checkout.
 
 ## DNS
 
