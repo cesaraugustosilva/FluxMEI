@@ -90,6 +90,12 @@ create table if not exists public.assinaturas (
   teste_gratis_usado boolean not null default false,
   bloqueado boolean not null default false,
   renovacao_automatica boolean not null default false,
+  payment_provider text,
+  provider_payment_id text,
+  provider_customer_id text,
+  provider_subscription_id text,
+  provider_status text,
+  provider_raw jsonb,
   mercado_pago_preference_id text,
   mercado_pago_payment_id text,
   mercado_pago_status text,
@@ -107,6 +113,9 @@ create index if not exists idx_das_user_vencimento on public.das(user_id, vencim
 create index if not exists idx_das_user_status on public.das(user_id, status);
 create index if not exists idx_relatorios_ia_user_created on public.relatorios_ia(user_id, created_at desc);
 create index if not exists idx_assinaturas_user_status on public.assinaturas(user_id, status);
+create index if not exists idx_assinaturas_user_created on public.assinaturas(user_id, created_at desc);
+create index if not exists idx_assinaturas_provider_payment on public.assinaturas(payment_provider, provider_payment_id);
+create index if not exists idx_assinaturas_provider_subscription on public.assinaturas(payment_provider, provider_subscription_id);
 create index if not exists idx_assinaturas_mercado_pago_payment on public.assinaturas(mercado_pago_payment_id);
 create index if not exists idx_assinaturas_mercado_pago_preference on public.assinaturas(mercado_pago_preference_id);
 

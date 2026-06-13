@@ -529,9 +529,10 @@ async function renderPaymentBrick(publicKey) {
             });
         });
       },
-      onError: () => {
+      onError: (error) => {
         setBrickLoading(false);
         setBrickVisible(false);
+        if (error) console.error('[checkout:mercado-pago-brick]', error);
         showAlert('O Mercado Pago nao conseguiu carregar o formulario. Atualize a pagina e tente novamente.');
       }
     }
@@ -556,7 +557,7 @@ async function selectPaymentMethod(method) {
 
   setPixGenerateVisible(false);
   hidePixPanel();
-  setBrickVisible(false);
+  setBrickVisible(true);
   setBrickLoading(true, 'Carregando cartao e boleto...');
 
   try {

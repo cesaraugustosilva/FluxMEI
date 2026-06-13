@@ -96,13 +96,13 @@ window.FLUXMEI_CONFIG = {
 Banco novo:
 
 1. Abra o SQL Editor.
-2. Execute `backend/database/schema.sql`.
+2. Execute `backend/database/schema.sql`. Esse arquivo ja cria as colunas atuais de assinatura e pagamento, incluindo os campos genericos `payment_provider`, `provider_payment_id`, `provider_customer_id`, `provider_subscription_id`, `provider_status` e `provider_raw`.
 
 Banco existente:
 
 1. Revise `backend/database/migrate_trial_mercado_pago.sql`.
 2. Execute somente se as colunas de trial e Mercado Pago ainda nao existirem.
-3. Revise e execute `backend/database/migrate_payment_provider_fields.sql` para adicionar os campos genericos de processador sem remover dados antigos.
+3. Revise e execute `backend/database/migrate_payment_provider_fields.sql` para adicionar os campos genericos de processador em bancos criados antes dessa atualizacao, sem remover dados antigos.
 4. Execute `backend/database/migrate_fix_assinaturas_rls.sql` para garantir que usuarios autenticados possam apenas consultar a propria assinatura. Insercoes, atualizacoes e exclusoes de assinatura devem ocorrer somente pelo backend com `SUPABASE_SERVICE_ROLE_KEY`.
 
 Tabelas esperadas:

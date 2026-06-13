@@ -44,11 +44,18 @@ ASAAS_WALLET_ID=
 Importante: `SUPABASE_SERVICE_ROLE_KEY`, `MERCADO_PAGO_ACCESS_TOKEN` e `ASAAS_API_KEY` so devem ficar no backend. O checkout principal usa Mercado Pago; Asaas permanece apenas como fluxo legado/fallback no backend.
 
 ## Banco De Dados
+Banco novo:
+
 1. Abra o Supabase.
 2. Va em SQL Editor.
 3. Cole e execute o conteudo de `database/schema.sql`.
 
-O schema cria `profiles`, `movimentacoes`, `clientes`, `das`, `relatorios_ia` e `assinaturas`, com indices, triggers de `updated_at`, RLS e policies por usuario.
+Banco existente:
+
+1. Execute `database/migrate_payment_provider_fields.sql` se o banco ainda nao tiver os campos genericos de pagamento `payment_provider`, `provider_payment_id`, `provider_customer_id`, `provider_subscription_id`, `provider_status` e `provider_raw`.
+2. Mantenha `database/migrate_fix_assinaturas_rls.sql` aplicado para garantir que usuarios autenticados possam apenas consultar a propria assinatura.
+
+O schema cria `profiles`, `movimentacoes`, `clientes`, `das`, `relatorios_ia` e `assinaturas`, com campos atuais de pagamento, indices, triggers de `updated_at`, RLS e policies por usuario.
 
 Para bancos existentes, execute tambem `database/migrate_fix_assinaturas_rls.sql`.
 Essa migration remove policies de `INSERT`, `UPDATE` e `DELETE` em `assinaturas`
@@ -123,7 +130,7 @@ O roteiro completo de validacao manual esta em `../docs/assinatura-fluxo-testes.
 
 ## Asaas Legado/Fallback
 
-1. Execute `database/migrate_payment_provider_fields.sql` no Supabase para adicionar os campos genericos `payment_provider`, `provider_payment_id`, `provider_customer_id`, `provider_subscription_id`, `provider_status` e `provider_raw`.
+1. Em banco novo, confirme que `database/schema.sql` ja foi executado. Em banco existente, execute `database/migrate_payment_provider_fields.sql` no Supabase para adicionar os campos genericos `payment_provider`, `provider_payment_id`, `provider_customer_id`, `provider_subscription_id`, `provider_status` e `provider_raw`.
 2. Configure `ASAAS_API_KEY`, `ASAAS_BASE_URL` e `ASAAS_WEBHOOK_TOKEN`.
 3. No painel do Asaas, cadastre o webhook apontando para:
 
