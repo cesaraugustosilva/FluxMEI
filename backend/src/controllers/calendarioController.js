@@ -1,12 +1,17 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
+import { validateDate, validateMonthReference } from '../utils/validation.js';
 
 export async function getCalendario(req, res) {
   const now = new Date();
-  const mes = req.query.mes || `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+  const mes = req.query.mes
+    ? validateMonthReference(req.query.mes)
+    : `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
   const [year, monthIndex] = mes.split('-').map(Number);
-  const inicio = req.query.inicio || `${mes}-01`;
-  const fim = req.query.fim || new Date(Date.UTC(year, monthIndex, 0)).toISOString().slice(0, 10);
+  const inicio = req.query.inicio ? validateDate(req.query.inicio) : `${mes}-01`;
+  const fim = req.query.fim
+    ? validateDate(req.query.fim)
+    : new Date(Date.UTC(year, monthIndex, 0)).toISOString().slice(0, 10);
 
   const { data, error } = await supabaseAdmin
     .from('movimentacoes')

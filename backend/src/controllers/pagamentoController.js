@@ -11,6 +11,18 @@ import {
   isAsaasPendingStatus
 } from '../services/paymentStatusRules.js';
 import { logWebhookEvent, validateAsaasWebhook, validateMercadoPagoWebhook } from '../services/webhookSecurityService.js';
+import { sanitizeText } from '../utils/validation.js';
+
+function validatePlanId(value, fallback = null) {
+  const plano = sanitizeText(value || fallback, { field: 'Plano', required: true, max: 80 });
+  const plan = PAYMENT_PLANS[plano];
+  if (!plan || !PLANOS[plano]) throw new AppError('Plano inválido.');
+  return { plano, plan };
+}
+
+function validatePaymentId(value) {
+  return sanitizeText(value, { field: 'payment_id', required: true, max: 120, rejectDangerous: true });
+}
 
 function getRequestBaseUrl(req) {
   const host = req.get('host');
@@ -377,9 +389,7 @@ export async function mercadoPagoPublicConfig(req, res) {
 }
 
 export async function criarCheckoutMercadoPago(req, res) {
-  const plano = req.body?.plano;
-  const plan = PAYMENT_PLANS[plano];
-  if (!plan || !PLANOS[plano]) throw new AppError('Plano invalido.');
+  const { plano, plan } = validatePlanId(req.body?.plano);
 
   const profile = await getProfile(req.user.id);
   const assinatura = await ensureUserSubscription(req.user.id, plano);
@@ -422,9 +432,7 @@ export async function criarCheckoutMercadoPago(req, res) {
 }
 
 export async function processarPagamentoBrick(req, res) {
-  const plano = req.body?.plano;
-  const plan = PAYMENT_PLANS[plano];
-  if (!plan || !PLANOS[plano]) throw new AppError('Plano invalido.');
+  const { plano, plan } = validatePlanId(req.body?.plano);
 
   const profile = await getProfile(req.user.id);
   const assinatura = await ensureUserSubscription(req.user.id, plano);
@@ -452,10 +460,8 @@ export async function processarPagamentoBrick(req, res) {
 }
 
 export async function criarPixMercadoPago(req, res) {
-  const plano = req.body?.plano;
-  const plan = PAYMENT_PLANS[plano];
-  if (!plan || !PLANOS[plano]) throw new AppError('Plano invalido.');
-  if (!req.user?.email) throw new AppError('Usuario autenticado sem e-mail cadastrado.', 400);
+  const { plano, plan } = validatePlanId(req.body?.plano);
+  if (!req.user?.email) throw new AppError('Usuário autenticado sem e-mail cadastrado.', 400);
 
   const profile = await getProfile(req.user.id);
   const assinatura = await ensureUserSubscription(req.user.id, plano);
@@ -487,9 +493,7 @@ export async function criarPixMercadoPago(req, res) {
 }
 
 export async function criarCobrancaAsaas(req, res) {
-  const plano = req.body?.plano || 'pro_mensal';
-  const plan = PAYMENT_PLANS[plano];
-  if (!plan || !PLANOS[plano]) throw new AppError('Plano invalido.');
+  const { plano, plan } = validatePlanId(req.body?.plano, 'pro_mensal');
 
   const method = normalizeAsaasMethod(req.body?.metodo || req.body?.method || req.body?.billingType);
   const recurring = req.body?.recorrente !== false && req.body?.recurring !== false;
@@ -585,8 +589,7 @@ async function aplicarPagamentoNaAssinatura(payment, assinatura) {
 }
 
 export async function sincronizarRetornoMercadoPago(req, res) {
-  const paymentId = req.query.payment_id || req.query.collection_id || req.body?.payment_id || req.body?.collection_id;
-  if (!paymentId) throw new AppError('payment_id nao informado.');
+  const paymentId = validatePaymentId(req.query.payment_id || req.query.collection_id || req.body?.payment_id || req.body?.collection_id);
 
   const payment = await mercadoPagoService.consultarPagamento(paymentId);
   const assinatura = await findSubscriptionFromPayment(payment);
@@ -604,8 +607,7 @@ export async function sincronizarRetornoMercadoPago(req, res) {
 }
 
 export async function statusPagamentoMercadoPago(req, res) {
-  const paymentId = req.params.paymentId || req.query.payment_id;
-  if (!paymentId) throw new AppError('payment_id nao informado.');
+  const paymentId = validatePaymentId(req.params.paymentId || req.query.payment_id);
 
   const payment = await mercadoPagoService.consultarPagamento(paymentId);
   const assinatura = await findSubscriptionFromPayment(payment);
@@ -623,8 +625,7 @@ export async function statusPagamentoMercadoPago(req, res) {
 }
 
 export async function statusPagamentoAsaas(req, res) {
-  const paymentId = req.params.paymentId;
-  if (!paymentId) throw new AppError('payment_id nao informado.');
+  const paymentId = validatePaymentId(req.params.paymentId);
 
   const payment = await asaasService.consultarPagamento(paymentId);
   const assinatura = await findSubscriptionByProviderPayment('asaas', payment.id);

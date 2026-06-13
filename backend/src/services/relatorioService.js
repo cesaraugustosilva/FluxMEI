@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
+import { validateDate, validateMonthReference } from '../utils/validation.js';
 
 export function brDate(date = new Date()) {
   return date.toISOString().slice(0, 10);
@@ -9,7 +10,10 @@ export function getPeriodRange(type, query = {}) {
   const now = new Date();
   const today = brDate(now);
 
-  if (type === 'diario') return { inicio: query.data || today, fim: query.data || today };
+  if (type === 'diario') {
+    const data = query.data ? validateDate(query.data) : today;
+    return { inicio: data, fim: data };
+  }
 
   if (type === 'semanal') {
     const day = now.getUTCDay();
@@ -20,7 +24,9 @@ export function getPeriodRange(type, query = {}) {
   }
 
   if (type === 'mensal') {
-    const month = query.mes || `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    const month = query.mes
+      ? validateMonthReference(query.mes)
+      : `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
     const [year, monthIndex] = month.split('-').map(Number);
     const start = new Date(Date.UTC(year, monthIndex - 1, 1));
     const end = new Date(Date.UTC(year, monthIndex, 0));
@@ -29,7 +35,7 @@ export function getPeriodRange(type, query = {}) {
 
   if (type === 'personalizado') {
     if (!query.inicio || !query.fim) throw new AppError('Informe inicio e fim no formato YYYY-MM-DD.');
-    return { inicio: query.inicio, fim: query.fim };
+    return { inicio: validateDate(query.inicio), fim: validateDate(query.fim) };
   }
 
   throw new AppError('Tipo de relatório inválido.');

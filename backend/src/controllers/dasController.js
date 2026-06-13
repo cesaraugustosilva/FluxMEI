@@ -1,26 +1,46 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
+import {
+  rejectUnexpectedFields,
+  validateDate,
+  validateMoney,
+  validateMonthReference,
+  validateOneOf
+} from '../utils/validation.js';
 
 const statuses = ['pendente', 'pago', 'vencido'];
+const allowedFields = ['mes_referencia', 'vencimento', 'valor', 'status'];
 
-function buildPayload(body, userId) {
-  const payload = {
-    mes_referencia: body.mes_referencia,
-    vencimento: body.vencimento,
-    valor: body.valor,
-    status: body.status || 'pendente'
-  };
+function buildPayload(body, userId, { partial = false } = {}) {
+  const payload = {};
+
+  if (!partial || body.mes_referencia !== undefined) {
+    payload.mes_referencia = validateMonthReference(body.mes_referencia, { required: !partial });
+  }
+  if (!partial || body.vencimento !== undefined) {
+    payload.vencimento = validateDate(body.vencimento, { required: !partial, field: 'Vencimento' });
+  }
+  if (!partial || body.valor !== undefined) {
+    payload.valor = validateMoney(body.valor, { required: !partial, field: 'Valor' });
+  }
+  if (body.status !== undefined) {
+    payload.status = validateOneOf(body.status, statuses, { field: 'Status' });
+  } else if (!partial) {
+    payload.status = 'pendente';
+  }
+
   if (userId) payload.user_id = userId;
   Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
   return payload;
 }
 
 function validate(body, partial = false) {
+  rejectUnexpectedFields(body, allowedFields);
   if (!partial) {
     const missing = ['mes_referencia', 'vencimento', 'valor'].filter((field) => !body[field]);
     if (missing.length) throw new AppError(`Campos obrigatórios: ${missing.join(', ')}.`);
   }
-  if (body.status && !statuses.includes(body.status)) throw new AppError('Status inválido para DAS.');
+  buildPayload(body, null, { partial });
 }
 
 function enrichDasAlerts(items) {
@@ -53,8 +73,10 @@ export async function createDas(req, res) {
 
 export async function listDas(req, res) {
   let query = supabaseAdmin.from('das').select('*').eq('user_id', req.user.id);
-  if (req.query.status) query = query.eq('status', req.query.status);
-  if (req.query.mes_referencia) query = query.eq('mes_referencia', req.query.mes_referencia);
+  if (req.query.status) query = query.eq('status', validateOneOf(req.query.status, statuses, { field: 'Status' }));
+  if (req.query.mes_referencia) {
+    query = query.eq('mes_referencia', validateMonthReference(req.query.mes_referencia));
+  }
 
   const { data, error } = await query.order('vencimento', { ascending: true });
   if (error) throw new AppError('Erro ao listar DAS.', 500, error.message);
@@ -63,9 +85,12 @@ export async function listDas(req, res) {
 
 export async function updateDas(req, res) {
   validate(req.body, true);
+  const payload = buildPayload(req.body, null, { partial: true });
+  if (!Object.keys(payload).length) throw new AppError('Nenhum campo válido informado.');
+
   const { data, error } = await supabaseAdmin
     .from('das')
-    .update(buildPayload(req.body))
+    .update(payload)
     .eq('id', req.params.id)
     .eq('user_id', req.user.id)
     .select()

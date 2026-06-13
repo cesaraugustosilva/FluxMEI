@@ -1,6 +1,7 @@
 import { createUserSupabaseClient, supabase, supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
 import { assinaturaService } from '../services/assinaturaService.js';
+import { rejectUnexpectedFields, sanitizeText, validateEmail } from '../utils/validation.js';
 
 function shouldAutoConfirmEmail() {
   return process.env.AUTH_AUTO_CONFIRM_EMAIL === 'true';
@@ -12,7 +13,7 @@ function getFrontendUrl() {
     .map((url) => url.trim().replace(/\/$/, ''))
     .find(Boolean);
 
-  if (!frontendUrl) throw new AppError('FRONTEND_URL nao configurada.', 500);
+  if (!frontendUrl) throw new AppError('FRONTEND_URL não configurada.', 500);
   return frontendUrl;
 }
 
@@ -54,17 +55,30 @@ function isDirectSubscriptionIntent(body) {
 }
 
 function getDirectSubscriptionPlan(body) {
-  const plano = body.plano || 'pro_mensal';
+  const plano = sanitizeText(body.plano || 'pro_mensal', { field: 'Plano', max: 80 });
   if (!assinaturaService.PLANOS[plano] || plano === 'gratuito') {
-    throw new AppError('Plano invalido.');
+    throw new AppError('Plano inválido.');
   }
   return plano;
 }
 
+function profilePayloadFromBody(body, userId) {
+  const payload = {
+    nome: sanitizeText(body.nome, { field: 'Nome', required: true, max: 120, rejectDangerous: true }),
+    nome_negocio: sanitizeText(body.nome_negocio, { field: 'Nome do negócio', max: 120, rejectDangerous: true }),
+    whatsapp: sanitizeText(body.whatsapp, { field: 'WhatsApp', required: true, max: 30 }),
+    tipo_negocio: sanitizeText(body.tipo_negocio, { field: 'Tipo de negócio', required: true, max: 120, rejectDangerous: true })
+  };
+
+  if (userId) payload.id = userId;
+  return payload;
+}
+
 export async function updatePassword(req, res) {
+  rejectUnexpectedFields(req.body, ['password']);
   requireFields(req.body, ['password']);
 
-  if (String(req.body.password).length < 8) {
+  if (typeof req.body.password !== 'string' || req.body.password.length < 8) {
     throw new AppError('A senha precisa ter pelo menos 8 caracteres.');
   }
 
@@ -77,13 +91,29 @@ export async function updatePassword(req, res) {
 }
 
 export async function register(req, res) {
+  rejectUnexpectedFields(req.body, [
+    'email',
+    'password',
+    'nome',
+    'nome_negocio',
+    'whatsapp',
+    'tipo_negocio',
+    'subscription_intent',
+    'plano'
+  ]);
   requireFields(req.body, ['email', 'password', 'nome', 'whatsapp', 'tipo_negocio']);
 
-  const { email, password, nome, nome_negocio, whatsapp, tipo_negocio } = req.body;
+  const email = validateEmail(req.body.email);
+  const password = req.body.password;
+  if (typeof password !== 'string' || password.length < 8) {
+    throw new AppError('A senha precisa ter pelo menos 8 caracteres.');
+  }
+
   const directSubscriptionPlan = isDirectSubscriptionIntent(req.body)
     ? getDirectSubscriptionPlan(req.body)
     : null;
-  const metadata = { nome, nome_negocio, whatsapp, tipo_negocio };
+  const profilePayload = profilePayloadFromBody(req.body);
+  const metadata = { ...profilePayload };
   const autoConfirmEmail = shouldAutoConfirmEmail();
   const redirectTo = `${getFrontendUrl()}/auth/login/index.html`;
   const { data, error } = autoConfirmEmail
@@ -105,14 +135,7 @@ export async function register(req, res) {
   if (error) throw new AppError(error.message, 400);
   if (!data.user) throw new AppError('Não foi possível criar o usuário.', 400);
 
-  const profilePayload = {
-    id: data.user.id,
-    nome,
-    nome_negocio: nome_negocio || null,
-    whatsapp,
-    tipo_negocio
-  };
-
+  profilePayload.id = data.user.id;
   const { error: profileError } = await supabaseAdmin
     .from('profiles')
     .upsert(profilePayload, { onConflict: 'id' });
@@ -132,18 +155,20 @@ export async function register(req, res) {
 }
 
 export async function login(req, res) {
+  rejectUnexpectedFields(req.body, ['email', 'password']);
   requireFields(req.body, ['email', 'password']);
 
+  const email = validateEmail(req.body.email);
   let { data, error } = await supabase.auth.signInWithPassword({
-    email: req.body.email,
+    email,
     password: req.body.password
   });
 
   if (error && shouldAutoConfirmEmail() && isEmailNotConfirmedError(error)) {
-    const confirmed = await confirmUserEmailByAddress(req.body.email);
+    const confirmed = await confirmUserEmailByAddress(email);
     if (confirmed) {
       const retry = await supabase.auth.signInWithPassword({
-        email: req.body.email,
+        email,
         password: req.body.password
       });
       data = retry.data;
@@ -181,7 +206,24 @@ export async function me(req, res) {
 
 export async function updateProfile(req, res) {
   const allowed = ['nome', 'nome_negocio', 'cpf', 'cnpj', 'ramo', 'whatsapp', 'tipo_negocio'];
-  const payload = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
+  rejectUnexpectedFields(req.body, allowed);
+
+  const payload = {};
+  if (req.body.nome !== undefined) {
+    payload.nome = sanitizeText(req.body.nome, { field: 'Nome', required: true, max: 120, rejectDangerous: true });
+  }
+  if (req.body.nome_negocio !== undefined) {
+    payload.nome_negocio = sanitizeText(req.body.nome_negocio, { field: 'Nome do negócio', max: 120, rejectDangerous: true });
+  }
+  if (req.body.cpf !== undefined) payload.cpf = sanitizeText(req.body.cpf, { field: 'CPF', max: 20 });
+  if (req.body.cnpj !== undefined) payload.cnpj = sanitizeText(req.body.cnpj, { field: 'CNPJ', max: 24 });
+  if (req.body.ramo !== undefined) {
+    payload.ramo = sanitizeText(req.body.ramo, { field: 'Ramo', max: 120, rejectDangerous: true });
+  }
+  if (req.body.whatsapp !== undefined) payload.whatsapp = sanitizeText(req.body.whatsapp, { field: 'WhatsApp', max: 30 });
+  if (req.body.tipo_negocio !== undefined) {
+    payload.tipo_negocio = sanitizeText(req.body.tipo_negocio, { field: 'Tipo de negócio', max: 120, rejectDangerous: true });
+  }
 
   if (!Object.keys(payload).length) throw new AppError('Nenhum campo válido informado.');
 
@@ -197,10 +239,13 @@ export async function updateProfile(req, res) {
 }
 
 export async function resetPassword(req, res) {
+  rejectUnexpectedFields(req.body, ['email', 'redirect_to']);
   requireFields(req.body, ['email']);
 
-  const redirectTo = req.body.redirect_to || `${getFrontendUrl()}/auth/recovery/nova-senha.html`;
-  const { error } = await supabase.auth.resetPasswordForEmail(req.body.email, { redirectTo });
+  const email = validateEmail(req.body.email);
+  const redirectTo = sanitizeText(req.body.redirect_to, { field: 'URL de redirecionamento', max: 500 })
+    || `${getFrontendUrl()}/auth/recovery/nova-senha.html`;
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
 
   if (error) throw new AppError(error.message, 400);
   res.json({ message: 'Link de recuperação enviado.' });

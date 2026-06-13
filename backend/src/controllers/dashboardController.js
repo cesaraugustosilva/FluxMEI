@@ -1,9 +1,12 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
+import { validateMonthReference } from '../utils/validation.js';
 
 function monthRange(query) {
   const now = new Date();
-  const mes = query.mes || `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+  const mes = query.mes
+    ? validateMonthReference(query.mes)
+    : `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
   const [year, monthIndex] = mes.split('-').map(Number);
   const fim = new Date(Date.UTC(year, monthIndex, 0)).toISOString().slice(0, 10);
   return { inicio: `${mes}-01`, fim, mes };

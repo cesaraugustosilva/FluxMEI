@@ -1,20 +1,32 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
+import { rejectUnexpectedFields, sanitizeText, validateEmail } from '../utils/validation.js';
 
-function buildPayload(body, userId) {
-  const payload = {
-    nome: body.nome,
-    telefone: body.telefone || null,
-    email: body.email || null,
-    observacao: body.observacao || null
-  };
+const allowedFields = ['nome', 'telefone', 'email', 'observacao'];
+
+function buildPayload(body, userId, { partial = false } = {}) {
+  const payload = {};
+
+  if (!partial || body.nome !== undefined) {
+    payload.nome = sanitizeText(body.nome, { field: 'Nome', required: !partial, max: 120, rejectDangerous: true });
+  }
+  if (!partial || body.telefone !== undefined) {
+    payload.telefone = sanitizeText(body.telefone, { field: 'Telefone', max: 30 });
+  }
+  if (!partial || body.email !== undefined) {
+    payload.email = validateEmail(body.email, { required: false });
+  }
+  if (!partial || body.observacao !== undefined) {
+    payload.observacao = sanitizeText(body.observacao, { field: 'Observação', max: 1000 });
+  }
+
   if (userId) payload.user_id = userId;
   Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
   return payload;
 }
 
 export async function createCliente(req, res) {
-  if (!req.body.nome) throw new AppError('nome é obrigatório.');
+  rejectUnexpectedFields(req.body, allowedFields);
 
   const { data, error } = await supabaseAdmin
     .from('clientes')
@@ -50,9 +62,13 @@ export async function getCliente(req, res) {
 }
 
 export async function updateCliente(req, res) {
+  rejectUnexpectedFields(req.body, allowedFields);
+  const payload = buildPayload(req.body, null, { partial: true });
+  if (!Object.keys(payload).length) throw new AppError('Nenhum campo válido informado.');
+
   const { data, error } = await supabaseAdmin
     .from('clientes')
-    .update(buildPayload(req.body))
+    .update(payload)
     .eq('id', req.params.id)
     .eq('user_id', req.user.id)
     .select()

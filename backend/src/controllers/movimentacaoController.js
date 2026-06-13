@@ -1,37 +1,70 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
+import {
+  rejectUnexpectedFields,
+  sanitizeText,
+  validateDate,
+  validateMoney,
+  validateMonthReference,
+  validateOneOf
+} from '../utils/validation.js';
 
 const allowedTipos = ['entrada', 'saida'];
+const allowedFields = ['tipo', 'descricao', 'valor', 'categoria', 'data', 'forma_pagamento', 'observacao'];
 
 function monthBounds(month) {
-  const [year, monthIndex] = month.split('-').map(Number);
+  const validMonth = validateMonthReference(month);
+  const [year, monthIndex] = validMonth.split('-').map(Number);
   const end = new Date(Date.UTC(year, monthIndex, 0)).toISOString().slice(0, 10);
-  return { start: `${month}-01`, end };
+  return { start: `${validMonth}-01`, end };
 }
 
 function validatePayload(body, partial = false) {
+  rejectUnexpectedFields(body, allowedFields);
+
   const required = ['tipo', 'descricao', 'valor', 'categoria', 'data'];
   if (!partial) {
     const missing = required.filter((field) => body[field] === undefined || body[field] === '');
     if (missing.length) throw new AppError(`Campos obrigatórios: ${missing.join(', ')}.`);
   }
 
-  if (body.tipo && !allowedTipos.includes(body.tipo)) throw new AppError('tipo deve ser entrada ou saida.');
-  if (body.valor !== undefined && Number(body.valor) < 0) throw new AppError('valor deve ser maior ou igual a zero.');
+  if (body.tipo !== undefined) validateOneOf(body.tipo, allowedTipos, { required: !partial, field: 'Tipo' });
+  if (body.valor !== undefined) validateMoney(body.valor, { required: !partial, field: 'Valor' });
+  if (body.data !== undefined) validateDate(body.data, { required: !partial, field: 'Data' });
+  if (body.descricao !== undefined) {
+    sanitizeText(body.descricao, { field: 'Descrição', required: !partial, max: 180, rejectDangerous: true });
+  }
+  if (body.categoria !== undefined) {
+    sanitizeText(body.categoria, { field: 'Categoria', required: !partial, max: 80, rejectDangerous: true });
+  }
+  if (body.forma_pagamento !== undefined) {
+    sanitizeText(body.forma_pagamento, { field: 'Forma de pagamento', max: 80, rejectDangerous: true });
+  }
+  if (body.observacao !== undefined) {
+    sanitizeText(body.observacao, { field: 'Observação', max: 1000 });
+  }
 }
 
 function buildPayload(body, userId) {
-  const payload = {
-    tipo: body.tipo,
-    descricao: body.descricao,
-    valor: body.valor,
-    categoria: body.categoria,
-    data: body.data
-  };
+  const payload = {};
 
-  if (body.forma_pagamento) payload.forma_pagamento = body.forma_pagamento;
-  if (body.observacao) payload.observacao = body.observacao;
+  if (body.tipo !== undefined) payload.tipo = validateOneOf(body.tipo, allowedTipos, { field: 'Tipo' });
+  if (body.descricao !== undefined) {
+    payload.descricao = sanitizeText(body.descricao, { field: 'Descrição', required: true, max: 180, rejectDangerous: true });
+  }
+  if (body.valor !== undefined) payload.valor = validateMoney(body.valor, { field: 'Valor' });
+  if (body.categoria !== undefined) {
+    payload.categoria = sanitizeText(body.categoria, { field: 'Categoria', required: true, max: 80, rejectDangerous: true });
+  }
+  if (body.data !== undefined) payload.data = validateDate(body.data, { field: 'Data' });
+  if (body.forma_pagamento !== undefined) {
+    payload.forma_pagamento = sanitizeText(body.forma_pagamento, { field: 'Forma de pagamento', max: 80, rejectDangerous: true });
+  }
+  if (body.observacao !== undefined) {
+    payload.observacao = sanitizeText(body.observacao, { field: 'Observação', max: 1000 });
+  }
   if (userId) payload.user_id = userId;
+
   Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
   return payload;
 }
@@ -44,7 +77,7 @@ export async function createMovimentacao(req, res) {
     .select()
     .single();
 
-  if (error) throw new AppError(`Erro ao criar movimentacao: ${error.message}`, 500, error.message);
+  if (error) throw new AppError(`Erro ao criar movimentação: ${error.message}`, 500, error.message);
   res.status(201).json(data);
 }
 
@@ -55,9 +88,11 @@ export async function listMovimentacoes(req, res) {
     const { start, end } = monthBounds(req.query.mes);
     query = query.gte('data', start).lte('data', end);
   }
-  if (req.query.data) query = query.eq('data', req.query.data);
-  if (req.query.tipo) query = query.eq('tipo', req.query.tipo);
-  if (req.query.categoria) query = query.eq('categoria', req.query.categoria);
+  if (req.query.data) query = query.eq('data', validateDate(req.query.data));
+  if (req.query.tipo) query = query.eq('tipo', validateOneOf(req.query.tipo, allowedTipos, { field: 'Tipo' }));
+  if (req.query.categoria) {
+    query = query.eq('categoria', sanitizeText(req.query.categoria, { field: 'Categoria', max: 80, rejectDangerous: true }));
+  }
 
   const { data, error } = await query.order('data', { ascending: false });
   if (error) throw new AppError('Erro ao listar movimentações.', 500, error.message);
@@ -78,9 +113,12 @@ export async function getMovimentacao(req, res) {
 
 export async function updateMovimentacao(req, res) {
   validatePayload(req.body, true);
+  const payload = buildPayload(req.body);
+  if (!Object.keys(payload).length) throw new AppError('Nenhum campo válido informado.');
+
   const { data, error } = await supabaseAdmin
     .from('movimentacoes')
-    .update(buildPayload(req.body))
+    .update(payload)
     .eq('id', req.params.id)
     .eq('user_id', req.user.id)
     .select()
