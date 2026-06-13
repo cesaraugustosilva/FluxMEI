@@ -32,6 +32,12 @@ const DEFAULT_SUBSCRIBE_PLAN = 'pro_mensal';
 function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(USER_KEY);
+}
+
+function getStoredToken() {
+  return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
 }
 
 async function apiRequest(path, options = {}) {
@@ -40,7 +46,7 @@ async function apiRequest(path, options = {}) {
     ...(options.headers || {})
   };
 
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = getStoredToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
   let response;
@@ -83,10 +89,16 @@ async function apiRequest(path, options = {}) {
   return data;
 }
 
-function saveSession(authData) {
+function saveSession(authData, remember = false) {
   const token = authData?.session?.access_token;
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  if (authData?.user) localStorage.setItem(USER_KEY, JSON.stringify(authData.user));
+  const targetStorage = remember ? localStorage : sessionStorage;
+  const otherStorage = remember ? sessionStorage : localStorage;
+
+  otherStorage.removeItem(TOKEN_KEY);
+  otherStorage.removeItem(USER_KEY);
+
+  if (token) targetStorage.setItem(TOKEN_KEY, token);
+  if (authData?.user) targetStorage.setItem(USER_KEY, JSON.stringify(authData.user));
 }
 
 function saveTokenFromUrl() {
@@ -95,11 +107,12 @@ function saveTokenFromUrl() {
   const token = hash.get('access_token') || query.get('access_token');
 
   if (token) {
-    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.removeItem(TOKEN_KEY);
+    sessionStorage.setItem(TOKEN_KEY, token);
     window.history.replaceState(null, document.title, window.location.pathname);
   }
 
-  return token || localStorage.getItem(TOKEN_KEY);
+  return token || getStoredToken();
 }
 
 function getField(form, name) {
@@ -279,7 +292,7 @@ async function login(payload) {
     })
   });
 
-  saveSession(data);
+  saveSession(data, Boolean(payload.remember));
   return data;
 }
 

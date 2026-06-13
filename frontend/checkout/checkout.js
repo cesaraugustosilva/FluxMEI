@@ -86,7 +86,14 @@ function resolveApiUrls() {
 }
 
 function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
+}
+
+function clearAuthStorage() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('fluxmei_user');
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem('fluxmei_user');
 }
 
 function getSelectedPlanId() {
@@ -270,7 +277,7 @@ async function request(path, options = {}, { auth = true } = {}) {
   const text = isJson ? '' : await response.text();
 
   if (response.status === 401) {
-    localStorage.removeItem(TOKEN_KEY);
+    clearAuthStorage();
     throw new Error('LOGIN_REQUIRED');
   }
 

@@ -51,12 +51,16 @@ function saveSubscribeIntent(plan = DEFAULT_PLAN) {
   localStorage.setItem(PLAN_KEY, plan);
 }
 
+function getStoredToken() {
+  return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
+}
+
 function handleSubscribeClick(event) {
   const button = event.currentTarget;
   const plan = button.dataset.subscribePlan || DEFAULT_PLAN;
   saveSubscribeIntent(plan);
 
-  if (localStorage.getItem(TOKEN_KEY)) {
+  if (getStoredToken()) {
     button.disabled = true;
     button.textContent = 'Abrindo checkout...';
     window.location.href = getPaymentUrl(plan);

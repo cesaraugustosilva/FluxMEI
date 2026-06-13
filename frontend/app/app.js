@@ -147,7 +147,14 @@ function getCategoriasPorTipo(tipo) {
 
 // ===== API =====
 function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
+}
+
+function clearAuthStorage() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('fluxmei_user');
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem('fluxmei_user');
 }
 
 async function apiRequest(path, options = {}) {
@@ -188,9 +195,9 @@ async function apiRequest(path, options = {}) {
   const text = isJson ? '' : await response.text();
 
   if (response.status === 401) {
-    localStorage.removeItem(TOKEN_KEY);
+    clearAuthStorage();
     window.location.href = '../auth/login/index.html';
-    throw new Error('Sessão expirada.');
+    throw new Error('Sua sessão expirou. Faça login novamente.');
   }
 
   if (response.status === 402) {
@@ -414,8 +421,7 @@ function closeAccountPanel() {
 }
 
 function logoutUser() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem('fluxmei_user');
+  clearAuthStorage();
   window.location.href = '../auth/login/index.html';
 }
 
