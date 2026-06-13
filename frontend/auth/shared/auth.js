@@ -492,7 +492,7 @@ async function handleNewPassword(form) {
   if (!validateNewPassword(form)) return;
 
   if (!saveTokenFromUrl()) {
-    showAlert(form, 'Link de recuperaÃ§Ã£o invÃ¡lido ou expirado.', 'error');
+    showAlert(form, 'Link de recuperação inválido ou expirado.', 'error');
     return;
   }
 
@@ -506,7 +506,7 @@ async function handleNewPassword(form) {
       window.location.href = '../login/index.html';
     }, 900);
   } catch (error) {
-    showAlert(form, error.message || 'NÃ£o foi possÃ­vel atualizar a senha agora.', 'error');
+    showAlert(form, error.message || 'Não foi possível atualizar a senha agora.', 'error');
   } finally {
     setLoading(form, false);
     updateSubmitState(form);

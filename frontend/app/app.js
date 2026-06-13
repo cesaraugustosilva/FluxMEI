@@ -998,7 +998,7 @@ function pagIcon(pag) {
   return icons[pag] || '';
 }
 
-// ===== MOVIMENTAÇÃO FORM =====
+// ===== MOVIMENTACAO FORM =====
 function setTipo(tipo) {
   movTipo = tipo;
   document.getElementById('btnEntrada').classList.toggle('active', tipo==='entrada');

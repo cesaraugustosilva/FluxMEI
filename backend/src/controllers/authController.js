@@ -103,7 +103,7 @@ export async function register(req, res) {
       });
 
   if (error) throw new AppError(error.message, 400);
-  if (!data.user) throw new AppError('NÃ£o foi possÃ­vel criar o usuÃ¡rio.', 400);
+  if (!data.user) throw new AppError('Não foi possível criar o usuário.', 400);
 
   const profilePayload = {
     id: data.user.id,
