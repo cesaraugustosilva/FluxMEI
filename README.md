@@ -141,6 +141,7 @@ Consulte o passo a passo completo em `DEPLOY.md`.
 - Webhooks de pagamento precisam de token/secret configurados.
 - O webhook Mercado Pago e a fonte oficial para ativar assinatura no checkout principal.
 - Asaas permanece como legado/fallback tecnico no backend, nao e usado pelo checkout principal e fica desativado por padrao com `ENABLE_ASAAS=false`.
+- Alem do rate limit global, rotas sensiveis possuem limites especificos por IP: login 10/15min, cadastro 5/30min, recuperacao/nova senha 3/30min e pagamentos 20/15min.
 
 ## Status Do Projeto
 

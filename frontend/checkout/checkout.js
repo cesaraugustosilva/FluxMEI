@@ -282,7 +282,7 @@ async function request(path, options = {}, { auth = true } = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(data?.error || text?.trim() || `Erro ${response.status} ao chamar ${url}.`);
+    throw new Error(data?.message || data?.error || text?.trim() || `Erro ${response.status} ao chamar ${url}.`);
   }
 
   return data;

@@ -63,6 +63,7 @@ Observacoes:
 - O Render define `PORT` automaticamente. Nao e necessario cadastrar `PORT`.
 - Nunca coloque `SUPABASE_SERVICE_ROLE_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `ASAAS_API_KEY` ou `GEMINI_API_KEY` na Vercel.
 - Em producao, `MERCADO_PAGO_WEBHOOK_SECRET` e obrigatorio para processar o webhook do checkout principal. As variaveis Asaas existem apenas para legado/fallback tecnico. Mantenha `ENABLE_ASAAS=false` para desativar rotas publicas Asaas; use `ENABLE_ASAAS=true` somente se esse legado for operado de forma controlada.
+- O backend mantem rate limit global e limites especificos para rotas sensiveis: login 10 tentativas/15min, cadastro 5/30min, recuperacao e nova senha 3/30min, pagamentos 20/15min. Ao exceder, a API retorna uma mensagem generica sem detalhes tecnicos.
 - Em producao, `/api/dev/*` nao e registrado.
 - Em producao, rotas duplicadas sem `/api` nao sao registradas.
 

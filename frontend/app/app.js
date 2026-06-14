@@ -202,14 +202,14 @@ async function apiRequest(path, options = {}) {
 
   if (response.status === 402) {
     showSubscriptionLock(data || {});
-    const error = new Error(data?.error || 'Teste grátis expirado');
+    const error = new Error(data?.message || data?.error || 'Teste grátis expirado');
     error.code = data?.code || 'TRIAL_EXPIRED';
     error.redirectTo = data?.redirectTo || '/checkout/';
     throw error;
   }
 
   if (!response.ok) {
-    const message = data?.error || text?.trim();
+    const message = data?.message || data?.error || text?.trim();
     throw new Error(message || `Erro ${response.status} ao chamar ${url}.`);
   }
   return data;

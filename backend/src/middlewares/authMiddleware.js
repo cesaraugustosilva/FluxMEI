@@ -26,6 +26,8 @@ export function requirePlanFeature(feature) {
       const usage = await assinaturaService.checkFeature(req.user.id, feature, req.body || {});
       if (!usage.allowed) {
         return res.status(402).json({
+          success: false,
+          message: usage.error || 'Teste grátis expirado',
           error: usage.error || 'Teste grátis expirado',
           code: usage.code || 'TRIAL_EXPIRED',
           estado: usage.estado || 'bloqueado',

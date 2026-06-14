@@ -81,9 +81,10 @@ async function apiRequest(path, options = {}) {
   }
 
   if (!response.ok) {
-    if (!data?.error && text?.trim()) throw new Error(text.trim());
-    if (!data?.error) throw new Error(`Erro ${response.status} ao chamar ${url}.`);
-    throw new Error(data?.error || 'Não foi possível concluir a solicitação.');
+    const message = data?.message || data?.error;
+    if (!message && text?.trim()) throw new Error(text.trim());
+    if (!message) throw new Error(`Erro ${response.status} ao chamar ${url}.`);
+    throw new Error(message || 'Não foi possível concluir a solicitação.');
   }
 
   return data;
