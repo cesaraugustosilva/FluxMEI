@@ -60,6 +60,17 @@ test('pagamento pendente nao ativa assinatura', () => {
   assert.equal(updates.data_vencimento, undefined);
 });
 
+test('pagamento pendente Mercado Pago nao ativa assinatura', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 789,
+    status: 'pending'
+  }, assinatura, baseDate);
+
+  assert.equal(updates.status, 'pendente');
+  assert.equal(updates.bloqueado, true);
+  assert.equal(updates.data_vencimento, undefined);
+});
+
 test('pagamento recusado nao ativa assinatura', () => {
   const updates = buildMercadoPagoSubscriptionUpdates({
     id: 456,
@@ -68,6 +79,31 @@ test('pagamento recusado nao ativa assinatura', () => {
 
   assert.equal(updates.status, 'cancelado');
   assert.equal(updates.bloqueado, true);
+  assert.equal(updates.data_vencimento, undefined);
+});
+
+test('webhook duplicado Mercado Pago aprovado nao avanca vencimento de novo', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 123,
+    status: 'approved'
+  }, {
+    ...assinatura,
+    status: 'ativo',
+    bloqueado: false,
+    provider_payment_id: '123',
+    provider_status: 'approved',
+    mercado_pago_payment_id: '123',
+    mercado_pago_status: 'approved',
+    data_vencimento: '2026-07-12'
+  }, new Date('2026-06-20T00:00:00Z'));
+
+  assert.equal(updates.provider_payment_id, '123');
+  assert.equal(updates.provider_status, 'approved');
+  assert.equal(updates.mercado_pago_payment_id, '123');
+  assert.equal(updates.mercado_pago_status, 'approved');
+  assert.equal(updates.already_processed, true);
+  assert.equal(updates.outcome, 'duplicate_ignored');
+  assert.equal(updates.status, undefined);
   assert.equal(updates.data_vencimento, undefined);
 });
 

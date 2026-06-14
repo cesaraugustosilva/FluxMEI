@@ -577,6 +577,19 @@ export async function criarCobrancaAsaas(req, res) {
 
 async function aplicarPagamentoNaAssinatura(payment, assinatura) {
   const updates = buildMercadoPagoSubscriptionUpdates(payment, assinatura);
+  if (updates.already_processed) {
+    return {
+      ...assinatura,
+      payment_provider: updates.payment_provider,
+      provider_payment_id: updates.provider_payment_id,
+      provider_status: updates.provider_status,
+      mercado_pago_payment_id: updates.mercado_pago_payment_id,
+      mercado_pago_status: updates.mercado_pago_status,
+      already_processed: true,
+      outcome: updates.outcome
+    };
+  }
+
   const { data, error } = await supabaseAdmin
     .from('assinaturas')
     .update(updates)
@@ -722,8 +735,14 @@ export async function webhookMercadoPago(req, res) {
     return res.json({ received: true, ignored: true });
   }
 
-  await aplicarPagamentoNaAssinatura(payment, assinatura);
-  logWebhookEvent({ provider: 'mercado_pago', event: 'payment', paymentId, status: payment?.status, outcome: 'applied' });
+  const updatedAssinatura = await aplicarPagamentoNaAssinatura(payment, assinatura);
+  logWebhookEvent({
+    provider: 'mercado_pago',
+    event: 'payment',
+    paymentId,
+    status: payment?.status,
+    outcome: updatedAssinatura.already_processed ? 'duplicate_ignored' : 'applied'
+  });
   res.json({ received: true });
 }
 

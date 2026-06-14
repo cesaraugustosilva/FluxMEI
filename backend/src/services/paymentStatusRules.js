@@ -100,12 +100,32 @@ export function buildAsaasSubscriptionUpdates(payment, assinatura, baseDate = ne
 export function buildMercadoPagoSubscriptionUpdates(payment, assinatura, baseDate = new Date()) {
   const planConfig = PAYMENT_PLANS[assinatura.plano] || PAYMENT_PLANS.pro_mensal;
   const status = payment?.status;
+  const paymentId = payment?.id ? String(payment.id) : null;
+  const sameProviderPayment = paymentId && assinatura.provider_payment_id === paymentId;
+  const sameLegacyPayment = paymentId && assinatura.mercado_pago_payment_id === paymentId;
+  const alreadyApproved = assinatura.provider_status === 'approved'
+    || assinatura.mercado_pago_status === 'approved'
+    || (assinatura.status === 'ativo' && assinatura.bloqueado === false);
+
+  if (status === 'approved' && (sameProviderPayment || sameLegacyPayment) && alreadyApproved) {
+    return {
+      payment_provider: 'mercado_pago',
+      provider_payment_id: paymentId,
+      provider_status: status,
+      provider_raw: payment,
+      mercado_pago_payment_id: paymentId,
+      mercado_pago_status: status,
+      already_processed: true,
+      outcome: 'duplicate_ignored'
+    };
+  }
+
   const updates = {
     payment_provider: 'mercado_pago',
-    provider_payment_id: payment?.id ? String(payment.id) : null,
+    provider_payment_id: paymentId,
     provider_status: status,
     provider_raw: payment,
-    mercado_pago_payment_id: payment?.id ? String(payment.id) : null,
+    mercado_pago_payment_id: paymentId,
     mercado_pago_status: status
   };
 
