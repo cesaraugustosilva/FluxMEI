@@ -18,6 +18,36 @@ const assinatura = {
   provider_raw: null
 };
 
+function assinaturaMercadoPagoAttempt({ currentPlan = 'pro_mensal', originalPlan = 'pro_mensal', paymentId = '123', amount = 49.9 } = {}) {
+  return {
+    ...assinatura,
+    plano: currentPlan,
+    valor: currentPlan === 'pro_anual' ? 478.8 : 49.9,
+    tipo_cobranca: currentPlan === 'pro_anual' ? 'anual' : 'mensal',
+    payment_provider: 'mercado_pago',
+    provider_payment_id: paymentId,
+    mercado_pago_payment_id: paymentId,
+    provider_raw: {
+      attempt: {
+        plano_original: originalPlan,
+        valor_original: amount,
+        tipo_cobranca_original: originalPlan === 'pro_anual' ? 'anual' : 'mensal',
+        payment_id: paymentId,
+        metadata: {
+          plano: originalPlan
+        }
+      },
+      payment: {
+        id: paymentId,
+        transaction_amount: amount,
+        metadata: {
+          plano: originalPlan
+        }
+      }
+    }
+  };
+}
+
 test('webhook valido Asaas com pagamento aprovado ativa assinatura', () => {
   const updates = buildAsaasSubscriptionUpdates({
     id: 'pay_1',
@@ -39,13 +69,20 @@ test('webhook valido Asaas com pagamento aprovado ativa assinatura', () => {
 test('webhook valido Mercado Pago com pagamento aprovado ativa assinatura', () => {
   const updates = buildMercadoPagoSubscriptionUpdates({
     id: 123,
-    status: 'approved'
-  }, assinatura, baseDate);
+    status: 'approved',
+    transaction_amount: 49.9,
+    metadata: {
+      plano: 'pro_mensal'
+    }
+  }, assinaturaMercadoPagoAttempt(), baseDate);
 
   assert.equal(updates.status, 'ativo');
   assert.equal(updates.bloqueado, false);
   assert.equal(updates.payment_provider, 'mercado_pago');
   assert.equal(updates.provider_payment_id, '123');
+  assert.equal(updates.plano, 'pro_mensal');
+  assert.equal(updates.valor, 49.9);
+  assert.equal(updates.tipo_cobranca, 'mensal');
   assert.equal(updates.data_vencimento, '2026-07-12');
 });
 
@@ -80,6 +117,122 @@ test('pagamento recusado nao ativa assinatura', () => {
   assert.equal(updates.status, 'cancelado');
   assert.equal(updates.bloqueado, true);
   assert.equal(updates.data_vencimento, undefined);
+});
+
+test('mensal pago apos troca para anual nao libera anual', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 123,
+    status: 'approved',
+    transaction_amount: 49.9,
+    metadata: {
+      plano: 'pro_mensal'
+    }
+  }, assinaturaMercadoPagoAttempt({
+    currentPlan: 'pro_anual',
+    originalPlan: 'pro_mensal',
+    paymentId: '123',
+    amount: 49.9
+  }), baseDate);
+
+  assert.equal(updates.status, 'ativo');
+  assert.equal(updates.plano, 'pro_mensal');
+  assert.equal(updates.valor, 49.9);
+  assert.equal(updates.tipo_cobranca, 'mensal');
+  assert.equal(updates.data_vencimento, '2026-07-12');
+});
+
+test('anual pago apos troca para mensal nao libera mensal', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 321,
+    status: 'approved',
+    transaction_amount: 478.8,
+    metadata: {
+      plano: 'pro_anual'
+    }
+  }, assinaturaMercadoPagoAttempt({
+    currentPlan: 'pro_mensal',
+    originalPlan: 'pro_anual',
+    paymentId: '321',
+    amount: 478.8
+  }), baseDate);
+
+  assert.equal(updates.status, 'ativo');
+  assert.equal(updates.plano, 'pro_anual');
+  assert.equal(updates.valor, 478.8);
+  assert.equal(updates.tipo_cobranca, 'anual');
+  assert.equal(updates.data_vencimento, '2027-06-12');
+});
+
+test('cobranca antiga Mercado Pago e ignorada e nao sobrescreve tentativa nova', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 123,
+    status: 'approved',
+    transaction_amount: 49.9,
+    metadata: {
+      plano: 'pro_mensal'
+    }
+  }, assinaturaMercadoPagoAttempt({
+    currentPlan: 'pro_anual',
+    originalPlan: 'pro_anual',
+    paymentId: '999',
+    amount: 478.8
+  }), baseDate);
+
+  assert.equal(updates.ignored, true);
+  assert.equal(updates.outcome, 'ignored_not_current_attempt');
+  assert.equal(updates.status, undefined);
+  assert.equal(updates.data_vencimento, undefined);
+});
+
+test('cobranca correta ativa o plano original mesmo se assinatura atual divergir', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 999,
+    status: 'approved',
+    transaction_amount: 478.8,
+    metadata: {
+      plano: 'pro_anual'
+    }
+  }, assinaturaMercadoPagoAttempt({
+    currentPlan: 'pro_mensal',
+    originalPlan: 'pro_anual',
+    paymentId: '999',
+    amount: 478.8
+  }), baseDate);
+
+  assert.equal(updates.status, 'ativo');
+  assert.equal(updates.plano, 'pro_anual');
+  assert.equal(updates.valor, 478.8);
+  assert.equal(updates.data_vencimento, '2027-06-12');
+});
+
+test('valor pago diferente do valor original nao ativa assinatura Mercado Pago', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 123,
+    status: 'approved',
+    transaction_amount: 1,
+    metadata: {
+      plano: 'pro_mensal'
+    }
+  }, assinaturaMercadoPagoAttempt(), baseDate);
+
+  assert.equal(updates.ignored, true);
+  assert.equal(updates.outcome, 'ignored_amount_mismatch');
+  assert.equal(updates.status, undefined);
+});
+
+test('plano do pagamento diferente do plano original nao ativa assinatura Mercado Pago', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 123,
+    status: 'approved',
+    transaction_amount: 49.9,
+    metadata: {
+      plano: 'pro_anual'
+    }
+  }, assinaturaMercadoPagoAttempt(), baseDate);
+
+  assert.equal(updates.ignored, true);
+  assert.equal(updates.outcome, 'ignored_plan_mismatch');
+  assert.equal(updates.status, undefined);
 });
 
 test('webhook duplicado Mercado Pago aprovado nao avanca vencimento de novo', () => {

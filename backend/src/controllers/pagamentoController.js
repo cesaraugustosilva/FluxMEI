@@ -6,6 +6,8 @@ import { asaasService } from '../services/asaasService.js';
 import { mercadoPagoService } from '../services/mercadoPagoService.js';
 import {
   PAYMENT_PLANS,
+  buildMercadoPagoPaymentAttempt,
+  buildMercadoPagoProviderRaw,
   buildAsaasSubscriptionUpdates,
   buildMercadoPagoSubscriptionUpdates,
   isAsaasPendingStatus
@@ -275,7 +277,14 @@ function buildPixPaymentPayload({ plan, user, profile, assinatura }) {
   return payment;
 }
 
-async function registerBrickPaymentAttempt(assinatura, plan, payment) {
+async function registerBrickPaymentAttempt(assinatura, plan, payment, { idempotencyKey = null, method = null } = {}) {
+  const attempt = buildMercadoPagoPaymentAttempt({
+    plan,
+    payment,
+    idempotencyKey,
+    method
+  });
+
   return updateAssinaturaById(assinatura.id, {
     plano: plan.id,
     status: 'pendente',
@@ -284,7 +293,7 @@ async function registerBrickPaymentAttempt(assinatura, plan, payment) {
     payment_provider: 'mercado_pago',
     provider_payment_id: payment?.id ? String(payment.id) : null,
     provider_status: payment?.status || 'payment_created',
-    provider_raw: payment || null,
+    provider_raw: buildMercadoPagoProviderRaw({ payment: payment || null, attempt }),
     mercado_pago_payment_id: payment?.id ? String(payment.id) : null,
     mercado_pago_status: payment?.status || 'payment_created',
     checkout_url: null,
@@ -293,8 +302,8 @@ async function registerBrickPaymentAttempt(assinatura, plan, payment) {
   });
 }
 
-async function registerPixPaymentAttempt(assinatura, plan, payment) {
-  return registerBrickPaymentAttempt(assinatura, plan, payment);
+async function registerPixPaymentAttempt(assinatura, plan, payment, options = {}) {
+  return registerBrickPaymentAttempt(assinatura, plan, payment, options);
 }
 
 function normalizeAsaasPixData(qrCode) {
@@ -450,7 +459,10 @@ export async function processarPagamentoBrick(req, res) {
     idempotencyKey
   });
 
-  await registerBrickPaymentAttempt(assinatura, plan, payment);
+  await registerBrickPaymentAttempt(assinatura, plan, payment, {
+    idempotencyKey,
+    method: paymentPayload.payment_method_id
+  });
 
   res.status(201).json({
     success: true,
@@ -478,7 +490,10 @@ export async function criarPixMercadoPago(req, res) {
     idempotencyKey
   });
 
-  await registerPixPaymentAttempt(assinatura, plan, payment);
+  await registerPixPaymentAttempt(assinatura, plan, payment, {
+    idempotencyKey,
+    method: 'pix'
+  });
   const pix = extractPixData(payment);
 
   res.status(201).json({
@@ -577,15 +592,12 @@ export async function criarCobrancaAsaas(req, res) {
 
 async function aplicarPagamentoNaAssinatura(payment, assinatura) {
   const updates = buildMercadoPagoSubscriptionUpdates(payment, assinatura);
-  if (updates.already_processed) {
+  if (updates.already_processed || updates.ignored) {
     return {
       ...assinatura,
       payment_provider: updates.payment_provider,
-      provider_payment_id: updates.provider_payment_id,
-      provider_status: updates.provider_status,
-      mercado_pago_payment_id: updates.mercado_pago_payment_id,
-      mercado_pago_status: updates.mercado_pago_status,
-      already_processed: true,
+      already_processed: Boolean(updates.already_processed),
+      ignored: Boolean(updates.ignored),
       outcome: updates.outcome
     };
   }
@@ -741,7 +753,7 @@ export async function webhookMercadoPago(req, res) {
     event: 'payment',
     paymentId,
     status: payment?.status,
-    outcome: updatedAssinatura.already_processed ? 'duplicate_ignored' : 'applied'
+    outcome: updatedAssinatura.outcome || (updatedAssinatura.already_processed ? 'duplicate_ignored' : 'applied')
   });
   res.json({ received: true });
 }
