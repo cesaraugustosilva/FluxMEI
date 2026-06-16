@@ -146,8 +146,12 @@ function getCategoriasPorTipo(tipo) {
 }
 
 // ===== API =====
-function getToken() {
+function getAuthToken() {
   return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
+}
+
+function getToken() {
+  return getAuthToken();
 }
 
 function clearAuthStorage() {
@@ -155,6 +159,32 @@ function clearAuthStorage() {
   localStorage.removeItem('fluxmei_user');
   sessionStorage.removeItem(TOKEN_KEY);
   sessionStorage.removeItem('fluxmei_user');
+}
+
+function redirectToLogin() {
+  window.location.href = '../auth/login/index.html';
+}
+
+async function notifyBackendLogout(token) {
+  if (!token) return;
+
+  for (const apiUrl of API_URLS) {
+    try {
+      const response = await fetch(`${apiUrl}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (response.status === 404 && apiUrl !== API_URLS[API_URLS.length - 1]) continue;
+      localStorage.setItem('fluxmei_api_url', apiUrl);
+      return;
+    } catch {
+      // Logout local ainda deve acontecer mesmo sem resposta do backend.
+    }
+  }
 }
 
 async function apiRequest(path, options = {}) {
@@ -196,7 +226,7 @@ async function apiRequest(path, options = {}) {
 
   if (response.status === 401) {
     clearAuthStorage();
-    window.location.href = '../auth/login/index.html';
+    redirectToLogin();
     throw new Error('Sua sessão expirou. Faça login novamente.');
   }
 
@@ -420,9 +450,17 @@ function closeAccountPanel() {
   modal.setAttribute('aria-hidden', 'true');
 }
 
-function logoutUser() {
-  clearAuthStorage();
-  window.location.href = '../auth/login/index.html';
+async function logoutUser() {
+  const token = getAuthToken();
+
+  try {
+    await notifyBackendLogout(token);
+  } catch {
+    // Erros tecnicos de logout nao devem impedir limpeza local.
+  } finally {
+    clearAuthStorage();
+    redirectToLogin();
+  }
 }
 
 function showSubscriptionLock(payload = {}) {

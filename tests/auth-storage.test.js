@@ -22,6 +22,25 @@ test('logout e sessao expirada limpam token dos dois storages', () => {
   assert.match(checkoutJs, /sessionStorage\.removeItem\(TOKEN_KEY\)/);
 });
 
+test('logout do app chama backend com token Bearer', () => {
+  assert.match(appJs, /function getAuthToken\(\)/);
+  assert.match(appJs, /async function notifyBackendLogout\(token\)/);
+  assert.match(appJs, /fetch\(`\$\{apiUrl\}\/auth\/logout`, \{/);
+  assert.match(appJs, /method: 'POST'/);
+  assert.match(appJs, /Authorization: `Bearer \$\{token\}`/);
+});
+
+test('logout do app limpa storages mesmo se backend falhar', () => {
+  assert.match(appJs, /async function logoutUser\(\)/);
+  assert.match(appJs, /await notifyBackendLogout\(token\)/);
+  assert.match(appJs, /finally \{\s*clearAuthStorage\(\);\s*redirectToLogin\(\);/);
+});
+
+test('logout do app sem token nao chama backend e nao quebra', () => {
+  assert.match(appJs, /if \(!token\) return;/);
+  assert.match(appJs, /const token = getAuthToken\(\);/);
+});
+
 test('painel checkout e landing leem token dos dois storages', () => {
   assert.match(appJs, /return sessionStorage\.getItem\(TOKEN_KEY\) \|\| localStorage\.getItem\(TOKEN_KEY\)/);
   assert.match(checkoutJs, /return sessionStorage\.getItem\(TOKEN_KEY\) \|\| localStorage\.getItem\(TOKEN_KEY\)/);
