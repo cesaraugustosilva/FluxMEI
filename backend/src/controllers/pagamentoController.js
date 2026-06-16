@@ -6,6 +6,8 @@ import { asaasService } from '../services/asaasService.js';
 import { mercadoPagoService } from '../services/mercadoPagoService.js';
 import {
   PAYMENT_PLANS,
+  buildAsaasPaymentAttempt,
+  buildPendingPaymentAttemptUpdates,
   buildMercadoPagoPaymentAttempt,
   buildMercadoPagoProviderRaw,
   buildAsaasSubscriptionUpdates,
@@ -285,21 +287,61 @@ async function registerBrickPaymentAttempt(assinatura, plan, payment, { idempote
     method
   });
 
-  return updateAssinaturaById(assinatura.id, {
-    plano: plan.id,
-    status: 'pendente',
-    valor: plan.value,
-    tipo_cobranca: plan.tipo_cobranca,
-    payment_provider: 'mercado_pago',
-    provider_payment_id: payment?.id ? String(payment.id) : null,
-    provider_status: payment?.status || 'payment_created',
-    provider_raw: buildMercadoPagoProviderRaw({ payment: payment || null, attempt }),
-    mercado_pago_payment_id: payment?.id ? String(payment.id) : null,
-    mercado_pago_status: payment?.status || 'payment_created',
-    checkout_url: null,
-    bloqueado: true,
-    renovacao_automatica: false
+  const updates = buildPendingPaymentAttemptUpdates({
+    assinatura,
+    providerUpdates: {
+      plano: plan.id,
+      valor: plan.value,
+      tipo_cobranca: plan.tipo_cobranca,
+      payment_provider: 'mercado_pago',
+      provider_payment_id: payment?.id ? String(payment.id) : null,
+      provider_status: payment?.status || 'payment_created',
+      provider_raw: buildMercadoPagoProviderRaw({ payment: payment || null, attempt }),
+      mercado_pago_payment_id: payment?.id ? String(payment.id) : null,
+      mercado_pago_status: payment?.status || 'payment_created',
+      checkout_url: null,
+      renovacao_automatica: false
+    }
   });
+
+  return updateAssinaturaById(assinatura.id, updates);
+}
+
+async function registerCheckoutPreferenceAttempt(assinatura, plan, preference) {
+  const attempt = buildMercadoPagoPaymentAttempt({
+    plan,
+    payment: {
+      id: null,
+      payment_method_id: 'checkout_preference',
+      metadata: {
+        user_id: assinatura.user_id || null,
+        assinatura_id: assinatura.id,
+        plano: plan.id
+      }
+    },
+    method: 'checkout_preference'
+  });
+
+  const checkoutUrl = getCheckoutUrl(preference);
+  const updates = buildPendingPaymentAttemptUpdates({
+    assinatura,
+    providerUpdates: {
+      plano: plan.id,
+      valor: plan.value,
+      tipo_cobranca: plan.tipo_cobranca,
+      payment_provider: 'mercado_pago',
+      provider_payment_id: null,
+      provider_status: 'preference_created',
+      provider_raw: buildMercadoPagoProviderRaw({ payment: preference || null, attempt }),
+      mercado_pago_preference_id: preference.id,
+      mercado_pago_payment_id: null,
+      mercado_pago_status: 'preference_created',
+      checkout_url: checkoutUrl,
+      renovacao_automatica: false
+    }
+  });
+
+  return updateAssinaturaById(assinatura.id, updates);
 }
 
 async function registerPixPaymentAttempt(assinatura, plan, payment, options = {}) {
@@ -335,26 +377,31 @@ function asaasPaymentResponsePayload(payment, pixQrCode = null) {
   };
 }
 
-async function registerAsaasPaymentAttempt({ assinatura, plan, customer, payment, pixQrCode = null, subscription = null, recurring = false }) {
-  return updateAssinaturaById(assinatura.id, {
-    plano: plan.id,
-    status: 'pendente',
-    valor: plan.value,
-    tipo_cobranca: plan.tipo_cobranca,
-    payment_provider: 'asaas',
-    provider_payment_id: payment?.id ? String(payment.id) : null,
-    provider_customer_id: customer?.id || assinatura.provider_customer_id || null,
-    provider_subscription_id: subscription?.id || payment?.subscription || assinatura.provider_subscription_id || null,
-    provider_status: subscription?.status || payment?.status || 'CREATED',
-    provider_raw: {
-      subscription,
-      payment,
-      pixQrCode
-    },
-    checkout_url: payment?.invoiceUrl || payment?.bankSlipUrl || null,
-    bloqueado: true,
-    renovacao_automatica: Boolean(recurring)
+async function registerAsaasPaymentAttempt({ assinatura, plan, customer, payment, pixQrCode = null, subscription = null, recurring = false, method = null }) {
+  const attempt = buildAsaasPaymentAttempt({ plan, payment, subscription, recurring, method });
+  const updates = buildPendingPaymentAttemptUpdates({
+    assinatura,
+    providerUpdates: {
+      plano: plan.id,
+      valor: plan.value,
+      tipo_cobranca: plan.tipo_cobranca,
+      payment_provider: 'asaas',
+      provider_payment_id: payment?.id ? String(payment.id) : null,
+      provider_customer_id: customer?.id || assinatura.provider_customer_id || null,
+      provider_subscription_id: subscription?.id || payment?.subscription || assinatura.provider_subscription_id || null,
+      provider_status: subscription?.status || payment?.status || 'CREATED',
+      provider_raw: {
+        attempt,
+        subscription,
+        payment,
+        pixQrCode
+      },
+      checkout_url: payment?.invoiceUrl || payment?.bankSlipUrl || null,
+      renovacao_automatica: Boolean(recurring)
+    }
   });
+
+  return updateAssinaturaById(assinatura.id, updates);
 }
 
 async function aplicarPagamentoAsaasNaAssinatura(payment, assinatura, event = null) {
@@ -415,22 +462,7 @@ export async function criarCheckoutMercadoPago(req, res) {
   const checkoutUrl = getCheckoutUrl(preference);
   if (!checkoutUrl) throw new AppError('Mercado Pago nao retornou URL de checkout.', 502, preference);
 
-  await updateAssinaturaById(assinatura.id, {
-    plano,
-    status: 'pendente',
-    valor: plan.value,
-    tipo_cobranca: plan.tipo_cobranca,
-    payment_provider: 'mercado_pago',
-    provider_payment_id: null,
-    provider_status: 'preference_created',
-    provider_raw: preference || null,
-    mercado_pago_preference_id: preference.id,
-    mercado_pago_payment_id: null,
-    mercado_pago_status: 'preference_created',
-    checkout_url: checkoutUrl,
-    bloqueado: true,
-    renovacao_automatica: false
-  });
+  await registerCheckoutPreferenceAttempt(assinatura, plan, preference);
 
   res.status(201).json({
     success: true,
@@ -550,7 +582,8 @@ export async function criarCobrancaAsaas(req, res) {
       payment,
       pixQrCode,
       subscription,
-      recurring: true
+      recurring: true,
+      method
     });
 
     res.status(201).json({
@@ -579,7 +612,7 @@ export async function criarCobrancaAsaas(req, res) {
     pixQrCode = await asaasService.obterPixQrCode(payment.id);
   }
 
-  await registerAsaasPaymentAttempt({ assinatura, plan, customer, payment, pixQrCode });
+  await registerAsaasPaymentAttempt({ assinatura, plan, customer, payment, pixQrCode, method });
 
   res.status(201).json({
     success: true,

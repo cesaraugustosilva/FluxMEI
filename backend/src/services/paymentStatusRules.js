@@ -23,10 +23,53 @@ export function todayPlusDays(days, baseDate = new Date()) {
   return date.toISOString().slice(0, 10);
 }
 
+function todayIso(baseDate = new Date()) {
+  return baseDate.toISOString().slice(0, 10);
+}
+
 function moneyToCents(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return null;
   return Math.round(number * 100);
+}
+
+function getTrialEndDate(assinatura = {}) {
+  return assinatura.data_trial_fim || assinatura.data_vencimento || null;
+}
+
+export function isActiveTrialSubscription(assinatura = {}, baseDate = new Date()) {
+  const trialEnd = getTrialEndDate(assinatura);
+  return assinatura.status === 'teste_gratis'
+    && assinatura.bloqueado === false
+    && trialEnd
+    && trialEnd >= todayIso(baseDate);
+}
+
+export function buildPendingPaymentAttemptUpdates({ assinatura = {}, providerUpdates = {}, baseDate = new Date() }) {
+  if (!isActiveTrialSubscription(assinatura, baseDate)) {
+    return {
+      ...providerUpdates,
+      status: 'pendente',
+      bloqueado: true
+    };
+  }
+
+  const {
+    plano,
+    valor,
+    tipo_cobranca,
+    data_inicio,
+    renovacao_automatica,
+    ...trialSafeProviderUpdates
+  } = providerUpdates;
+
+  return {
+    ...trialSafeProviderUpdates,
+    status: assinatura.status,
+    bloqueado: false,
+    data_vencimento: assinatura.data_vencimento,
+    data_trial_fim: assinatura.data_trial_fim
+  };
 }
 
 function getMercadoPagoPaymentMetadata(payment = {}) {
@@ -96,6 +139,18 @@ export function buildMercadoPagoProviderRaw({ payment, attempt }) {
   };
 }
 
+export function buildAsaasPaymentAttempt({ plan, payment = null, subscription = null, recurring = false, method = null }) {
+  return {
+    plano_original: plan.id,
+    valor_original: plan.value,
+    tipo_cobranca_original: plan.tipo_cobranca,
+    payment_id: payment?.id ? String(payment.id) : null,
+    subscription_id: subscription?.id ? String(subscription.id) : null,
+    payment_method_id: payment?.billingType || method || null,
+    recurring: Boolean(recurring)
+  };
+}
+
 function parseIsoDate(value, fallbackDate) {
   if (!value) return new Date(fallbackDate);
   return new Date(`${String(value).slice(0, 10)}T00:00:00Z`);
@@ -130,7 +185,9 @@ export function buildAsaasSubscriptionUpdates(payment, assinatura, baseDate = ne
     };
   }
 
-  const planConfig = PAYMENT_PLANS[assinatura.plano] || PAYMENT_PLANS.pro_mensal;
+  const rawAttempt = assinatura.provider_raw?.attempt || null;
+  const originalPlanId = rawAttempt?.plano_original || assinatura.plano;
+  const planConfig = PAYMENT_PLANS[originalPlanId] || PAYMENT_PLANS[assinatura.plano] || PAYMENT_PLANS.pro_mensal;
   const status = payment?.status;
   const updates = {
     payment_provider: 'asaas',
@@ -138,33 +195,59 @@ export function buildAsaasSubscriptionUpdates(payment, assinatura, baseDate = ne
     provider_customer_id: payment?.customer || assinatura.provider_customer_id || null,
     provider_subscription_id: payment?.subscription || assinatura.provider_subscription_id || null,
     provider_status: status || assinatura.provider_status,
-    provider_raw: payment || assinatura.provider_raw || null
+    provider_raw: {
+      ...(assinatura.provider_raw && typeof assinatura.provider_raw === 'object' ? assinatura.provider_raw : {}),
+      payment: payment || assinatura.provider_raw?.payment || null
+    }
   };
 
   if (isAsaasPaidStatus(status)) {
     const accessBaseDate = parseIsoDate(payment?.dueDate || payment?.paymentDate || payment?.confirmedDate, baseDate);
     updates.status = 'ativo';
     updates.bloqueado = false;
+    updates.plano = planConfig.id;
+    updates.valor = planConfig.value;
+    updates.tipo_cobranca = planConfig.tipo_cobranca;
     updates.data_inicio = baseDate.toISOString().slice(0, 10);
     updates.data_vencimento = todayPlusDays(planConfig.dias, accessBaseDate);
     updates.renovacao_automatica = Boolean(payment?.subscription);
   } else if (isAsaasPendingStatus(status)) {
-    updates.status = 'pendente';
-    updates.bloqueado = true;
+    Object.assign(updates, buildPendingPaymentAttemptUpdates({ assinatura, baseDate }));
   } else if (isAsaasOverdueStatus(status)) {
-    updates.status = 'vencido';
-    updates.bloqueado = true;
-    updates.renovacao_automatica = false;
+    if (isActiveTrialSubscription(assinatura, baseDate)) {
+      updates.status = assinatura.status;
+      updates.bloqueado = false;
+      updates.data_vencimento = assinatura.data_vencimento;
+      updates.data_trial_fim = assinatura.data_trial_fim;
+    } else {
+      updates.status = 'vencido';
+      updates.bloqueado = true;
+      updates.renovacao_automatica = false;
+    }
   } else if (isAsaasCancelledStatus(status)) {
-    updates.status = 'cancelado';
-    updates.bloqueado = true;
-    updates.renovacao_automatica = false;
+    if (isActiveTrialSubscription(assinatura, baseDate)) {
+      updates.status = assinatura.status;
+      updates.bloqueado = false;
+      updates.data_vencimento = assinatura.data_vencimento;
+      updates.data_trial_fim = assinatura.data_trial_fim;
+    } else {
+      updates.status = 'cancelado';
+      updates.bloqueado = true;
+      updates.renovacao_automatica = false;
+    }
   }
 
   if (event === 'PAYMENT_DELETED') {
-    updates.status = 'cancelado';
-    updates.bloqueado = true;
-    updates.renovacao_automatica = false;
+    if (isActiveTrialSubscription(assinatura, baseDate)) {
+      updates.status = assinatura.status;
+      updates.bloqueado = false;
+      updates.data_vencimento = assinatura.data_vencimento;
+      updates.data_trial_fim = assinatura.data_trial_fim;
+    } else {
+      updates.status = 'cancelado';
+      updates.bloqueado = true;
+      updates.renovacao_automatica = false;
+    }
   }
 
   return updates;
@@ -199,6 +282,10 @@ export function buildMercadoPagoSubscriptionUpdates(payment, assinatura, baseDat
   const paidPlanId = getMercadoPagoPaymentPlanId(payment);
   const expectedAmountCents = moneyToCents(attempt?.valor_original);
   const paidAmountCents = moneyToCents(payment?.transaction_amount);
+
+  if (status !== 'approved' && attemptPaymentId && paymentId && attemptPaymentId !== paymentId) {
+    return buildIgnoredMercadoPagoUpdate(payment, 'ignored_not_current_attempt');
+  }
 
   if (status === 'approved') {
     if (!attempt || !attemptPaymentId || attemptPaymentId !== paymentId || !(sameProviderPayment || sameLegacyPayment)) {
@@ -241,12 +328,18 @@ export function buildMercadoPagoSubscriptionUpdates(payment, assinatura, baseDat
     updates.data_vencimento = todayPlusDays(planConfig.dias, baseDate);
     updates.renovacao_automatica = false;
   } else if (['pending', 'in_process', 'authorized'].includes(status)) {
-    updates.status = 'pendente';
-    updates.bloqueado = true;
+    Object.assign(updates, buildPendingPaymentAttemptUpdates({ assinatura, baseDate }));
   } else if (['rejected', 'cancelled', 'refunded', 'charged_back'].includes(status)) {
-    updates.status = 'cancelado';
-    updates.bloqueado = true;
-    updates.renovacao_automatica = false;
+    if (isActiveTrialSubscription(assinatura, baseDate)) {
+      updates.status = assinatura.status;
+      updates.bloqueado = false;
+      updates.data_vencimento = assinatura.data_vencimento;
+      updates.data_trial_fim = assinatura.data_trial_fim;
+    } else {
+      updates.status = 'cancelado';
+      updates.bloqueado = true;
+      updates.renovacao_automatica = false;
+    }
   }
 
   return updates;

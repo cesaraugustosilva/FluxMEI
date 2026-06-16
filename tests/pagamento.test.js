@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildPendingPaymentAttemptUpdates,
   buildAsaasSubscriptionUpdates,
   buildMercadoPagoSubscriptionUpdates
 } from '../backend/src/services/paymentStatusRules.js';
@@ -27,6 +28,52 @@ function assinaturaMercadoPagoAttempt({ currentPlan = 'pro_mensal', originalPlan
     payment_provider: 'mercado_pago',
     provider_payment_id: paymentId,
     mercado_pago_payment_id: paymentId,
+    provider_raw: {
+      attempt: {
+        plano_original: originalPlan,
+        valor_original: amount,
+        tipo_cobranca_original: originalPlan === 'pro_anual' ? 'anual' : 'mensal',
+        payment_id: paymentId,
+        metadata: {
+          plano: originalPlan
+        }
+      },
+      payment: {
+        id: paymentId,
+        transaction_amount: amount,
+        metadata: {
+          plano: originalPlan
+        }
+      }
+    }
+  };
+}
+
+function assinaturaTrialAtivo(extra = {}) {
+  return {
+    ...assinatura,
+    plano: 'gratuito',
+    status: 'teste_gratis',
+    bloqueado: false,
+    valor: 0,
+    tipo_cobranca: 'mensal',
+    data_inicio: '2026-06-10',
+    data_vencimento: '2026-06-17',
+    data_trial_fim: '2026-06-17',
+    teste_gratis_usado: true,
+    ...extra
+  };
+}
+
+function assinaturaTrialMercadoPagoAttempt({ paymentId = '123', originalPlan = 'pro_mensal', amount = 49.9, trialEnd = '2026-06-17' } = {}) {
+  return {
+    ...assinaturaTrialAtivo({
+      data_vencimento: trialEnd,
+      data_trial_fim: trialEnd,
+      payment_provider: 'mercado_pago',
+      provider_payment_id: paymentId,
+      mercado_pago_payment_id: paymentId
+    }),
     provider_raw: {
       attempt: {
         plano_original: originalPlan,
@@ -106,6 +153,139 @@ test('pagamento pendente Mercado Pago nao ativa assinatura', () => {
   assert.equal(updates.status, 'pendente');
   assert.equal(updates.bloqueado, true);
   assert.equal(updates.data_vencimento, undefined);
+});
+
+test('trial ativo gera cobranca e continua liberado', () => {
+  const updates = buildPendingPaymentAttemptUpdates({
+    assinatura: assinaturaTrialAtivo(),
+    providerUpdates: {
+      plano: 'pro_mensal',
+      valor: 49.9,
+      tipo_cobranca: 'mensal',
+      payment_provider: 'mercado_pago',
+      provider_payment_id: 'pay_trial',
+      provider_status: 'pending',
+      provider_raw: {
+        attempt: {
+          plano_original: 'pro_mensal',
+          valor_original: 49.9,
+          payment_id: 'pay_trial'
+        }
+      },
+      mercado_pago_payment_id: 'pay_trial',
+      mercado_pago_status: 'pending',
+      checkout_url: null,
+      renovacao_automatica: false
+    },
+    baseDate
+  });
+
+  assert.equal(updates.status, 'teste_gratis');
+  assert.equal(updates.bloqueado, false);
+  assert.equal(updates.data_vencimento, '2026-06-17');
+  assert.equal(updates.data_trial_fim, '2026-06-17');
+  assert.equal(updates.plano, undefined);
+  assert.equal(updates.valor, undefined);
+  assert.equal(updates.tipo_cobranca, undefined);
+  assert.equal(updates.provider_payment_id, 'pay_trial');
+  assert.equal(updates.provider_raw.attempt.plano_original, 'pro_mensal');
+});
+
+test('usuario sem assinatura gera pendente bloqueado', () => {
+  const updates = buildPendingPaymentAttemptUpdates({
+    assinatura: {},
+    providerUpdates: {
+      plano: 'pro_mensal',
+      valor: 49.9,
+      tipo_cobranca: 'mensal',
+      payment_provider: 'mercado_pago',
+      provider_payment_id: 'pay_new'
+    },
+    baseDate
+  });
+
+  assert.equal(updates.status, 'pendente');
+  assert.equal(updates.bloqueado, true);
+  assert.equal(updates.plano, 'pro_mensal');
+  assert.equal(updates.valor, 49.9);
+});
+
+test('trial ativo com pagamento pendente Mercado Pago continua liberado', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 123,
+    status: 'pending'
+  }, assinaturaTrialMercadoPagoAttempt(), baseDate);
+
+  assert.equal(updates.status, 'teste_gratis');
+  assert.equal(updates.bloqueado, false);
+  assert.equal(updates.data_vencimento, '2026-06-17');
+  assert.equal(updates.provider_status, 'pending');
+});
+
+test('trial ativo com pagamento recusado Mercado Pago continua liberado', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 123,
+    status: 'rejected'
+  }, assinaturaTrialMercadoPagoAttempt(), baseDate);
+
+  assert.equal(updates.status, 'teste_gratis');
+  assert.equal(updates.bloqueado, false);
+  assert.equal(updates.data_vencimento, '2026-06-17');
+  assert.equal(updates.renovacao_automatica, undefined);
+});
+
+test('cobranca antiga recusada Mercado Pago nao sobrescreve tentativa atual do trial', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 999,
+    status: 'rejected'
+  }, assinaturaTrialMercadoPagoAttempt({ paymentId: '123' }), baseDate);
+
+  assert.equal(updates.ignored, true);
+  assert.equal(updates.outcome, 'ignored_not_current_attempt');
+  assert.equal(updates.status, undefined);
+  assert.equal(updates.provider_payment_id, '999');
+});
+
+test('trial ativo com pagamento aprovado Mercado Pago vira pago', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 123,
+    status: 'approved',
+    transaction_amount: 49.9,
+    metadata: {
+      plano: 'pro_mensal'
+    }
+  }, assinaturaTrialMercadoPagoAttempt(), baseDate);
+
+  assert.equal(updates.status, 'ativo');
+  assert.equal(updates.bloqueado, false);
+  assert.equal(updates.plano, 'pro_mensal');
+  assert.equal(updates.valor, 49.9);
+  assert.equal(updates.data_vencimento, '2026-07-12');
+});
+
+test('trial vencido com pagamento pendente Mercado Pago continua bloqueado', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 123,
+    status: 'pending'
+  }, assinaturaTrialMercadoPagoAttempt({ trialEnd: '2026-06-11' }), baseDate);
+
+  assert.equal(updates.status, 'pendente');
+  assert.equal(updates.bloqueado, true);
+});
+
+test('trial vencido com pagamento aprovado Mercado Pago libera', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 123,
+    status: 'approved',
+    transaction_amount: 49.9,
+    metadata: {
+      plano: 'pro_mensal'
+    }
+  }, assinaturaTrialMercadoPagoAttempt({ trialEnd: '2026-06-11' }), baseDate);
+
+  assert.equal(updates.status, 'ativo');
+  assert.equal(updates.bloqueado, false);
+  assert.equal(updates.plano, 'pro_mensal');
 });
 
 test('pagamento recusado nao ativa assinatura', () => {

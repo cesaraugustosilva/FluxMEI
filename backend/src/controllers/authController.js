@@ -17,6 +17,54 @@ function getFrontendUrl() {
   return frontendUrl;
 }
 
+function isProduction() {
+  return process.env.NODE_ENV === 'production';
+}
+
+function isAllowedFluxmeiOrigin(url) {
+  return url.protocol === 'https:'
+    && (url.hostname === 'fluxmei.com.br' || url.hostname.endsWith('.fluxmei.com.br'));
+}
+
+function isAllowedDevOrigin(url) {
+  return !isProduction()
+    && ['http:', 'https:'].includes(url.protocol)
+    && ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+}
+
+function getConfiguredFrontendUrls() {
+  return (process.env.FRONTEND_URL || '')
+    .split(',')
+    .map((url) => url.trim())
+    .filter(Boolean);
+}
+
+function getSafeResetFrontendUrl() {
+  const allowedUrl = getConfiguredFrontendUrls()
+    .map((value) => {
+      try {
+        return new URL(value);
+      } catch {
+        return null;
+      }
+    })
+    .find((url) => url && (isAllowedFluxmeiOrigin(url) || isAllowedDevOrigin(url)));
+
+  if (allowedUrl) {
+    allowedUrl.pathname = allowedUrl.pathname.replace(/\/$/, '');
+    allowedUrl.search = '';
+    allowedUrl.hash = '';
+    return allowedUrl.toString().replace(/\/$/, '');
+  }
+
+  if (!isProduction()) return 'http://localhost:3000';
+  throw new AppError('URL de recuperacao de senha nao configurada.', 500, null, { expose: false });
+}
+
+export function getPasswordResetRedirectUrl() {
+  return `${getSafeResetFrontendUrl()}/auth/recovery/nova-senha.html`;
+}
+
 function isEmailNotConfirmedError(error) {
   return /email.*not.*confirmed|confirm/i.test(error?.message || '');
 }
@@ -243,8 +291,7 @@ export async function resetPassword(req, res) {
   requireFields(req.body, ['email']);
 
   const email = validateEmail(req.body.email);
-  const redirectTo = sanitizeText(req.body.redirect_to, { field: 'URL de redirecionamento', max: 500 })
-    || `${getFrontendUrl()}/auth/recovery/nova-senha.html`;
+  const redirectTo = getPasswordResetRedirectUrl();
   const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
 
   if (error) throw new AppError(error.message, 400);
