@@ -12,6 +12,7 @@ import {
   buildMercadoPagoProviderRaw,
   buildAsaasSubscriptionUpdates,
   buildMercadoPagoSubscriptionUpdates,
+  getRecentMercadoPagoPendingAttempt,
   isAsaasPendingStatus
 } from '../services/paymentStatusRules.js';
 import { logWebhookEvent, validateAsaasWebhook, validateMercadoPagoWebhook } from '../services/webhookSecurityService.js';
@@ -438,6 +439,39 @@ function paymentResponsePayload(payment, fallbackPaymentMethodId = null) {
   };
 }
 
+const PENDING_PAYMENT_MESSAGE = 'Você já possui um pagamento pendente. Conclua ou aguarde a expiração antes de gerar outro.';
+
+function pendingPixResponsePayload(pendingAttempt) {
+  const payment = pendingAttempt?.payment || null;
+  if (!payment) return null;
+  const pix = extractPixData(payment);
+  if (!pix?.qr_code) return null;
+
+  return {
+    success: true,
+    reused: true,
+    ...paymentResponsePayload(payment, 'pix'),
+    status: payment?.status || pendingAttempt.status || null,
+    qr_code: pix.qr_code,
+    qr_code_base64: pix.qr_code_base64 || null,
+    ticket_url: pix.ticket_url || null,
+    expires_at: pendingAttempt.expires_at,
+    message: 'Pix pendente encontrado. Utilize o pagamento já gerado.'
+  };
+}
+
+function assertNoRecentPendingMercadoPagoAttempt(assinatura, plan, { allowReusablePix = false } = {}) {
+  const pendingAttempt = getRecentMercadoPagoPendingAttempt(assinatura, plan);
+  if (!pendingAttempt) return null;
+
+  if (allowReusablePix) {
+    const reusablePix = pendingPixResponsePayload(pendingAttempt);
+    if (reusablePix) return reusablePix;
+  }
+
+  throw new AppError(PENDING_PAYMENT_MESSAGE, 409);
+}
+
 export async function mercadoPagoPublicConfig(req, res) {
   res.json({
     public_key: getMercadoPagoPublicKey()
@@ -484,6 +518,7 @@ export async function processarPagamentoBrick(req, res) {
 
   const profile = await getProfile(req.user.id);
   const assinatura = await ensureUserSubscription(req.user.id, plano);
+  assertNoRecentPendingMercadoPagoAttempt(assinatura, plan);
   const paymentPayload = buildBrickPaymentPayload({
     formData: req.body?.payment || req.body?.formData || {},
     plan,
@@ -516,6 +551,12 @@ export async function criarPixMercadoPago(req, res) {
 
   const profile = await getProfile(req.user.id);
   const assinatura = await ensureUserSubscription(req.user.id, plano);
+  const reusablePix = assertNoRecentPendingMercadoPagoAttempt(assinatura, plan, { allowReusablePix: true });
+  if (reusablePix) {
+    res.status(200).json(reusablePix);
+    return;
+  }
+
   const paymentPayload = buildPixPaymentPayload({
     plan,
     user: req.user,

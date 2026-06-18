@@ -17,6 +17,9 @@ export const PAYMENT_PLANS = {
   }
 };
 
+export const DEFAULT_PENDING_ATTEMPT_TTL_MS = 60 * 60 * 1000;
+export const MERCADO_PAGO_PENDING_STATUSES = ['pending', 'in_process', 'authorized'];
+
 export function todayPlusDays(days, baseDate = new Date()) {
   const date = new Date(baseDate);
   date.setUTCDate(date.getUTCDate() + days);
@@ -105,6 +108,24 @@ function getMercadoPagoPaymentMetadata(payment = {}) {
   return payment.metadata || payment.metadata_info || {};
 }
 
+function getMercadoPagoPaymentSubscriptionId(payment = {}) {
+  const metadata = getMercadoPagoPaymentMetadata(payment);
+  if (metadata.assinatura_id) return String(metadata.assinatura_id);
+
+  const reference = String(payment.external_reference || '');
+  if (reference.includes(':')) return reference.split(':')[1] || null;
+  return reference || null;
+}
+
+function getMercadoPagoPaymentUserId(payment = {}) {
+  const metadata = getMercadoPagoPaymentMetadata(payment);
+  if (metadata.user_id) return String(metadata.user_id);
+
+  const reference = String(payment.external_reference || '');
+  if (reference.includes(':')) return reference.split(':')[0] || null;
+  return null;
+}
+
 function getMercadoPagoPaymentPlanId(payment = {}) {
   const metadata = getMercadoPagoPaymentMetadata(payment);
   if (metadata.plano) return String(metadata.plano);
@@ -153,11 +174,69 @@ export function buildMercadoPagoPaymentAttempt({ plan, payment, idempotencyKey =
     payment_id: payment?.id ? String(payment.id) : null,
     payment_method_id: payment?.payment_method_id || method || null,
     idempotency_key: idempotencyKey,
+    created_at: new Date().toISOString(),
     metadata: {
       user_id: payment?.metadata?.user_id || null,
       assinatura_id: payment?.metadata?.assinatura_id || null,
       plano: plan.id
     }
+  };
+}
+
+function parseDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function addMilliseconds(date, milliseconds) {
+  return new Date(date.getTime() + milliseconds);
+}
+
+function getMercadoPagoPaymentExpiration(payment = {}) {
+  return parseDate(payment.date_of_expiration)
+    || parseDate(payment.expiration_date)
+    || parseDate(payment.point_of_interaction?.transaction_data?.expiration_date);
+}
+
+function getMercadoPagoAttemptCreatedAt(assinatura = {}) {
+  const raw = assinatura.provider_raw || {};
+  const attempt = raw.attempt || {};
+  return parseDate(attempt.created_at)
+    || parseDate(raw.payment?.date_created)
+    || parseDate(raw.payment?.date_approved)
+    || parseDate(assinatura.updated_at)
+    || parseDate(assinatura.created_at);
+}
+
+export function getRecentMercadoPagoPendingAttempt(assinatura = {}, plan = {}, options = {}) {
+  const baseDate = options.baseDate || new Date();
+  const ttlMs = options.ttlMs || DEFAULT_PENDING_ATTEMPT_TTL_MS;
+  const providerStatus = assinatura.provider_status || assinatura.mercado_pago_status;
+  const raw = assinatura.provider_raw || {};
+  const attempt = raw.attempt || null;
+  const payment = raw.payment || null;
+  const attemptPlanId = attempt?.plano_original || attempt?.metadata?.plano || getMercadoPagoPaymentPlanId(payment);
+
+  if (assinatura.payment_provider !== 'mercado_pago') return null;
+  if (!MERCADO_PAGO_PENDING_STATUSES.includes(String(providerStatus || '').toLowerCase())) return null;
+  if (!assinatura.provider_payment_id && !assinatura.mercado_pago_payment_id && !attempt?.payment_id) return null;
+  if (!plan?.id || attemptPlanId !== plan.id) return null;
+
+  const explicitExpiration = getMercadoPagoPaymentExpiration(payment);
+  const createdAt = getMercadoPagoAttemptCreatedAt(assinatura);
+  const expiresAt = explicitExpiration || (createdAt ? addMilliseconds(createdAt, ttlMs) : null);
+  if (!expiresAt || expiresAt <= baseDate) return null;
+
+  return {
+    provider: 'mercado_pago',
+    status: String(providerStatus || '').toLowerCase(),
+    payment_id: String(assinatura.provider_payment_id || assinatura.mercado_pago_payment_id || attempt?.payment_id),
+    plan_id: attemptPlanId,
+    method: attempt?.payment_method_id || payment?.payment_method_id || null,
+    expires_at: expiresAt.toISOString(),
+    attempt,
+    payment
   };
 }
 
@@ -317,7 +396,44 @@ export function buildMercadoPagoSubscriptionUpdates(payment, assinatura, baseDat
 
   if (status === 'approved') {
     if (!attempt || !attemptPaymentId || attemptPaymentId !== paymentId || !(sameProviderPayment || sameLegacyPayment)) {
-      return buildIgnoredMercadoPagoUpdate(payment, 'ignored_not_current_attempt');
+      const oldPlanConfig = PAYMENT_PLANS[paidPlanId];
+      const paymentSubscriptionId = getMercadoPagoPaymentSubscriptionId(payment);
+      const paymentUserId = getMercadoPagoPaymentUserId(payment);
+      const paymentMatchesSubscription = paymentSubscriptionId && assinatura.id && paymentSubscriptionId === String(assinatura.id);
+      const paymentMatchesUser = paymentUserId && assinatura.user_id && paymentUserId === String(assinatura.user_id);
+      const paidAmountMatchesPlan = oldPlanConfig && paidAmountCents === moneyToCents(oldPlanConfig.value);
+
+      if (!paymentMatchesSubscription || !paymentMatchesUser || !paidAmountMatchesPlan) {
+        return buildIgnoredMercadoPagoUpdate(payment, 'ignored_not_current_attempt');
+      }
+
+      return {
+        payment_provider: 'mercado_pago',
+        provider_payment_id: paymentId,
+        provider_status: status,
+        provider_raw: buildMercadoPagoProviderRaw({
+          payment,
+          attempt: {
+            plano_original: paidPlanId,
+            valor_original: oldPlanConfig.value,
+            tipo_cobranca_original: oldPlanConfig.tipo_cobranca,
+            payment_id: paymentId,
+            payment_method_id: payment?.payment_method_id || null,
+            metadata: getMercadoPagoPaymentMetadata(payment)
+          }
+        }),
+        mercado_pago_payment_id: paymentId,
+        mercado_pago_status: status,
+        plano: paidPlanId,
+        valor: oldPlanConfig.value,
+        tipo_cobranca: oldPlanConfig.tipo_cobranca,
+        status: 'ativo',
+        bloqueado: false,
+        data_inicio: baseDate.toISOString().slice(0, 10),
+        data_vencimento: todayPlusDays(oldPlanConfig.dias, baseDate),
+        renovacao_automatica: false,
+        outcome: 'approved_old_attempt'
+      };
     }
 
     if (!planConfig || paidPlanId !== originalPlanId) {

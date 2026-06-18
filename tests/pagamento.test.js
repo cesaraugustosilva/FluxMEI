@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {
   buildPendingPaymentAttemptUpdates,
   buildAsaasSubscriptionUpdates,
-  buildMercadoPagoSubscriptionUpdates
+  buildMercadoPagoSubscriptionUpdates,
+  getRecentMercadoPagoPendingAttempt
 } from '../backend/src/services/paymentStatusRules.js';
 
 const baseDate = new Date('2026-06-12T00:00:00Z');
@@ -104,6 +105,59 @@ function assinaturaAtivaMercadoPagoAttempt({
         metadata: {
           plano: originalPlan
         }
+      }
+    }
+  };
+}
+
+function assinaturaPendenteMercadoPago({
+  paymentId = 'pay_pending',
+  planId = 'pro_mensal',
+  method = 'pix',
+  status = 'pending',
+  createdAt = '2026-06-12T00:00:00Z',
+  expirationDate = null
+} = {}) {
+  return {
+    ...assinatura,
+    user_id: 'user-1',
+    id: 'sub-1',
+    plano: planId,
+    payment_provider: 'mercado_pago',
+    provider_payment_id: paymentId,
+    provider_status: status,
+    mercado_pago_payment_id: paymentId,
+    mercado_pago_status: status,
+    provider_raw: {
+      attempt: {
+        plano_original: planId,
+        valor_original: planId === 'pro_anual' ? 478.8 : 49.9,
+        tipo_cobranca_original: planId === 'pro_anual' ? 'anual' : 'mensal',
+        payment_id: paymentId,
+        payment_method_id: method,
+        created_at: createdAt,
+        metadata: {
+          user_id: 'user-1',
+          assinatura_id: 'sub-1',
+          plano: planId
+        }
+      },
+      payment: {
+        id: paymentId,
+        status,
+        payment_method_id: method,
+        transaction_amount: planId === 'pro_anual' ? 478.8 : 49.9,
+        metadata: {
+          user_id: 'user-1',
+          assinatura_id: 'sub-1',
+          plano: planId
+        },
+        external_reference: `user-1:sub-1:${planId}`,
+        point_of_interaction: expirationDate ? {
+          transaction_data: {
+            expiration_date: expirationDate
+          }
+        } : undefined
       }
     }
   };
@@ -335,6 +389,59 @@ test('usuario sem assinatura gera pendente bloqueado', () => {
   assert.equal(updates.valor, 49.9);
 });
 
+test('Pix pendente recente e detectado para impedir nova tentativa conflitante', () => {
+  const pending = getRecentMercadoPagoPendingAttempt(assinaturaPendenteMercadoPago({
+    paymentId: 'pix-1',
+    method: 'pix',
+    createdAt: '2026-06-12T00:00:00Z'
+  }), { id: 'pro_mensal' }, {
+    baseDate: new Date('2026-06-12T00:30:00Z')
+  });
+
+  assert.equal(pending.payment_id, 'pix-1');
+  assert.equal(pending.plan_id, 'pro_mensal');
+  assert.equal(pending.method, 'pix');
+});
+
+test('Pix pendente expirado permite nova tentativa', () => {
+  const pending = getRecentMercadoPagoPendingAttempt(assinaturaPendenteMercadoPago({
+    paymentId: 'pix-expired',
+    method: 'pix',
+    createdAt: '2026-06-12T00:00:00Z',
+    expirationDate: '2026-06-12T00:20:00Z'
+  }), { id: 'pro_mensal' }, {
+    baseDate: new Date('2026-06-12T00:30:00Z')
+  });
+
+  assert.equal(pending, null);
+});
+
+test('Brick pendente recente e detectado para bloquear nova tentativa', () => {
+  const pending = getRecentMercadoPagoPendingAttempt(assinaturaPendenteMercadoPago({
+    paymentId: 'brick-1',
+    method: 'visa',
+    status: 'in_process',
+    createdAt: '2026-06-12T00:00:00Z'
+  }), { id: 'pro_mensal' }, {
+    baseDate: new Date('2026-06-12T00:30:00Z')
+  });
+
+  assert.equal(pending.payment_id, 'brick-1');
+  assert.equal(pending.status, 'in_process');
+});
+
+test('tentativa recusada permite nova tentativa', () => {
+  const pending = getRecentMercadoPagoPendingAttempt(assinaturaPendenteMercadoPago({
+    paymentId: 'pay-rejected',
+    status: 'rejected',
+    createdAt: '2026-06-12T00:00:00Z'
+  }), { id: 'pro_mensal' }, {
+    baseDate: new Date('2026-06-12T00:30:00Z')
+  });
+
+  assert.equal(pending, null);
+});
+
 test('trial ativo com pagamento pendente Mercado Pago continua liberado', () => {
   const updates = buildMercadoPagoSubscriptionUpdates({
     id: 123,
@@ -558,6 +665,58 @@ test('cobranca antiga Mercado Pago e ignorada e nao sobrescreve tentativa nova',
   assert.equal(updates.outcome, 'ignored_not_current_attempt');
   assert.equal(updates.status, undefined);
   assert.equal(updates.data_vencimento, undefined);
+});
+
+test('webhook antigo aprovado Mercado Pago com plano errado nao libera assinatura', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 123,
+    status: 'approved',
+    transaction_amount: 49.9,
+    metadata: {
+      user_id: 'user-1',
+      assinatura_id: 'sub-1',
+      plano: 'pro_anual'
+    },
+    external_reference: 'user-1:sub-1:pro_anual'
+  }, assinaturaMercadoPagoAttempt({
+    currentPlan: 'pro_mensal',
+    originalPlan: 'pro_mensal',
+    paymentId: '999',
+    amount: 49.9
+  }), baseDate);
+
+  assert.equal(updates.ignored, true);
+  assert.equal(updates.outcome, 'ignored_not_current_attempt');
+  assert.equal(updates.status, undefined);
+});
+
+test('webhook antigo aprovado Mercado Pago valido gera outcome claro e ativa', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 123,
+    status: 'approved',
+    transaction_amount: 49.9,
+    payment_method_id: 'pix',
+    metadata: {
+      user_id: 'user-1',
+      assinatura_id: 'sub-1',
+      plano: 'pro_mensal'
+    },
+    external_reference: 'user-1:sub-1:pro_mensal'
+  }, {
+    ...assinaturaMercadoPagoAttempt({
+    currentPlan: 'pro_mensal',
+    originalPlan: 'pro_mensal',
+    paymentId: '999',
+    amount: 49.9
+    }),
+    user_id: 'user-1'
+  }, baseDate);
+
+  assert.equal(updates.outcome, 'approved_old_attempt');
+  assert.equal(updates.status, 'ativo');
+  assert.equal(updates.bloqueado, false);
+  assert.equal(updates.plano, 'pro_mensal');
+  assert.equal(updates.valor, 49.9);
 });
 
 test('cobranca correta ativa o plano original mesmo se assinatura atual divergir', () => {
