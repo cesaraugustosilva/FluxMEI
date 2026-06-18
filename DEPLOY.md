@@ -106,6 +106,7 @@ Banco existente:
 2. Execute somente se as colunas de trial e Mercado Pago ainda nao existirem.
 3. Revise e execute `backend/database/migrate_payment_provider_fields.sql` para adicionar os campos genericos de processador em bancos criados antes dessa atualizacao, sem remover dados antigos.
 4. Execute `backend/database/migrate_fix_assinaturas_rls.sql` para garantir que usuarios autenticados possam apenas consultar a propria assinatura. Insercoes, atualizacoes e exclusoes de assinatura devem ocorrer somente pelo backend com `SUPABASE_SERVICE_ROLE_KEY`.
+5. Execute `backend/database/migrate_payment_attempt_locks.sql` para criar a trava transacional que impede duas cobrancas Mercado Pago simultaneas para o mesmo usuario/provedor/plano.
 
 Tabelas esperadas:
 
@@ -115,6 +116,7 @@ Tabelas esperadas:
 - `das`
 - `relatorios_ia`
 - `assinaturas`
+- `payment_attempt_locks`
 
 Auth:
 
@@ -133,6 +135,7 @@ RLS:
 - O schema habilita RLS nas tabelas do app.
 - As policies restringem leitura e escrita ao `auth.uid()` do usuario.
 - Em `assinaturas`, usuarios autenticados podem somente fazer `SELECT` da propria assinatura; nao ha policy de `INSERT`, `UPDATE` ou `DELETE` para o cliente.
+- `payment_attempt_locks` nao tem acesso direto pelo cliente; o backend usa RPC com `SUPABASE_SERVICE_ROLE_KEY` para reservar e liberar tentativas antes de chamar o Mercado Pago.
 - O backend usa `SUPABASE_SERVICE_ROLE_KEY`; mantenha essa chave somente no Render.
 
 ## Mercado Pago

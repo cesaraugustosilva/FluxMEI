@@ -440,6 +440,8 @@ function paymentResponsePayload(payment, fallbackPaymentMethodId = null) {
 }
 
 const PENDING_PAYMENT_MESSAGE = 'Você já possui um pagamento pendente. Conclua ou aguarde a expiração antes de gerar outro.';
+const PROCESSING_PAYMENT_MESSAGE = 'Já existe uma tentativa de pagamento em processamento. Aguarde alguns instantes e tente novamente.';
+const MERCADO_PAGO_LOCK_TTL_SECONDS = 120;
 
 function pendingPixResponsePayload(pendingAttempt) {
   const payment = pendingAttempt?.payment || null;
@@ -470,6 +472,49 @@ function assertNoRecentPendingMercadoPagoAttempt(assinatura, plan, { allowReusab
   }
 
   throw new AppError(PENDING_PAYMENT_MESSAGE, 409);
+}
+
+async function acquireMercadoPagoAttemptLock(userId, plan) {
+  const { data, error } = await supabaseAdmin.rpc('acquire_payment_attempt_lock', {
+    p_user_id: userId,
+    p_provider: 'mercado_pago',
+    p_plano: plan.id,
+    p_ttl_seconds: MERCADO_PAGO_LOCK_TTL_SECONDS
+  });
+
+  if (error) throw new AppError('Erro ao reservar tentativa de pagamento.', 500, error.message);
+
+  const result = Array.isArray(data) ? data[0] : data;
+  return {
+    acquired: Boolean(result?.acquired),
+    lockId: result?.lock_id || null,
+    expiresAt: result?.expires_at || null
+  };
+}
+
+async function releaseMercadoPagoAttemptLock(lockId) {
+  if (!lockId) return;
+
+  const { error } = await supabaseAdmin.rpc('release_payment_attempt_lock', {
+    p_lock_id: lockId
+  });
+
+  if (error) {
+    console.warn('[pagamento:mercado-pago] falha ao liberar trava de tentativa', {
+      lock_id: lockId,
+      error: error.message
+    });
+  }
+}
+
+async function handleMercadoPagoLockDenied(userId, plan, { allowReusablePix = false } = {}) {
+  const assinatura = await getLatestSubscription(userId);
+  if (assinatura) {
+    const reusablePix = assertNoRecentPendingMercadoPagoAttempt(assinatura, plan, { allowReusablePix });
+    if (reusablePix) return reusablePix;
+  }
+
+  throw new AppError(PROCESSING_PAYMENT_MESSAGE, 409);
 }
 
 export async function mercadoPagoPublicConfig(req, res) {
@@ -527,22 +572,39 @@ export async function processarPagamentoBrick(req, res) {
     assinatura
   });
 
-  const idempotencyKey = crypto.randomUUID();
-  const payment = await mercadoPagoService.criarPagamento({
-    payment: paymentPayload,
-    idempotencyKey
-  });
+  let attemptLock = null;
+  let paymentCreated = false;
 
-  await registerBrickPaymentAttempt(assinatura, plan, payment, {
-    idempotencyKey,
-    method: paymentPayload.payment_method_id
-  });
+  try {
+    attemptLock = await acquireMercadoPagoAttemptLock(req.user.id, plan);
+    if (!attemptLock.acquired) {
+      await handleMercadoPagoLockDenied(req.user.id, plan);
+    }
 
-  res.status(201).json({
-    success: true,
-    ...paymentResponsePayload(payment, paymentPayload.payment_method_id),
-    message: 'Pagamento enviado ao Mercado Pago'
-  });
+    const idempotencyKey = crypto.randomUUID();
+    const payment = await mercadoPagoService.criarPagamento({
+      payment: paymentPayload,
+      idempotencyKey
+    });
+    paymentCreated = true;
+
+    await registerBrickPaymentAttempt(assinatura, plan, payment, {
+      idempotencyKey,
+      method: paymentPayload.payment_method_id
+    });
+    await releaseMercadoPagoAttemptLock(attemptLock.lockId);
+
+    res.status(201).json({
+      success: true,
+      ...paymentResponsePayload(payment, paymentPayload.payment_method_id),
+      message: 'Pagamento enviado ao Mercado Pago'
+    });
+  } catch (error) {
+    if (attemptLock?.acquired && attemptLock.lockId && !paymentCreated) {
+      await releaseMercadoPagoAttemptLock(attemptLock.lockId);
+    }
+    throw error;
+  }
 }
 
 export async function criarPixMercadoPago(req, res) {
@@ -564,27 +626,48 @@ export async function criarPixMercadoPago(req, res) {
     assinatura
   });
 
-  const idempotencyKey = crypto.randomUUID();
-  const payment = await mercadoPagoService.criarPagamento({
-    payment: paymentPayload,
-    idempotencyKey
-  });
+  let attemptLock = null;
+  let paymentCreated = false;
 
-  await registerPixPaymentAttempt(assinatura, plan, payment, {
-    idempotencyKey,
-    method: 'pix'
-  });
-  const pix = extractPixData(payment);
+  try {
+    attemptLock = await acquireMercadoPagoAttemptLock(req.user.id, plan);
+    if (!attemptLock.acquired) {
+      const lockedPix = await handleMercadoPagoLockDenied(req.user.id, plan, { allowReusablePix: true });
+      if (lockedPix) {
+        res.status(200).json(lockedPix);
+        return;
+      }
+    }
 
-  res.status(201).json({
-    success: true,
-    ...paymentResponsePayload(payment, 'pix'),
-    status: payment?.status || null,
-    qr_code: pix?.qr_code || null,
-    qr_code_base64: pix?.qr_code_base64 || null,
-    ticket_url: pix?.ticket_url || null,
-    message: 'Pix gerado com sucesso'
-  });
+    const idempotencyKey = crypto.randomUUID();
+    const payment = await mercadoPagoService.criarPagamento({
+      payment: paymentPayload,
+      idempotencyKey
+    });
+    paymentCreated = true;
+
+    await registerPixPaymentAttempt(assinatura, plan, payment, {
+      idempotencyKey,
+      method: 'pix'
+    });
+    await releaseMercadoPagoAttemptLock(attemptLock.lockId);
+    const pix = extractPixData(payment);
+
+    res.status(201).json({
+      success: true,
+      ...paymentResponsePayload(payment, 'pix'),
+      status: payment?.status || null,
+      qr_code: pix?.qr_code || null,
+      qr_code_base64: pix?.qr_code_base64 || null,
+      ticket_url: pix?.ticket_url || null,
+      message: 'Pix gerado com sucesso'
+    });
+  } catch (error) {
+    if (attemptLock?.acquired && attemptLock.lockId && !paymentCreated) {
+      await releaseMercadoPagoAttemptLock(attemptLock.lockId);
+    }
+    throw error;
+  }
 }
 
 export async function criarCobrancaAsaas(req, res) {

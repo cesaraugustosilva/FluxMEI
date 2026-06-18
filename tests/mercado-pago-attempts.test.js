@@ -97,7 +97,7 @@ function pendingPixAssinatura({ expiresAt }) {
   };
 }
 
-async function withMockedPaymentEnvironment(assinatura, fn) {
+async function withMockedPaymentEnvironment(assinatura, fn, options = {}) {
   const [{ supabaseAdmin }, { mercadoPagoService }, controller] = await Promise.all([
     import('../backend/src/config/supabase.js'),
     import('../backend/src/services/mercadoPagoService.js'),
@@ -105,8 +105,14 @@ async function withMockedPaymentEnvironment(assinatura, fn) {
   ]);
 
   const originalFrom = supabaseAdmin.from;
+  const originalRpc = supabaseAdmin.rpc;
   const originalCriarPagamento = mercadoPagoService.criarPagamento;
-  const stats = { created: 0, updated: 0 };
+  const stats = { created: 0, updated: 0, locksAcquired: 0, locksDenied: 0, locksReleased: 0 };
+  const lockState = {
+    locked: Boolean(options.initialLock),
+    lockId: 'lock-1',
+    expiresAt: new Date(Date.now() + 120 * 1000).toISOString()
+  };
 
   supabaseAdmin.from = (table) => {
     const query = createQueryResult({ assinatura, stats });
@@ -114,8 +120,38 @@ async function withMockedPaymentEnvironment(assinatura, fn) {
     return query;
   };
 
+  supabaseAdmin.rpc = async (name) => {
+    if (name === 'acquire_payment_attempt_lock') {
+      if (lockState.locked) {
+        stats.locksDenied += 1;
+        return {
+          data: [{ acquired: false, lock_id: lockState.lockId, expires_at: lockState.expiresAt }],
+          error: null
+        };
+      }
+
+      lockState.locked = true;
+      stats.locksAcquired += 1;
+      return {
+        data: [{ acquired: true, lock_id: lockState.lockId, expires_at: lockState.expiresAt }],
+        error: null
+      };
+    }
+
+    if (name === 'release_payment_attempt_lock') {
+      lockState.locked = false;
+      stats.locksReleased += 1;
+      return { data: true, error: null };
+    }
+
+    return originalRpc.call(supabaseAdmin, name);
+  };
+
   mercadoPagoService.criarPagamento = async () => {
     stats.created += 1;
+    if (options.paymentDelayMs) {
+      await new Promise((resolve) => setTimeout(resolve, options.paymentDelayMs));
+    }
     return {
       id: 'pix-2',
       status: 'pending',
@@ -140,6 +176,7 @@ async function withMockedPaymentEnvironment(assinatura, fn) {
     await fn({ ...controller, stats });
   } finally {
     supabaseAdmin.from = originalFrom;
+    supabaseAdmin.rpc = originalRpc;
     mercadoPagoService.criarPagamento = originalCriarPagamento;
   }
 }
@@ -184,6 +221,8 @@ test('Pix pendente expirado permite criar novo Pix', async () => {
     assert.equal(response.payload.qr_code, '000201-novo-pix');
     assert.equal(stats.created, 1);
     assert.equal(stats.updated, 1);
+    assert.equal(stats.locksAcquired, 1);
+    assert.equal(stats.locksReleased, 1);
   });
 });
 
@@ -213,5 +252,94 @@ test('Brick com tentativa pendente recente bloqueia nova criacao', async () => {
 
     assert.equal(stats.created, 0);
     assert.equal(stats.updated, 0);
+  });
+});
+
+test('duas criacoes simultaneas de Pix aceitam somente uma tentativa', async () => {
+  const assinatura = {
+    id: 'sub-1',
+    user_id: 'user-1',
+    plano: 'pro_mensal',
+    status: 'pendente',
+    bloqueado: true,
+    payment_provider: null,
+    provider_payment_id: null,
+    provider_status: null,
+    mercado_pago_payment_id: null,
+    mercado_pago_status: null,
+    provider_raw: null
+  };
+
+  await withMockedPaymentEnvironment(assinatura, async ({ criarPixMercadoPago, stats }) => {
+    const request = {
+      body: { plano: 'pro_mensal' },
+      user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
+    };
+    const firstResponse = createMockResponse();
+    const secondResponse = createMockResponse();
+
+    const results = await Promise.allSettled([
+      criarPixMercadoPago(request, firstResponse),
+      criarPixMercadoPago(request, secondResponse)
+    ]);
+
+    const fulfilled = results.filter((result) => result.status === 'fulfilled');
+    const rejected = results.filter((result) => result.status === 'rejected');
+
+    assert.equal(fulfilled.length, 1);
+    assert.equal(rejected.length, 1);
+    assert.equal(rejected[0].reason.statusCode, 409);
+    assert.match(rejected[0].reason.message, /processamento/i);
+    assert.equal(stats.created, 1);
+    assert.equal(stats.updated, 1);
+    assert.equal(stats.locksAcquired, 1);
+    assert.equal(stats.locksDenied, 1);
+    assert.equal(stats.locksReleased, 1);
+  }, { paymentDelayMs: 20 });
+});
+
+test('tentativa recusada permite nova tentativa com nova trava', async () => {
+  const assinatura = {
+    id: 'sub-1',
+    user_id: 'user-1',
+    plano: 'pro_mensal',
+    status: 'pendente',
+    bloqueado: true,
+    payment_provider: 'mercado_pago',
+    provider_payment_id: 'pix-rejected',
+    provider_status: 'rejected',
+    mercado_pago_payment_id: 'pix-rejected',
+    mercado_pago_status: 'rejected',
+    provider_raw: {
+      attempt: {
+        plano_original: 'pro_mensal',
+        valor_original: 49.9,
+        payment_id: 'pix-rejected',
+        payment_method_id: 'pix',
+        created_at: new Date().toISOString()
+      },
+      payment: {
+        id: 'pix-rejected',
+        status: 'rejected',
+        payment_method_id: 'pix',
+        transaction_amount: 49.9
+      }
+    }
+  };
+
+  await withMockedPaymentEnvironment(assinatura, async ({ criarPixMercadoPago, stats }) => {
+    const response = createMockResponse();
+
+    await criarPixMercadoPago({
+      body: { plano: 'pro_mensal' },
+      user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
+    }, response);
+
+    assert.equal(response.statusCode, 201);
+    assert.equal(response.payload.payment_id, 'pix-2');
+    assert.equal(stats.created, 1);
+    assert.equal(stats.updated, 1);
+    assert.equal(stats.locksAcquired, 1);
+    assert.equal(stats.locksReleased, 1);
   });
 });

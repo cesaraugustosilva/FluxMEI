@@ -105,32 +105,36 @@ function applyBlockedOrPreservedCancellation(updates, assinatura, baseDate) {
 }
 
 function getMercadoPagoPaymentMetadata(payment = {}) {
-  return payment.metadata || payment.metadata_info || {};
+  const source = payment || {};
+  return source.metadata || source.metadata_info || {};
 }
 
 function getMercadoPagoPaymentSubscriptionId(payment = {}) {
+  const source = payment || {};
   const metadata = getMercadoPagoPaymentMetadata(payment);
   if (metadata.assinatura_id) return String(metadata.assinatura_id);
 
-  const reference = String(payment.external_reference || '');
+  const reference = String(source.external_reference || '');
   if (reference.includes(':')) return reference.split(':')[1] || null;
   return reference || null;
 }
 
 function getMercadoPagoPaymentUserId(payment = {}) {
+  const source = payment || {};
   const metadata = getMercadoPagoPaymentMetadata(payment);
   if (metadata.user_id) return String(metadata.user_id);
 
-  const reference = String(payment.external_reference || '');
+  const reference = String(source.external_reference || '');
   if (reference.includes(':')) return reference.split(':')[0] || null;
   return null;
 }
 
 function getMercadoPagoPaymentPlanId(payment = {}) {
+  const source = payment || {};
   const metadata = getMercadoPagoPaymentMetadata(payment);
   if (metadata.plano) return String(metadata.plano);
 
-  const reference = String(payment.external_reference || '');
+  const reference = String(source.external_reference || '');
   if (reference.includes(':')) return reference.split(':')[2] || null;
   return null;
 }
