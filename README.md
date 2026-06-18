@@ -5,6 +5,7 @@ SaaS de gestao financeira para MEIs.
 O FluxMEI ajuda microempreendedores a controlar receitas, despesas, clientes, DAS, metas financeiras e assinatura em uma plataforma web simples, com teste gratis de 7 dias e checkout integrado.
 
 O checkout principal usa somente Mercado Pago como gateway: Pix personalizado no FluxMEI com QR Code na tela, e cartao/boleto pelo Mercado Pago Payment Brick.
+O antigo fluxo Mercado Pago Checkout Pro esta desativado e responde `410 Gone`.
 
 ## Principais Recursos
 

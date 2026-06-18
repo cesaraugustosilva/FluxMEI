@@ -174,6 +174,8 @@ Fluxo esperado do checkout principal:
 
 O checkout principal nao chama Asaas e nao usa Checkout Pro. Pix e Payment Brick usam Mercado Pago como unico gateway; `MERCADO_PAGO_ACCESS_TOKEN` permanece somente no backend.
 
+O endpoint legado de Checkout Pro `POST /api/pagamentos/mercado-pago/criar-checkout` fica desativado em producao e retorna `410 Gone` com a mensagem `Fluxo legado desativado. Utilize o checkout atual.`. Ele nao deve ser configurado em botoes, automacoes ou testes manuais.
+
 Teste de pagamento Mercado Pago:
 
 1. Configure `MERCADO_PAGO_PUBLIC_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` e `MERCADO_PAGO_NOTIFICATION_URL`.

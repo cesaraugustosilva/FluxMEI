@@ -444,6 +444,13 @@ export async function mercadoPagoPublicConfig(req, res) {
   });
 }
 
+export async function checkoutMercadoPagoLegadoDesativado(req, res) {
+  res.status(410).json({
+    success: false,
+    message: 'Fluxo legado desativado. Utilize o checkout atual.'
+  });
+}
+
 export async function criarCheckoutMercadoPago(req, res) {
   const { plano, plan } = validatePlanId(req.body?.plano);
 

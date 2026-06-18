@@ -112,7 +112,7 @@ Principais rotas:
 - `GET /api/planos`
 - `GET /api/assinaturas`
 - `GET /api/assinaturas/status`
-- `POST /api/pagamentos/mercado-pago/criar-checkout`
+- `POST /api/pagamentos/mercado-pago/criar-checkout` legado/desativado, retorna `410 Gone`
 - `GET /api/pagamentos/mercado-pago/public-config`
 - `POST /api/pagamentos/mercado-pago/processar-brick`
 - `GET /api/pagamentos/mercado-pago/status/:paymentId`
@@ -182,6 +182,11 @@ pagamentos em `/v1/payments`. A assinatura deve ser liberada pelo webhook em
 producao. Em ambiente local, sem URL publica de webhook, a resposta do pagamento
 pode aparecer aprovada enquanto a assinatura permanece pendente ate a notificacao
 ser recebida ou a sincronizacao ser feita manualmente.
+
+O fluxo antigo Mercado Pago Checkout Pro foi mantido apenas como historico no
+codigo e nao deve ser usado. `POST /api/pagamentos/mercado-pago/criar-checkout`
+retorna `410 Gone` com mensagem de fluxo legado desativado; ele nao cria
+preferencia, nao registra tentativa e nao altera assinatura.
 
 ## Seguranca
 - Supabase Auth

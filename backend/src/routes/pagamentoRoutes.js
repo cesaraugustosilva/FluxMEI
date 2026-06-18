@@ -4,8 +4,8 @@ import { authMiddleware } from '../middlewares/authMiddleware.js';
 import { asyncHandler } from '../middlewares/errorMiddleware.js';
 import { paymentRateLimiter } from '../middlewares/rateLimitMiddleware.js';
 import {
+  checkoutMercadoPagoLegadoDesativado,
   criarCobrancaAsaas,
-  criarCheckoutMercadoPago,
   criarPixMercadoPago,
   mercadoPagoPublicConfig,
   processarPagamentoBrick,
@@ -16,7 +16,7 @@ import {
 
 const router = Router();
 
-router.post('/mercado-pago/criar-checkout', paymentRateLimiter, authMiddleware, asyncHandler(criarCheckoutMercadoPago));
+router.post('/mercado-pago/criar-checkout', asyncHandler(checkoutMercadoPagoLegadoDesativado));
 router.get('/mercado-pago/public-config', asyncHandler(mercadoPagoPublicConfig));
 router.post('/mercado-pago/criar-pix', paymentRateLimiter, authMiddleware, asyncHandler(criarPixMercadoPago));
 router.post('/mercado-pago/processar-brick', paymentRateLimiter, authMiddleware, asyncHandler(processarPagamentoBrick));
