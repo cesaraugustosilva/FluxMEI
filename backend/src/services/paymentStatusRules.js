@@ -45,31 +45,60 @@ export function isActiveTrialSubscription(assinatura = {}, baseDate = new Date()
     && trialEnd >= todayIso(baseDate);
 }
 
-export function buildPendingPaymentAttemptUpdates({ assinatura = {}, providerUpdates = {}, baseDate = new Date() }) {
-  if (!isActiveTrialSubscription(assinatura, baseDate)) {
-    return {
-      ...providerUpdates,
-      status: 'pendente',
-      bloqueado: true
-    };
-  }
+export function isActivePaidSubscription(assinatura = {}, baseDate = new Date()) {
+  return assinatura.status === 'ativo'
+    && assinatura.bloqueado === false
+    && assinatura.data_vencimento
+    && assinatura.data_vencimento >= todayIso(baseDate);
+}
 
+function buildPreservedAccessPaymentUpdates({ assinatura = {}, providerUpdates = {} }) {
   const {
     plano,
     valor,
     tipo_cobranca,
     data_inicio,
     renovacao_automatica,
-    ...trialSafeProviderUpdates
+    ...accessSafeProviderUpdates
   } = providerUpdates;
 
   return {
-    ...trialSafeProviderUpdates,
+    ...accessSafeProviderUpdates,
     status: assinatura.status,
     bloqueado: false,
     data_vencimento: assinatura.data_vencimento,
     data_trial_fim: assinatura.data_trial_fim
   };
+}
+
+export function buildPendingPaymentAttemptUpdates({ assinatura = {}, providerUpdates = {}, baseDate = new Date() }) {
+  if (isActiveTrialSubscription(assinatura, baseDate) || isActivePaidSubscription(assinatura, baseDate)) {
+    return buildPreservedAccessPaymentUpdates({ assinatura, providerUpdates });
+  }
+
+  return {
+    ...providerUpdates,
+    status: 'pendente',
+    bloqueado: true
+  };
+}
+
+function applyBlockedOrPreservedCancellation(updates, assinatura, baseDate) {
+  if (isActiveTrialSubscription(assinatura, baseDate) || isActivePaidSubscription(assinatura, baseDate)) {
+    Object.assign(updates, {
+      status: assinatura.status,
+      bloqueado: false,
+      data_vencimento: assinatura.data_vencimento,
+      data_trial_fim: assinatura.data_trial_fim
+    });
+    return;
+  }
+
+  Object.assign(updates, {
+    status: 'cancelado',
+    bloqueado: true,
+    renovacao_automatica: false
+  });
 }
 
 function getMercadoPagoPaymentMetadata(payment = {}) {
@@ -259,8 +288,7 @@ export function buildMercadoPagoSubscriptionUpdates(payment, assinatura, baseDat
   const sameProviderPayment = paymentId && assinatura.provider_payment_id === paymentId;
   const sameLegacyPayment = paymentId && assinatura.mercado_pago_payment_id === paymentId;
   const alreadyApproved = assinatura.provider_status === 'approved'
-    || assinatura.mercado_pago_status === 'approved'
-    || (assinatura.status === 'ativo' && assinatura.bloqueado === false);
+    || assinatura.mercado_pago_status === 'approved';
 
   if (status === 'approved' && (sameProviderPayment || sameLegacyPayment) && alreadyApproved) {
     return {
@@ -330,16 +358,7 @@ export function buildMercadoPagoSubscriptionUpdates(payment, assinatura, baseDat
   } else if (['pending', 'in_process', 'authorized'].includes(status)) {
     Object.assign(updates, buildPendingPaymentAttemptUpdates({ assinatura, baseDate }));
   } else if (['rejected', 'cancelled', 'refunded', 'charged_back'].includes(status)) {
-    if (isActiveTrialSubscription(assinatura, baseDate)) {
-      updates.status = assinatura.status;
-      updates.bloqueado = false;
-      updates.data_vencimento = assinatura.data_vencimento;
-      updates.data_trial_fim = assinatura.data_trial_fim;
-    } else {
-      updates.status = 'cancelado';
-      updates.bloqueado = true;
-      updates.renovacao_automatica = false;
-    }
+    applyBlockedOrPreservedCancellation(updates, assinatura, baseDate);
   }
 
   return updates;

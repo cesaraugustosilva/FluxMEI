@@ -65,6 +65,50 @@ function assinaturaTrialAtivo(extra = {}) {
   };
 }
 
+function assinaturaAtivaMercadoPagoAttempt({
+  currentPlan = 'pro_mensal',
+  originalPlan = 'pro_mensal',
+  paymentId = 'pay_active',
+  amount = originalPlan === 'pro_anual' ? 478.8 : 49.9,
+  dueDate = '2026-07-12',
+  status = 'pending'
+} = {}) {
+  return {
+    ...assinatura,
+    plano: currentPlan,
+    status: 'ativo',
+    bloqueado: false,
+    valor: currentPlan === 'pro_anual' ? 478.8 : 49.9,
+    tipo_cobranca: currentPlan === 'pro_anual' ? 'anual' : 'mensal',
+    data_inicio: '2026-05-12',
+    data_vencimento: dueDate,
+    data_trial_fim: null,
+    payment_provider: 'mercado_pago',
+    provider_payment_id: paymentId,
+    provider_status: status,
+    mercado_pago_payment_id: paymentId,
+    mercado_pago_status: status,
+    provider_raw: {
+      attempt: {
+        plano_original: originalPlan,
+        valor_original: amount,
+        tipo_cobranca_original: originalPlan === 'pro_anual' ? 'anual' : 'mensal',
+        payment_id: paymentId,
+        metadata: {
+          plano: originalPlan
+        }
+      },
+      payment: {
+        id: paymentId,
+        transaction_amount: amount,
+        metadata: {
+          plano: originalPlan
+        }
+      }
+    }
+  };
+}
+
 function assinaturaTrialMercadoPagoAttempt({ paymentId = '123', originalPlan = 'pro_mensal', amount = 49.9, trialEnd = '2026-06-17' } = {}) {
   return {
     ...assinaturaTrialAtivo({
@@ -191,6 +235,87 @@ test('trial ativo gera cobranca e continua liberado', () => {
   assert.equal(updates.provider_raw.attempt.plano_original, 'pro_mensal');
 });
 
+test('usuario ativo mensal gera nova cobranca e continua ativo', () => {
+  const updates = buildPendingPaymentAttemptUpdates({
+    assinatura: assinaturaAtivaMercadoPagoAttempt({
+      currentPlan: 'pro_mensal',
+      originalPlan: 'pro_mensal',
+      paymentId: 'pay_new_monthly',
+      dueDate: '2026-07-20'
+    }),
+    providerUpdates: {
+      plano: 'pro_mensal',
+      valor: 49.9,
+      tipo_cobranca: 'mensal',
+      payment_provider: 'mercado_pago',
+      provider_payment_id: 'pay_new_monthly',
+      provider_status: 'pending',
+      provider_raw: {
+        attempt: {
+          plano_original: 'pro_mensal',
+          valor_original: 49.9,
+          payment_id: 'pay_new_monthly'
+        }
+      },
+      mercado_pago_payment_id: 'pay_new_monthly',
+      mercado_pago_status: 'pending',
+      checkout_url: null,
+      renovacao_automatica: false
+    },
+    baseDate
+  });
+
+  assert.equal(updates.status, 'ativo');
+  assert.equal(updates.bloqueado, false);
+  assert.equal(updates.data_vencimento, '2026-07-20');
+  assert.equal(updates.plano, undefined);
+  assert.equal(updates.valor, undefined);
+  assert.equal(updates.tipo_cobranca, undefined);
+  assert.equal(updates.provider_payment_id, 'pay_new_monthly');
+  assert.equal(updates.provider_raw.attempt.plano_original, 'pro_mensal');
+});
+
+test('usuario ativo anual gera nova cobranca e continua ativo', () => {
+  const updates = buildPendingPaymentAttemptUpdates({
+    assinatura: assinaturaAtivaMercadoPagoAttempt({
+      currentPlan: 'pro_anual',
+      originalPlan: 'pro_anual',
+      paymentId: 'pay_new_yearly',
+      amount: 478.8,
+      dueDate: '2027-06-12'
+    }),
+    providerUpdates: {
+      plano: 'pro_anual',
+      valor: 478.8,
+      tipo_cobranca: 'anual',
+      payment_provider: 'mercado_pago',
+      provider_payment_id: 'pay_new_yearly',
+      provider_status: 'pending',
+      provider_raw: {
+        attempt: {
+          plano_original: 'pro_anual',
+          valor_original: 478.8,
+          payment_id: 'pay_new_yearly'
+        }
+      },
+      mercado_pago_payment_id: 'pay_new_yearly',
+      mercado_pago_status: 'pending',
+      checkout_url: null,
+      renovacao_automatica: false
+    },
+    baseDate
+  });
+
+  assert.equal(updates.status, 'ativo');
+  assert.equal(updates.bloqueado, false);
+  assert.equal(updates.data_vencimento, '2027-06-12');
+  assert.equal(updates.plano, undefined);
+  assert.equal(updates.valor, undefined);
+  assert.equal(updates.tipo_cobranca, undefined);
+  assert.equal(updates.provider_payment_id, 'pay_new_yearly');
+  assert.equal(updates.provider_raw.attempt.plano_original, 'pro_anual');
+});
+
 test('usuario sem assinatura gera pendente bloqueado', () => {
   const updates = buildPendingPaymentAttemptUpdates({
     assinatura: {},
@@ -222,6 +347,22 @@ test('trial ativo com pagamento pendente Mercado Pago continua liberado', () => 
   assert.equal(updates.provider_status, 'pending');
 });
 
+test('pagamento pendente Mercado Pago nao bloqueia usuario ativo', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 'pay_active',
+    status: 'pending'
+  }, assinaturaAtivaMercadoPagoAttempt({
+    paymentId: 'pay_active',
+    dueDate: '2026-07-20'
+  }), baseDate);
+
+  assert.equal(updates.status, 'ativo');
+  assert.equal(updates.bloqueado, false);
+  assert.equal(updates.data_vencimento, '2026-07-20');
+  assert.equal(updates.provider_payment_id, 'pay_active');
+  assert.equal(updates.provider_status, 'pending');
+});
+
 test('trial ativo com pagamento recusado Mercado Pago continua liberado', () => {
   const updates = buildMercadoPagoSubscriptionUpdates({
     id: 123,
@@ -231,6 +372,23 @@ test('trial ativo com pagamento recusado Mercado Pago continua liberado', () => 
   assert.equal(updates.status, 'teste_gratis');
   assert.equal(updates.bloqueado, false);
   assert.equal(updates.data_vencimento, '2026-06-17');
+  assert.equal(updates.renovacao_automatica, undefined);
+});
+
+test('pagamento recusado Mercado Pago nao bloqueia usuario ativo', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 'pay_active',
+    status: 'rejected'
+  }, assinaturaAtivaMercadoPagoAttempt({
+    paymentId: 'pay_active',
+    dueDate: '2026-07-20'
+  }), baseDate);
+
+  assert.equal(updates.status, 'ativo');
+  assert.equal(updates.bloqueado, false);
+  assert.equal(updates.data_vencimento, '2026-07-20');
+  assert.equal(updates.provider_payment_id, 'pay_active');
+  assert.equal(updates.provider_status, 'rejected');
   assert.equal(updates.renovacao_automatica, undefined);
 });
 
@@ -263,6 +421,29 @@ test('trial ativo com pagamento aprovado Mercado Pago vira pago', () => {
   assert.equal(updates.data_vencimento, '2026-07-12');
 });
 
+test('pagamento aprovado Mercado Pago renova usuario ativo corretamente', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 'pay_active',
+    status: 'approved',
+    transaction_amount: 49.9,
+    metadata: {
+      plano: 'pro_mensal'
+    }
+  }, assinaturaAtivaMercadoPagoAttempt({
+    paymentId: 'pay_active',
+    dueDate: '2026-07-20',
+    status: 'pending'
+  }), baseDate);
+
+  assert.equal(updates.status, 'ativo');
+  assert.equal(updates.bloqueado, false);
+  assert.equal(updates.plano, 'pro_mensal');
+  assert.equal(updates.valor, 49.9);
+  assert.equal(updates.tipo_cobranca, 'mensal');
+  assert.equal(updates.data_vencimento, '2026-07-12');
+  assert.equal(updates.provider_status, 'approved');
+});
+
 test('trial vencido com pagamento pendente Mercado Pago continua bloqueado', () => {
   const updates = buildMercadoPagoSubscriptionUpdates({
     id: 123,
@@ -271,6 +452,21 @@ test('trial vencido com pagamento pendente Mercado Pago continua bloqueado', () 
 
   assert.equal(updates.status, 'pendente');
   assert.equal(updates.bloqueado, true);
+});
+
+test('assinatura vencida com pagamento pendente Mercado Pago continua bloqueada', () => {
+  const updates = buildMercadoPagoSubscriptionUpdates({
+    id: 'pay_expired',
+    status: 'pending'
+  }, assinaturaAtivaMercadoPagoAttempt({
+    paymentId: 'pay_expired',
+    dueDate: '2026-06-11',
+    status: 'pending'
+  }), baseDate);
+
+  assert.equal(updates.status, 'pendente');
+  assert.equal(updates.bloqueado, true);
+  assert.equal(updates.data_vencimento, undefined);
 });
 
 test('trial vencido com pagamento aprovado Mercado Pago libera', () => {
