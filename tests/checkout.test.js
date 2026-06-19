@@ -34,6 +34,18 @@ test('checkout principal chama Pix dedicado e Brick sem Asaas', () => {
   assert.doesNotMatch(checkoutJs, /createAsaasCharge/);
 });
 
+test('checkout nao rearma intent antiga sem query de assinatura', () => {
+  assert.match(checkoutJs, /const INTENT_CREATED_AT_KEY = 'fluxmei_intent_created_at'/);
+  assert.match(checkoutJs, /function isSubscribeIntentUrl\(\)/);
+  assert.match(checkoutJs, /return params\.get\('intent'\) === SUBSCRIBE_INTENT/);
+  assert.match(checkoutJs, /if \(isSubscribeIntentUrl\(\)\) saveSubscribeIntent\(planId\)/);
+});
+
+test('checkout com assinatura ativa limpa intent de assinatura', () => {
+  assert.match(checkoutJs, /if \(subscriptionStatus\?\.estado === 'ativo'\) \{\s*clearSubscribeIntent\(\);/);
+  assert.match(checkoutJs, /showStatus\('active', 'Sua assinatura ja esta ativa\. Voce pode voltar ao app\.'\)/);
+});
+
 test('Checkout Pro legado retorna 410 e nao passa por criacao de pagamento', async () => {
   process.env.NODE_ENV = 'production';
   process.env.ENABLE_ASAAS = 'false';

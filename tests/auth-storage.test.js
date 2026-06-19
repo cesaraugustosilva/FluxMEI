@@ -46,3 +46,30 @@ test('painel checkout e landing leem token dos dois storages', () => {
   assert.match(checkoutJs, /return sessionStorage\.getItem\(TOKEN_KEY\) \|\| localStorage\.getItem\(TOKEN_KEY\)/);
   assert.match(landingJs, /return sessionStorage\.getItem\(TOKEN_KEY\) \|\| localStorage\.getItem\(TOKEN_KEY\)/);
 });
+
+test('intent de assinatura usa timestamp e expira em 15 minutos', () => {
+  assert.match(authJs, /const INTENT_CREATED_AT_KEY = 'fluxmei_intent_created_at'/);
+  assert.match(authJs, /const SUBSCRIBE_INTENT_TTL_MS = 15 \* 60 \* 1000/);
+  assert.match(authJs, /function saveSubscribeIntent\(plan = DEFAULT_SUBSCRIBE_PLAN\)/);
+  assert.match(authJs, /localStorage\.setItem\(INTENT_CREATED_AT_KEY, String\(Date\.now\(\)\)\)/);
+  assert.match(authJs, /function hasValidSubscribeIntent\(\)/);
+  assert.match(authJs, /Date\.now\(\) - intent\.createdAt > SUBSCRIBE_INTENT_TTL_MS/);
+});
+
+test('login normal sem intent na URL limpa intent antiga e vai para app', () => {
+  assert.match(authJs, /if \(query\.get\('intent'\) !== SUBSCRIBE_INTENT\) \{\s*clearSubscribeIntent\(\);\s*return;\s*\}/);
+  assert.match(authJs, /function redirectAfterAuth\(defaultUrl\) \{\s*if \(!hasValidSubscribeIntent\(\)\) \{\s*window\.location\.href = defaultUrl;/);
+  assert.match(authJs, /redirectAfterAuth\('\.\.\/\.\.\/app\/index\.html'\)/);
+});
+
+test('login com intent recente vai para checkout e consome intent', () => {
+  assert.match(authJs, /function getPaymentIntentUrl\(\)/);
+  assert.match(authJs, /url\.searchParams\.set\('intent', SUBSCRIBE_INTENT\)/);
+  assert.match(authJs, /const paymentUrl = getPaymentIntentUrl\(\);\s*clearSubscribeIntent\(\);\s*window\.location\.href = paymentUrl;/);
+});
+
+test('fluxo de teste gratis remove intent com timestamp', () => {
+  assert.match(landingJs, /localStorage\.removeItem\(INTENT_KEY\)/);
+  assert.match(landingJs, /localStorage\.removeItem\(PLAN_KEY\)/);
+  assert.match(landingJs, /localStorage\.removeItem\(INTENT_CREATED_AT_KEY\)/);
+});

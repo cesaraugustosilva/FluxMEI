@@ -26,8 +26,10 @@ const TOKEN_KEY = 'fluxmei_access_token';
 const USER_KEY = 'fluxmei_user';
 const INTENT_KEY = 'fluxmei_intent';
 const PLAN_KEY = 'fluxmei_subscribe_plan';
+const INTENT_CREATED_AT_KEY = 'fluxmei_intent_created_at';
 const SUBSCRIBE_INTENT = 'subscribe';
 const DEFAULT_SUBSCRIBE_PLAN = 'pro_mensal';
+const SUBSCRIBE_INTENT_TTL_MS = 15 * 60 * 1000;
 
 function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
@@ -343,19 +345,57 @@ async function logout() {
 
 function captureIntentFromUrl() {
   const query = new URLSearchParams(window.location.search);
-  if (query.get('intent') !== SUBSCRIBE_INTENT) return;
+  if (query.get('intent') !== SUBSCRIBE_INTENT) {
+    clearSubscribeIntent();
+    return;
+  }
 
   const plan = query.get('plan') || DEFAULT_SUBSCRIBE_PLAN;
+  saveSubscribeIntent(plan);
+}
+
+function saveSubscribeIntent(plan = DEFAULT_SUBSCRIBE_PLAN) {
   localStorage.setItem(INTENT_KEY, SUBSCRIBE_INTENT);
   localStorage.setItem(PLAN_KEY, plan);
+  localStorage.setItem(INTENT_CREATED_AT_KEY, String(Date.now()));
+}
+
+function clearSubscribeIntent() {
+  localStorage.removeItem(INTENT_KEY);
+  localStorage.removeItem(PLAN_KEY);
+  localStorage.removeItem(INTENT_CREATED_AT_KEY);
+}
+
+function getSubscribeIntent() {
+  const intent = localStorage.getItem(INTENT_KEY);
+  const plan = localStorage.getItem(PLAN_KEY) || DEFAULT_SUBSCRIBE_PLAN;
+  const createdAt = Number(localStorage.getItem(INTENT_CREATED_AT_KEY));
+
+  if (intent !== SUBSCRIBE_INTENT || !Number.isFinite(createdAt)) return null;
+  return { intent, plan, createdAt };
 }
 
 function hasSubscribeIntent() {
-  return localStorage.getItem(INTENT_KEY) === SUBSCRIBE_INTENT;
+  return hasValidSubscribeIntent();
+}
+
+function hasValidSubscribeIntent() {
+  const intent = getSubscribeIntent();
+  if (!intent) {
+    clearSubscribeIntent();
+    return false;
+  }
+
+  if (Date.now() - intent.createdAt > SUBSCRIBE_INTENT_TTL_MS) {
+    clearSubscribeIntent();
+    return false;
+  }
+
+  return true;
 }
 
 function getSubscribePlan() {
-  return localStorage.getItem(PLAN_KEY) || DEFAULT_SUBSCRIBE_PLAN;
+  return getSubscribeIntent()?.plan || DEFAULT_SUBSCRIBE_PLAN;
 }
 
 function getSubscribePlanLabel() {
@@ -377,7 +417,14 @@ function getLoginIntentUrl() {
 }
 
 function redirectAfterAuth(defaultUrl) {
-  window.location.href = hasSubscribeIntent() ? getPaymentIntentUrl() : defaultUrl;
+  if (!hasValidSubscribeIntent()) {
+    window.location.href = defaultUrl;
+    return;
+  }
+
+  const paymentUrl = getPaymentIntentUrl();
+  clearSubscribeIntent();
+  window.location.href = paymentUrl;
 }
 
 function decorateIntentLinks() {

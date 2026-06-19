@@ -3,6 +3,7 @@
 const TOKEN_KEY = 'fluxmei_access_token';
 const INTENT_KEY = 'fluxmei_intent';
 const PLAN_KEY = 'fluxmei_subscribe_plan';
+const INTENT_CREATED_AT_KEY = 'fluxmei_intent_created_at';
 const SUBSCRIBE_INTENT = 'subscribe';
 const DEFAULT_PLAN = 'pro_mensal';
 
@@ -104,11 +105,18 @@ function getSelectedPlanId() {
 function saveSubscribeIntent(planId = DEFAULT_PLAN) {
   localStorage.setItem(INTENT_KEY, SUBSCRIBE_INTENT);
   localStorage.setItem(PLAN_KEY, planId);
+  localStorage.setItem(INTENT_CREATED_AT_KEY, String(Date.now()));
 }
 
 function clearSubscribeIntent() {
   localStorage.removeItem(INTENT_KEY);
   localStorage.removeItem(PLAN_KEY);
+  localStorage.removeItem(INTENT_CREATED_AT_KEY);
+}
+
+function isSubscribeIntentUrl() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('intent') === SUBSCRIBE_INTENT;
 }
 
 function getLoginUrl(planId = getSelectedPlanId()) {
@@ -623,7 +631,7 @@ async function initCheckout() {
   setPixGenerateVisible(true);
 
   const planId = getSelectedPlanId();
-  saveSubscribeIntent(planId);
+  if (isSubscribeIntentUrl()) saveSubscribeIntent(planId);
   selectedPlan = await loadPlan(planId);
   renderPlan(selectedPlan);
 
@@ -640,6 +648,7 @@ async function initCheckout() {
     renderUser(me);
 
     if (subscriptionStatus?.estado === 'ativo') {
+      clearSubscribeIntent();
       setBrickVisible(false);
       setBrickLoading(false);
       setPixGenerateVisible(false);

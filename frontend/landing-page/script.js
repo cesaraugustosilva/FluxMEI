@@ -4,6 +4,7 @@ const nav = document.querySelector('[data-nav]');
 const TOKEN_KEY = 'fluxmei_access_token';
 const INTENT_KEY = 'fluxmei_intent';
 const PLAN_KEY = 'fluxmei_subscribe_plan';
+const INTENT_CREATED_AT_KEY = 'fluxmei_intent_created_at';
 const SUBSCRIBE_INTENT = 'subscribe';
 const DEFAULT_PLAN = 'pro_mensal';
 
@@ -49,6 +50,7 @@ function getRegisterUrl(plan = DEFAULT_PLAN) {
 function saveSubscribeIntent(plan = DEFAULT_PLAN) {
   localStorage.setItem(INTENT_KEY, SUBSCRIBE_INTENT);
   localStorage.setItem(PLAN_KEY, plan);
+  localStorage.setItem(INTENT_CREATED_AT_KEY, String(Date.now()));
 }
 
 function getStoredToken() {
@@ -76,6 +78,7 @@ function bindConversionLinks() {
     link.addEventListener('click', () => {
       localStorage.removeItem(INTENT_KEY);
       localStorage.removeItem(PLAN_KEY);
+      localStorage.removeItem(INTENT_CREATED_AT_KEY);
     });
   });
 
