@@ -517,6 +517,14 @@ async function handleMercadoPagoLockDenied(userId, plan, { allowReusablePix = fa
   throw new AppError(PROCESSING_PAYMENT_MESSAGE, 409);
 }
 
+async function revalidateMercadoPagoAttemptAfterLock(userId, plan, { allowReusablePix = false } = {}) {
+  const assinatura = await getLatestSubscription(userId);
+  if (!assinatura) throw new AppError('Assinatura nao encontrada para este usuario.', 404);
+
+  const reusablePix = assertNoRecentPendingMercadoPagoAttempt(assinatura, plan, { allowReusablePix });
+  return { assinatura, reusablePix };
+}
+
 export async function mercadoPagoPublicConfig(req, res) {
   res.json({
     public_key: getMercadoPagoPublicKey()
@@ -564,22 +572,26 @@ export async function processarPagamentoBrick(req, res) {
   const profile = await getProfile(req.user.id);
   const assinatura = await ensureUserSubscription(req.user.id, plano);
   assertNoRecentPendingMercadoPagoAttempt(assinatura, plan);
-  const paymentPayload = buildBrickPaymentPayload({
-    formData: req.body?.payment || req.body?.formData || {},
-    plan,
-    user: req.user,
-    profile,
-    assinatura
-  });
 
   let attemptLock = null;
   let paymentCreated = false;
+  let shouldReleaseLock = false;
 
   try {
     attemptLock = await acquireMercadoPagoAttemptLock(req.user.id, plan);
     if (!attemptLock.acquired) {
       await handleMercadoPagoLockDenied(req.user.id, plan);
     }
+    shouldReleaseLock = true;
+
+    const { assinatura: lockedAssinatura } = await revalidateMercadoPagoAttemptAfterLock(req.user.id, plan);
+    const paymentPayload = buildBrickPaymentPayload({
+      formData: req.body?.payment || req.body?.formData || {},
+      plan,
+      user: req.user,
+      profile,
+      assinatura: lockedAssinatura
+    });
 
     const idempotencyKey = crypto.randomUUID();
     const payment = await mercadoPagoService.criarPagamento({
@@ -587,12 +599,13 @@ export async function processarPagamentoBrick(req, res) {
       idempotencyKey
     });
     paymentCreated = true;
+    shouldReleaseLock = false;
 
-    await registerBrickPaymentAttempt(assinatura, plan, payment, {
+    await registerBrickPaymentAttempt(lockedAssinatura, plan, payment, {
       idempotencyKey,
       method: paymentPayload.payment_method_id
     });
-    await releaseMercadoPagoAttemptLock(attemptLock.lockId);
+    shouldReleaseLock = true;
 
     res.status(201).json({
       success: true,
@@ -602,8 +615,13 @@ export async function processarPagamentoBrick(req, res) {
   } catch (error) {
     if (attemptLock?.acquired && attemptLock.lockId && !paymentCreated) {
       await releaseMercadoPagoAttemptLock(attemptLock.lockId);
+      shouldReleaseLock = false;
     }
     throw error;
+  } finally {
+    if (attemptLock?.acquired && attemptLock.lockId && shouldReleaseLock) {
+      await releaseMercadoPagoAttemptLock(attemptLock.lockId);
+    }
   }
 }
 
@@ -619,15 +637,9 @@ export async function criarPixMercadoPago(req, res) {
     return;
   }
 
-  const paymentPayload = buildPixPaymentPayload({
-    plan,
-    user: req.user,
-    profile,
-    assinatura
-  });
-
   let attemptLock = null;
   let paymentCreated = false;
+  let shouldReleaseLock = false;
 
   try {
     attemptLock = await acquireMercadoPagoAttemptLock(req.user.id, plan);
@@ -638,6 +650,20 @@ export async function criarPixMercadoPago(req, res) {
         return;
       }
     }
+    shouldReleaseLock = true;
+
+    const { assinatura: lockedAssinatura, reusablePix: lockedReusablePix } = await revalidateMercadoPagoAttemptAfterLock(req.user.id, plan, { allowReusablePix: true });
+    if (lockedReusablePix) {
+      res.status(200).json(lockedReusablePix);
+      return;
+    }
+
+    const paymentPayload = buildPixPaymentPayload({
+      plan,
+      user: req.user,
+      profile,
+      assinatura: lockedAssinatura
+    });
 
     const idempotencyKey = crypto.randomUUID();
     const payment = await mercadoPagoService.criarPagamento({
@@ -645,12 +671,13 @@ export async function criarPixMercadoPago(req, res) {
       idempotencyKey
     });
     paymentCreated = true;
+    shouldReleaseLock = false;
 
-    await registerPixPaymentAttempt(assinatura, plan, payment, {
+    await registerPixPaymentAttempt(lockedAssinatura, plan, payment, {
       idempotencyKey,
       method: 'pix'
     });
-    await releaseMercadoPagoAttemptLock(attemptLock.lockId);
+    shouldReleaseLock = true;
     const pix = extractPixData(payment);
 
     res.status(201).json({
@@ -665,8 +692,13 @@ export async function criarPixMercadoPago(req, res) {
   } catch (error) {
     if (attemptLock?.acquired && attemptLock.lockId && !paymentCreated) {
       await releaseMercadoPagoAttemptLock(attemptLock.lockId);
+      shouldReleaseLock = false;
     }
     throw error;
+  } finally {
+    if (attemptLock?.acquired && attemptLock.lockId && shouldReleaseLock) {
+      await releaseMercadoPagoAttemptLock(attemptLock.lockId);
+    }
   }
 }
 

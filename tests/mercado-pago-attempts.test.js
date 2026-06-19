@@ -22,7 +22,7 @@ function createMockResponse() {
   };
 }
 
-function createQueryResult({ assinatura, profile = null, stats }) {
+function createQueryResult({ assinatura, profile = null, stats, getAssinatura = null }) {
   const query = {
     _table: null,
     _payload: null,
@@ -37,7 +37,7 @@ function createQueryResult({ assinatura, profile = null, stats }) {
     },
     async maybeSingle() {
       if (this._table === 'profiles') return { data: profile, error: null };
-      return { data: assinatura, error: null };
+      return { data: getAssinatura ? getAssinatura() : assinatura, error: null };
     },
     async single() {
       return { data: { ...assinatura, ...this._payload }, error: null };
@@ -97,6 +97,22 @@ function pendingPixAssinatura({ expiresAt }) {
   };
 }
 
+function assinaturaSemTentativa() {
+  return {
+    id: 'sub-1',
+    user_id: 'user-1',
+    plano: 'pro_mensal',
+    status: 'pendente',
+    bloqueado: true,
+    payment_provider: null,
+    provider_payment_id: null,
+    provider_status: null,
+    mercado_pago_payment_id: null,
+    mercado_pago_status: null,
+    provider_raw: null
+  };
+}
+
 async function withMockedPaymentEnvironment(assinatura, fn, options = {}) {
   const [{ supabaseAdmin }, { mercadoPagoService }, controller] = await Promise.all([
     import('../backend/src/config/supabase.js'),
@@ -108,6 +124,8 @@ async function withMockedPaymentEnvironment(assinatura, fn, options = {}) {
   const originalRpc = supabaseAdmin.rpc;
   const originalCriarPagamento = mercadoPagoService.criarPagamento;
   const stats = { created: 0, updated: 0, locksAcquired: 0, locksDenied: 0, locksReleased: 0 };
+  let assinaturaReadIndex = 0;
+  const assinaturaSequence = options.assinaturaSequence || null;
   const lockState = {
     locked: Boolean(options.initialLock),
     lockId: 'lock-1',
@@ -115,7 +133,13 @@ async function withMockedPaymentEnvironment(assinatura, fn, options = {}) {
   };
 
   supabaseAdmin.from = (table) => {
-    const query = createQueryResult({ assinatura, stats });
+    const query = createQueryResult({
+      assinatura,
+      stats,
+      getAssinatura: table === 'assinaturas' && assinaturaSequence
+        ? () => assinaturaSequence[Math.min(assinaturaReadIndex++, assinaturaSequence.length - 1)]
+        : null
+    });
     query._table = table;
     return query;
   };
@@ -256,19 +280,7 @@ test('Brick com tentativa pendente recente bloqueia nova criacao', async () => {
 });
 
 test('duas criacoes simultaneas de Pix aceitam somente uma tentativa', async () => {
-  const assinatura = {
-    id: 'sub-1',
-    user_id: 'user-1',
-    plano: 'pro_mensal',
-    status: 'pendente',
-    bloqueado: true,
-    payment_provider: null,
-    provider_payment_id: null,
-    provider_status: null,
-    mercado_pago_payment_id: null,
-    mercado_pago_status: null,
-    provider_raw: null
-  };
+  const assinatura = assinaturaSemTentativa();
 
   await withMockedPaymentEnvironment(assinatura, async ({ criarPixMercadoPago, stats }) => {
     const request = {
@@ -296,6 +308,67 @@ test('duas criacoes simultaneas de Pix aceitam somente uma tentativa', async () 
     assert.equal(stats.locksDenied, 1);
     assert.equal(stats.locksReleased, 1);
   }, { paymentDelayMs: 20 });
+});
+
+test('Pix reconsulta assinatura apos lock e reutiliza tentativa criada por outra requisicao', async () => {
+  const assinaturaInicial = assinaturaSemTentativa();
+  const assinaturaDepoisDoLock = pendingPixAssinatura({
+    expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString()
+  });
+
+  await withMockedPaymentEnvironment(assinaturaInicial, async ({ criarPixMercadoPago, stats }) => {
+    const response = createMockResponse();
+
+    await criarPixMercadoPago({
+      body: { plano: 'pro_mensal' },
+      user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
+    }, response);
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.payload.reused, true);
+    assert.equal(response.payload.payment_id, 'pix-1');
+    assert.equal(response.payload.qr_code, '000201-pix-copia-e-cola');
+    assert.equal(stats.created, 0);
+    assert.equal(stats.updated, 0);
+    assert.equal(stats.locksAcquired, 1);
+    assert.equal(stats.locksReleased, 1);
+  }, {
+    assinaturaSequence: [assinaturaInicial, assinaturaDepoisDoLock]
+  });
+});
+
+test('Brick reconsulta assinatura apos lock e bloqueia tentativa criada por outra requisicao', async () => {
+  const assinaturaInicial = assinaturaSemTentativa();
+  const assinaturaDepoisDoLock = pendingPixAssinatura({
+    expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString()
+  });
+
+  await withMockedPaymentEnvironment(assinaturaInicial, async ({ processarPagamentoBrick, stats }) => {
+    const response = createMockResponse();
+
+    await assert.rejects(() => processarPagamentoBrick({
+      body: {
+        plano: 'pro_mensal',
+        payment: {
+          token: 'card-token',
+          payment_method_id: 'visa',
+          installments: 1
+        }
+      },
+      user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
+    }, response), (error) => {
+      assert.equal(error.statusCode, 409);
+      assert.match(error.message, /pagamento pendente/i);
+      return true;
+    });
+
+    assert.equal(stats.created, 0);
+    assert.equal(stats.updated, 0);
+    assert.equal(stats.locksAcquired, 1);
+    assert.equal(stats.locksReleased, 1);
+  }, {
+    assinaturaSequence: [assinaturaInicial, assinaturaDepoisDoLock]
+  });
 });
 
 test('tentativa recusada permite nova tentativa com nova trava', async () => {
