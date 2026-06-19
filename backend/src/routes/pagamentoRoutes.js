@@ -6,10 +6,14 @@ import { paymentRateLimiter } from '../middlewares/rateLimitMiddleware.js';
 import {
   checkoutMercadoPagoLegadoDesativado,
   criarCobrancaAsaas,
+  criarBoletoEfi,
+  criarCartaoEfi,
+  criarPixEfi,
   criarPixMercadoPago,
   mercadoPagoPublicConfig,
   processarPagamentoBrick,
   statusPagamentoAsaas,
+  statusPagamentoEfi,
   sincronizarRetornoMercadoPago,
   statusPagamentoMercadoPago
 } from '../controllers/pagamentoController.js';
@@ -23,6 +27,11 @@ router.post('/mercado-pago/processar-brick', paymentRateLimiter, authMiddleware,
 router.get('/mercado-pago/status/:paymentId', paymentRateLimiter, authMiddleware, asyncHandler(statusPagamentoMercadoPago));
 router.get('/mercado-pago/sincronizar', paymentRateLimiter, authMiddleware, asyncHandler(sincronizarRetornoMercadoPago));
 router.post('/mercado-pago/sincronizar', paymentRateLimiter, authMiddleware, asyncHandler(sincronizarRetornoMercadoPago));
+
+router.post('/efi/criar-pix', paymentRateLimiter, authMiddleware, asyncHandler(criarPixEfi));
+router.post('/efi/criar-cartao', paymentRateLimiter, authMiddleware, asyncHandler(criarCartaoEfi));
+router.post('/efi/criar-boleto', paymentRateLimiter, authMiddleware, asyncHandler(criarBoletoEfi));
+router.get('/efi/status/:paymentId', paymentRateLimiter, authMiddleware, asyncHandler(statusPagamentoEfi));
 
 if (isAsaasEnabled()) {
   router.post('/asaas/criar-cobranca', paymentRateLimiter, authMiddleware, asyncHandler(criarCobrancaAsaas));

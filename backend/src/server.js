@@ -43,7 +43,7 @@ app.use(helmet({
       fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
       imgSrc: ["'self'", 'data:', 'https:'],
       frameSrc: ["'self'", 'https://*.mercadopago.com', 'https://*.mercadopago.com.br'],
-      connectSrc: ["'self'", 'https://*.supabase.co', 'https://generativelanguage.googleapis.com', 'https://api.mercadopago.com', 'https://*.mercadopago.com']
+      connectSrc: ["'self'", 'https://*.supabase.co', 'https://generativelanguage.googleapis.com', 'https://api.mercadopago.com', 'https://*.mercadopago.com', 'https://*.efipay.com.br']
     }
   }
 }));

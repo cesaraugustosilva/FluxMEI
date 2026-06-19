@@ -17,6 +17,10 @@ test('rotas sensiveis de pagamento usam paymentRateLimiter', () => {
   assert.match(pagamentoRoutes, /\/mercado-pago\/criar-pix', paymentRateLimiter, authMiddleware/);
   assert.match(pagamentoRoutes, /\/mercado-pago\/processar-brick', paymentRateLimiter, authMiddleware/);
   assert.match(pagamentoRoutes, /\/mercado-pago\/status\/:paymentId', paymentRateLimiter, authMiddleware/);
+  assert.match(pagamentoRoutes, /\/efi\/criar-pix', paymentRateLimiter, authMiddleware/);
+  assert.match(pagamentoRoutes, /\/efi\/criar-cartao', paymentRateLimiter, authMiddleware/);
+  assert.match(pagamentoRoutes, /\/efi\/criar-boleto', paymentRateLimiter, authMiddleware/);
+  assert.match(pagamentoRoutes, /\/efi\/status\/:paymentId', paymentRateLimiter, authMiddleware/);
   assert.match(pagamentoRoutes, /\/asaas\/criar-cobranca', paymentRateLimiter, authMiddleware/);
 });
 

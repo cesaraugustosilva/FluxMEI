@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   validateAsaasWebhook,
+  validateEfiWebhook,
   validateMercadoPagoWebhook
 } from '../backend/src/services/webhookSecurityService.js';
 
@@ -68,6 +69,26 @@ test('webhook valido Mercado Pago passa validacao', () => {
         'x-signature': `ts=${ts},v1=${signature}`
       }
     }, dataId);
+
+    assert.equal(result.validated, true);
+  });
+});
+
+test('webhook invalido EFI nao passa validacao', () => {
+  withEnv({ NODE_ENV: 'production', EFI_WEBHOOK_SECRET: 'expected-secret' }, () => {
+    assert.throws(() => validateEfiWebhook({
+      headers: { 'x-efi-webhook-secret': 'wrong-secret' },
+      body: { txid: 'fx123', status: 'CONCLUIDA' }
+    }), /nao autorizado/i);
+  });
+});
+
+test('webhook valido EFI passa validacao', () => {
+  withEnv({ NODE_ENV: 'production', EFI_WEBHOOK_SECRET: 'expected-secret' }, () => {
+    const result = validateEfiWebhook({
+      headers: { authorization: 'Bearer expected-secret' },
+      body: { txid: 'fx123', status: 'CONCLUIDA' }
+    });
 
     assert.equal(result.validated, true);
   });

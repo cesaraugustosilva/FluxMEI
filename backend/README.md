@@ -34,6 +34,14 @@ MERCADO_PAGO_BASE_URL=https://api.mercadopago.com
 MERCADO_PAGO_USE_SANDBOX=false
 MERCADO_PAGO_WEBHOOK_SECRET=seu_secret_do_webhook
 MERCADO_PAGO_NOTIFICATION_URL=https://seudominio.com/api/webhooks/mercado-pago
+EFI_CLIENT_ID=seu_client_id_efi
+EFI_CLIENT_SECRET=seu_client_secret_efi
+EFI_ENVIRONMENT=sandbox
+EFI_PIX_KEY=sua_chave_pix_efi
+EFI_CERT_PATH=./certs/efi.p12
+EFI_CERT_BASE64=
+EFI_WEBHOOK_SECRET=seu_token_webhook_efi
+EFI_WEBHOOK_URL=https://seudominio.com/api/webhooks/efi
 ENABLE_ASAAS=false
 ASAAS_API_KEY=sua_api_key_asaas
 ASAAS_BASE_URL=https://api.asaas.com/v3
@@ -42,7 +50,7 @@ ASAAS_ENVIRONMENT=production
 ASAAS_WALLET_ID=
 ```
 
-Importante: `SUPABASE_SERVICE_ROLE_KEY`, `MERCADO_PAGO_ACCESS_TOKEN` e `ASAAS_API_KEY` so devem ficar no backend. O checkout principal usa Mercado Pago; Asaas permanece apenas como fluxo legado/fallback no backend e fica desativado por padrao com `ENABLE_ASAAS=false`.
+Importante: `SUPABASE_SERVICE_ROLE_KEY`, `EFI_CLIENT_SECRET`, certificado EFI, `MERCADO_PAGO_ACCESS_TOKEN` e `ASAAS_API_KEY` so devem ficar no backend. O checkout principal usa EFI Bank; Mercado Pago e Asaas permanecem como fluxos legado/fallback no backend.
 
 ## Banco De Dados
 Banco novo:
@@ -112,6 +120,11 @@ Principais rotas:
 - `GET /api/planos`
 - `GET /api/assinaturas`
 - `GET /api/assinaturas/status`
+- `POST /api/pagamentos/efi/criar-pix`
+- `POST /api/pagamentos/efi/criar-cartao`
+- `POST /api/pagamentos/efi/criar-boleto`
+- `GET /api/pagamentos/efi/status/:paymentId`
+- `POST /api/webhooks/efi`
 - `POST /api/pagamentos/mercado-pago/criar-checkout` legado/desativado, retorna `410 Gone`
 - `GET /api/pagamentos/mercado-pago/public-config`
 - `POST /api/pagamentos/mercado-pago/processar-brick`
@@ -131,7 +144,7 @@ O roteiro completo de validacao manual esta em `../docs/assinatura-fluxo-testes.
 
 ## Asaas Legado/Fallback
 
-O Mercado Pago e o gateway principal. Asaas e legado tecnico e nao deve ficar exposto para usuarios. Com `ENABLE_ASAAS=false`, `/api/pagamentos/asaas/*` nao e registrado e `/api/webhooks/asaas` retorna `410 ASAAS_DISABLED`.
+A EFI Bank e o gateway principal. Asaas e legado tecnico e nao deve ficar exposto para usuarios. Com `ENABLE_ASAAS=false`, `/api/pagamentos/asaas/*` nao e registrado e `/api/webhooks/asaas` retorna `410 ASAAS_DISABLED`.
 
 1. Para reativar o legado, defina `ENABLE_ASAAS=true`.
 2. Em banco novo, confirme que `database/schema.sql` ja foi executado. Em banco existente, execute `database/migrate_payment_provider_fields.sql` no Supabase para adicionar os campos genericos `payment_provider`, `provider_payment_id`, `provider_customer_id`, `provider_subscription_id`, `provider_status` e `provider_raw`.
@@ -154,7 +167,28 @@ gerados pelo Asaas atualizam `status`, `bloqueado` e `data_vencimento` por webho
 Essas rotas foram mantidas para compatibilidade, mas nao aparecem na experiencia
 principal de checkout.
 
-## Mercado Pago
+## EFI Bank
+
+1. Configure `EFI_CLIENT_ID`, `EFI_CLIENT_SECRET`, `EFI_ENVIRONMENT`, `EFI_PIX_KEY`, certificado em `EFI_CERT_PATH` ou `EFI_CERT_BASE64`, `EFI_WEBHOOK_SECRET` e `EFI_WEBHOOK_URL`.
+2. No painel da EFI, cadastre o webhook apontando para:
+
+```text
+https://seudominio.com/api/webhooks/efi
+```
+
+3. O checkout principal chama:
+
+```text
+POST /api/pagamentos/efi/criar-pix
+POST /api/pagamentos/efi/criar-cartao
+POST /api/pagamentos/efi/criar-boleto
+GET /api/pagamentos/efi/status/:paymentId
+```
+
+4. Cartao deve usar token seguro EFI. Numero, CVV e validade nao devem ser enviados ao backend.
+5. A assinatura so e liberada pelo webhook EFI validado, apos consulta do pagamento e validacao de plano/valor.
+
+## Mercado Pago Legado/Fallback
 1. Configure as variaveis `MERCADO_PAGO_PUBLIC_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` e `MERCADO_PAGO_NOTIFICATION_URL`. Em producao, `MERCADO_PAGO_WEBHOOK_SECRET` e obrigatorio; se estiver ausente, o webhook retorna 503 e nao processa o pagamento.
 2. No painel do Mercado Pago, cadastre o webhook de pagamentos apontando para:
 
@@ -171,17 +205,12 @@ Fluxo de teste:
 4. Acessar rota protegida e verificar HTTP `402`.
 5. Abrir `http://localhost:3002/checkout/`.
 6. Criar assinatura pela tela.
-7. Gerar Pix personalizado ou pagar cartao/boleto pelo Payment Brick.
+7. Gerar Pix EFI, boleto EFI ou pagar cartao com token seguro EFI.
 8. Confirmar que a assinatura ficou `ativo` e `bloqueado = false`.
 
-`/checkout/` usa Mercado Pago como unico gateway. Pix e criado pelo backend em
-`/api/pagamentos/mercado-pago/criar-pix` e exibido na tela do FluxMEI; cartao e
-boleto seguem pelo Payment Brick. O frontend recebe apenas
-`MERCADO_PAGO_PUBLIC_KEY`; o backend usa `MERCADO_PAGO_ACCESS_TOKEN` para criar
-pagamentos em `/v1/payments`. A assinatura deve ser liberada pelo webhook em
-producao. Em ambiente local, sem URL publica de webhook, a resposta do pagamento
-pode aparecer aprovada enquanto a assinatura permanece pendente ate a notificacao
-ser recebida ou a sincronizacao ser feita manualmente.
+`/checkout/` usa EFI Bank como gateway principal. Mercado Pago permanece no backend
+para fallback/legado e nao e chamado pela tela principal. A assinatura deve ser
+liberada pelo webhook validado do provider em producao.
 
 O fluxo antigo Mercado Pago Checkout Pro foi mantido apenas como historico no
 codigo e nao deve ser usado. `POST /api/pagamentos/mercado-pago/criar-checkout`

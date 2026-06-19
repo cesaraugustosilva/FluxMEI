@@ -3,19 +3,24 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
 import { PLANOS, assinaturaService } from '../services/assinaturaService.js';
 import { asaasService } from '../services/asaasService.js';
+import { efiBankService } from '../services/efiBankService.js';
 import { mercadoPagoService } from '../services/mercadoPagoService.js';
 import {
   PAYMENT_PLANS,
   buildAsaasPaymentAttempt,
+  buildEfiBankPaymentAttempt,
+  buildEfiBankProviderRaw,
+  buildEfiBankSubscriptionUpdates,
   buildPendingPaymentAttemptUpdates,
   buildMercadoPagoPaymentAttempt,
   buildMercadoPagoProviderRaw,
   buildAsaasSubscriptionUpdates,
   buildMercadoPagoSubscriptionUpdates,
+  getRecentEfiBankPendingAttempt,
   getRecentMercadoPagoPendingAttempt,
   isAsaasPendingStatus
 } from '../services/paymentStatusRules.js';
-import { logWebhookEvent, validateAsaasWebhook, validateMercadoPagoWebhook } from '../services/webhookSecurityService.js';
+import { logWebhookEvent, validateAsaasWebhook, validateEfiWebhook, validateMercadoPagoWebhook } from '../services/webhookSecurityService.js';
 import { sanitizeText } from '../utils/validation.js';
 
 function validatePlanId(value, fallback = null) {
@@ -349,6 +354,33 @@ async function registerPixPaymentAttempt(assinatura, plan, payment, options = {}
   return registerBrickPaymentAttempt(assinatura, plan, payment, options);
 }
 
+async function registerEfiPaymentAttempt(assinatura, plan, payment, { idempotencyKey = null, method = null, qrcode = null } = {}) {
+  const attempt = buildEfiBankPaymentAttempt({
+    plan,
+    payment,
+    idempotencyKey,
+    method
+  });
+
+  const paymentId = payment?.id || payment?.txid || payment?.charge_id ? String(payment.id || payment.txid || payment.charge_id) : null;
+  const updates = buildPendingPaymentAttemptUpdates({
+    assinatura,
+    providerUpdates: {
+      plano: plan.id,
+      valor: plan.value,
+      tipo_cobranca: plan.tipo_cobranca,
+      payment_provider: 'efi',
+      provider_payment_id: paymentId,
+      provider_status: payment?.status || 'created',
+      provider_raw: buildEfiBankProviderRaw({ payment: payment || null, attempt, qrcode }),
+      checkout_url: payment?.link || payment?.payment_url || payment?.billet_link || null,
+      renovacao_automatica: false
+    }
+  });
+
+  return updateAssinaturaById(assinatura.id, updates);
+}
+
 function normalizeAsaasPixData(qrCode) {
   if (!qrCode) return null;
   const payload = qrCode.payload || qrCode.qr_code || null;
@@ -442,6 +474,7 @@ function paymentResponsePayload(payment, fallbackPaymentMethodId = null) {
 const PENDING_PAYMENT_MESSAGE = 'Você já possui um pagamento pendente. Conclua ou aguarde a expiração antes de gerar outro.';
 const PROCESSING_PAYMENT_MESSAGE = 'Já existe uma tentativa de pagamento em processamento. Aguarde alguns instantes e tente novamente.';
 const MERCADO_PAGO_LOCK_TTL_SECONDS = 120;
+const EFI_BANK_LOCK_TTL_SECONDS = 120;
 
 function pendingPixResponsePayload(pendingAttempt) {
   const payment = pendingAttempt?.payment || null;
@@ -474,12 +507,79 @@ function assertNoRecentPendingMercadoPagoAttempt(assinatura, plan, { allowReusab
   throw new AppError(PENDING_PAYMENT_MESSAGE, 409);
 }
 
-async function acquireMercadoPagoAttemptLock(userId, plan) {
+function efiPixResponsePayload(payment, qrcode = null) {
+  const qrCode = qrcode?.qrcode || qrcode?.qr_code || payment?.pix?.qr_code || payment?.qr_code || null;
+  const qrCodeBase64 = qrcode?.imagemQrcode || qrcode?.imagem_qrcode || qrcode?.qr_code_base64 || payment?.qr_code_base64 || null;
+
+  return {
+    payment_id: payment?.id || payment?.txid || payment?.charge_id ? String(payment.id || payment.txid || payment.charge_id) : null,
+    payment_status: payment?.status || null,
+    status: payment?.status || null,
+    payment_method_id: 'pix',
+    payment_type_id: 'pix',
+    pix: {
+      qr_code: qrCode,
+      qr_code_base64: qrCodeBase64
+    },
+    qr_code: qrCode,
+    qr_code_base64: qrCodeBase64,
+    ticket_url: qrcode?.linkVisualizacao || qrcode?.ticket_url || null
+  };
+}
+
+function efiPaymentResponsePayload(payment, fallbackPaymentMethodId = null, qrcode = null) {
+  if ((payment?.payment_method_id || fallbackPaymentMethodId) === 'pix') {
+    return efiPixResponsePayload(payment, qrcode);
+  }
+
+  return {
+    payment_id: payment?.id || payment?.charge_id || payment?.txid ? String(payment.id || payment.charge_id || payment.txid) : null,
+    payment_status: payment?.status || null,
+    status: payment?.status || null,
+    payment_method_id: payment?.payment_method_id || fallbackPaymentMethodId,
+    payment_type_id: payment?.method || fallbackPaymentMethodId,
+    invoice_url: payment?.link || payment?.payment_url || payment?.billet_link || null,
+    bank_slip_url: payment?.billet_link || payment?.pdf?.charge || payment?.link || null,
+    digitable_line: payment?.barcode || payment?.linha_digitavel || payment?.payment?.banking_billet?.barcode || null,
+    due_date: payment?.expire_at || payment?.payment?.banking_billet?.expire_at || null
+  };
+}
+
+function pendingEfiPixResponsePayload(pendingAttempt) {
+  const payment = pendingAttempt?.payment || null;
+  const qrcode = pendingAttempt?.qrcode || null;
+  if (!payment) return null;
+  const payload = efiPixResponsePayload(payment, qrcode);
+  if (!payload.qr_code) return null;
+
+  return {
+    success: true,
+    reused: true,
+    provider: 'efi',
+    ...payload,
+    expires_at: pendingAttempt.expires_at,
+    message: 'Pix pendente encontrado. Utilize o pagamento ja gerado.'
+  };
+}
+
+function assertNoRecentPendingEfiAttempt(assinatura, plan, { allowReusablePix = false } = {}) {
+  const pendingAttempt = getRecentEfiBankPendingAttempt(assinatura, plan);
+  if (!pendingAttempt) return null;
+
+  if (allowReusablePix) {
+    const reusablePix = pendingEfiPixResponsePayload(pendingAttempt);
+    if (reusablePix) return reusablePix;
+  }
+
+  throw new AppError(PENDING_PAYMENT_MESSAGE, 409);
+}
+
+async function acquirePaymentAttemptLock(userId, provider, plan, ttlSeconds) {
   const { data, error } = await supabaseAdmin.rpc('acquire_payment_attempt_lock', {
     p_user_id: userId,
-    p_provider: 'mercado_pago',
+    p_provider: provider,
     p_plano: plan.id,
-    p_ttl_seconds: MERCADO_PAGO_LOCK_TTL_SECONDS
+    p_ttl_seconds: ttlSeconds
   });
 
   if (error) throw new AppError('Erro ao reservar tentativa de pagamento.', 500, error.message);
@@ -492,7 +592,7 @@ async function acquireMercadoPagoAttemptLock(userId, plan) {
   };
 }
 
-async function releaseMercadoPagoAttemptLock(lockId) {
+async function releasePaymentAttemptLock(lockId, provider = 'pagamento') {
   if (!lockId) return;
 
   const { error } = await supabaseAdmin.rpc('release_payment_attempt_lock', {
@@ -500,11 +600,19 @@ async function releaseMercadoPagoAttemptLock(lockId) {
   });
 
   if (error) {
-    console.warn('[pagamento:mercado-pago] falha ao liberar trava de tentativa', {
+    console.warn(`[pagamento:${provider}] falha ao liberar trava de tentativa`, {
       lock_id: lockId,
       error: error.message
     });
   }
+}
+
+async function acquireMercadoPagoAttemptLock(userId, plan) {
+  return acquirePaymentAttemptLock(userId, 'mercado_pago', plan, MERCADO_PAGO_LOCK_TTL_SECONDS);
+}
+
+async function releaseMercadoPagoAttemptLock(lockId) {
+  return releasePaymentAttemptLock(lockId, 'mercado-pago');
 }
 
 async function handleMercadoPagoLockDenied(userId, plan, { allowReusablePix = false } = {}) {
@@ -522,6 +630,32 @@ async function revalidateMercadoPagoAttemptAfterLock(userId, plan, { allowReusab
   if (!assinatura) throw new AppError('Assinatura nao encontrada para este usuario.', 404);
 
   const reusablePix = assertNoRecentPendingMercadoPagoAttempt(assinatura, plan, { allowReusablePix });
+  return { assinatura, reusablePix };
+}
+
+async function acquireEfiAttemptLock(userId, plan) {
+  return acquirePaymentAttemptLock(userId, 'efi', plan, EFI_BANK_LOCK_TTL_SECONDS);
+}
+
+async function releaseEfiAttemptLock(lockId) {
+  return releasePaymentAttemptLock(lockId, 'efi');
+}
+
+async function handleEfiLockDenied(userId, plan, { allowReusablePix = false } = {}) {
+  const assinatura = await getLatestSubscription(userId);
+  if (assinatura) {
+    const reusablePix = assertNoRecentPendingEfiAttempt(assinatura, plan, { allowReusablePix });
+    if (reusablePix) return reusablePix;
+  }
+
+  throw new AppError(PROCESSING_PAYMENT_MESSAGE, 409);
+}
+
+async function revalidateEfiAttemptAfterLock(userId, plan, { allowReusablePix = false } = {}) {
+  const assinatura = await getLatestSubscription(userId);
+  if (!assinatura) throw new AppError('Assinatura nao encontrada para este usuario.', 404);
+
+  const reusablePix = assertNoRecentPendingEfiAttempt(assinatura, plan, { allowReusablePix });
   return { assinatura, reusablePix };
 }
 
@@ -702,6 +836,189 @@ export async function criarPixMercadoPago(req, res) {
   }
 }
 
+export async function criarPixEfi(req, res) {
+  const { plano, plan } = validatePlanId(req.body?.plano);
+  if (!req.user?.email) throw new AppError('Usuario autenticado sem e-mail cadastrado.', 400);
+
+  const profile = await getProfile(req.user.id);
+  const assinatura = await ensureUserSubscription(req.user.id, plano);
+  const reusablePix = assertNoRecentPendingEfiAttempt(assinatura, plan, { allowReusablePix: true });
+  if (reusablePix) {
+    res.status(200).json(reusablePix);
+    return;
+  }
+
+  let attemptLock = null;
+  let paymentCreated = false;
+  let shouldReleaseLock = false;
+
+  try {
+    attemptLock = await acquireEfiAttemptLock(req.user.id, plan);
+    if (!attemptLock.acquired) {
+      const lockedPix = await handleEfiLockDenied(req.user.id, plan, { allowReusablePix: true });
+      if (lockedPix) {
+        res.status(200).json(lockedPix);
+        return;
+      }
+    }
+    shouldReleaseLock = true;
+
+    const { assinatura: lockedAssinatura, reusablePix: lockedReusablePix } = await revalidateEfiAttemptAfterLock(req.user.id, plan, { allowReusablePix: true });
+    if (lockedReusablePix) {
+      res.status(200).json(lockedReusablePix);
+      return;
+    }
+
+    const idempotencyKey = crypto.randomUUID();
+    const { payment, qrcode } = await efiBankService.criarPix({
+      plan,
+      user: req.user,
+      profile,
+      assinatura: lockedAssinatura,
+      idempotencyKey
+    });
+    paymentCreated = true;
+    shouldReleaseLock = false;
+
+    await registerEfiPaymentAttempt(lockedAssinatura, plan, payment, {
+      idempotencyKey,
+      method: 'pix',
+      qrcode
+    });
+    shouldReleaseLock = true;
+
+    res.status(201).json({
+      success: true,
+      provider: 'efi',
+      ...efiPaymentResponsePayload(payment, 'pix', qrcode),
+      message: 'Pix gerado com sucesso'
+    });
+  } catch (error) {
+    if (attemptLock?.acquired && attemptLock.lockId && !paymentCreated) {
+      await releaseEfiAttemptLock(attemptLock.lockId);
+      shouldReleaseLock = false;
+    }
+    throw error;
+  } finally {
+    if (attemptLock?.acquired && attemptLock.lockId && shouldReleaseLock) {
+      await releaseEfiAttemptLock(attemptLock.lockId);
+    }
+  }
+}
+
+export async function criarCartaoEfi(req, res) {
+  const { plano, plan } = validatePlanId(req.body?.plano);
+  if (!req.user?.email) throw new AppError('Usuario autenticado sem e-mail cadastrado.', 400);
+
+  const profile = await getProfile(req.user.id);
+  const assinatura = await ensureUserSubscription(req.user.id, plano);
+  assertNoRecentPendingEfiAttempt(assinatura, plan);
+
+  let attemptLock = null;
+  let paymentCreated = false;
+  let shouldReleaseLock = false;
+
+  try {
+    attemptLock = await acquireEfiAttemptLock(req.user.id, plan);
+    if (!attemptLock.acquired) {
+      await handleEfiLockDenied(req.user.id, plan);
+    }
+    shouldReleaseLock = true;
+
+    const { assinatura: lockedAssinatura } = await revalidateEfiAttemptAfterLock(req.user.id, plan);
+    const idempotencyKey = crypto.randomUUID();
+    const payment = await efiBankService.criarCartao({
+      plan,
+      user: req.user,
+      profile,
+      assinatura: lockedAssinatura,
+      card: req.body?.payment || req.body?.card || {},
+      idempotencyKey
+    });
+    paymentCreated = true;
+    shouldReleaseLock = false;
+
+    await registerEfiPaymentAttempt(lockedAssinatura, plan, payment, {
+      idempotencyKey,
+      method: 'cartao'
+    });
+    shouldReleaseLock = true;
+
+    res.status(201).json({
+      success: true,
+      provider: 'efi',
+      ...efiPaymentResponsePayload(payment, 'cartao'),
+      message: 'Pagamento enviado a EFI Bank'
+    });
+  } catch (error) {
+    if (attemptLock?.acquired && attemptLock.lockId && !paymentCreated) {
+      await releaseEfiAttemptLock(attemptLock.lockId);
+      shouldReleaseLock = false;
+    }
+    throw error;
+  } finally {
+    if (attemptLock?.acquired && attemptLock.lockId && shouldReleaseLock) {
+      await releaseEfiAttemptLock(attemptLock.lockId);
+    }
+  }
+}
+
+export async function criarBoletoEfi(req, res) {
+  const { plano, plan } = validatePlanId(req.body?.plano);
+  if (!req.user?.email) throw new AppError('Usuario autenticado sem e-mail cadastrado.', 400);
+
+  const profile = await getProfile(req.user.id);
+  const assinatura = await ensureUserSubscription(req.user.id, plano);
+  assertNoRecentPendingEfiAttempt(assinatura, plan);
+
+  let attemptLock = null;
+  let paymentCreated = false;
+  let shouldReleaseLock = false;
+
+  try {
+    attemptLock = await acquireEfiAttemptLock(req.user.id, plan);
+    if (!attemptLock.acquired) {
+      await handleEfiLockDenied(req.user.id, plan);
+    }
+    shouldReleaseLock = true;
+
+    const { assinatura: lockedAssinatura } = await revalidateEfiAttemptAfterLock(req.user.id, plan);
+    const idempotencyKey = crypto.randomUUID();
+    const payment = await efiBankService.criarBoleto({
+      plan,
+      user: req.user,
+      profile,
+      assinatura: lockedAssinatura,
+      idempotencyKey
+    });
+    paymentCreated = true;
+    shouldReleaseLock = false;
+
+    await registerEfiPaymentAttempt(lockedAssinatura, plan, payment, {
+      idempotencyKey,
+      method: 'boleto'
+    });
+    shouldReleaseLock = true;
+
+    res.status(201).json({
+      success: true,
+      provider: 'efi',
+      ...efiPaymentResponsePayload(payment, 'boleto'),
+      message: 'Boleto gerado com sucesso'
+    });
+  } catch (error) {
+    if (attemptLock?.acquired && attemptLock.lockId && !paymentCreated) {
+      await releaseEfiAttemptLock(attemptLock.lockId);
+      shouldReleaseLock = false;
+    }
+    throw error;
+  } finally {
+    if (attemptLock?.acquired && attemptLock.lockId && shouldReleaseLock) {
+      await releaseEfiAttemptLock(attemptLock.lockId);
+    }
+  }
+}
+
 export async function criarCobrancaAsaas(req, res) {
   const { plano, plan } = validatePlanId(req.body?.plano, 'pro_mensal');
 
@@ -809,6 +1126,21 @@ async function aplicarPagamentoNaAssinatura(payment, assinatura) {
   return data;
 }
 
+async function aplicarPagamentoEfiNaAssinatura(payment, assinatura) {
+  const updates = buildEfiBankSubscriptionUpdates(payment, assinatura);
+  if (updates.already_processed || updates.ignored) {
+    return {
+      ...assinatura,
+      payment_provider: updates.payment_provider,
+      already_processed: Boolean(updates.already_processed),
+      ignored: Boolean(updates.ignored),
+      outcome: updates.outcome
+    };
+  }
+
+  return updateAssinaturaById(assinatura.id, updates);
+}
+
 export async function sincronizarRetornoMercadoPago(req, res) {
   const paymentId = validatePaymentId(req.query.payment_id || req.query.collection_id || req.body?.payment_id || req.body?.collection_id);
 
@@ -866,6 +1198,25 @@ export async function statusPagamentoAsaas(req, res) {
     ...asaasPaymentResponsePayload(payment, pixQrCode),
     assinatura,
     message: 'Status consultado. A assinatura sera alterada somente apos webhook valido do Asaas.'
+  });
+}
+
+export async function statusPagamentoEfi(req, res) {
+  const paymentId = validatePaymentId(req.params.paymentId);
+
+  const payment = await efiBankService.consultarPagamento(paymentId);
+  const assinatura = await findSubscriptionByProviderPayment('efi', payment.id || payment.txid || payment.charge_id || paymentId);
+
+  if (!assinatura || assinatura.user_id !== req.user.id) {
+    throw new AppError('Pagamento nao encontrado para este usuario.', 404);
+  }
+
+  res.json({
+    success: true,
+    provider: 'efi',
+    ...efiPaymentResponsePayload(payment, payment.payment_method_id || payment.method),
+    assinatura,
+    message: 'Status consultado. A assinatura sera alterada somente apos webhook valido da EFI Bank.'
   });
 }
 
@@ -952,6 +1303,62 @@ export async function webhookMercadoPago(req, res) {
     outcome: updatedAssinatura.outcome || (updatedAssinatura.already_processed ? 'duplicate_ignored' : 'applied')
   });
   res.json({ received: true });
+}
+
+function getEfiWebhookPaymentId(req) {
+  return req.body?.txid
+    || req.body?.pix?.[0]?.txid
+    || req.body?.data?.txid
+    || req.body?.data?.id
+    || req.body?.charge_id
+    || req.body?.chargeId
+    || req.body?.id
+    || req.query?.txid
+    || req.query?.id
+    || null;
+}
+
+export async function webhookEfi(req, res) {
+  validateEfiWebhook(req);
+
+  const paymentId = getEfiWebhookPaymentId(req);
+  const event = req.body?.evento || req.body?.event || req.body?.type || (req.body?.pix ? 'pix' : 'payment');
+  if (!paymentId) {
+    logWebhookEvent({ provider: 'efi', event, outcome: 'ignored' });
+    return res.json({ received: true, ignored: true });
+  }
+
+  const payment = await efiBankService.consultarPagamento(paymentId);
+  logWebhookEvent({ provider: 'efi', event, paymentId, status: payment?.status, outcome: 'processing' });
+
+  let assinatura = await findSubscriptionByProviderPayment('efi', payment.id || payment.txid || payment.charge_id || paymentId);
+  if (!assinatura) {
+    const assinaturaId = payment?.metadata?.assinatura_id || payment?.fluxmei_metadata?.assinatura_id || payment?.custom_id?.split?.(':')?.[1];
+    if (assinaturaId) {
+      const { data, error } = await supabaseAdmin
+        .from('assinaturas')
+        .select('*')
+        .eq('id', assinaturaId)
+        .maybeSingle();
+      if (error) throw new AppError('Erro ao buscar assinatura EFI.', 500, error.message);
+      assinatura = data || null;
+    }
+  }
+
+  if (!assinatura) {
+    logWebhookEvent({ provider: 'efi', event, paymentId, status: payment?.status, outcome: 'ignored_no_subscription' });
+    return res.json({ received: true, ignored: true });
+  }
+
+  const updatedAssinatura = await aplicarPagamentoEfiNaAssinatura(payment, assinatura);
+  logWebhookEvent({
+    provider: 'efi',
+    event,
+    paymentId,
+    status: payment?.status,
+    outcome: updatedAssinatura.outcome || (updatedAssinatura.already_processed ? 'duplicate_ignored' : 'applied')
+  });
+  res.json({ received: true, event });
 }
 
 export async function webhookAsaas(req, res) {

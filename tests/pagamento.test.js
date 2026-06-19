@@ -3,8 +3,12 @@ import assert from 'node:assert/strict';
 import {
   buildPendingPaymentAttemptUpdates,
   buildAsaasSubscriptionUpdates,
+  buildEfiBankProviderRaw,
+  buildEfiBankSubscriptionUpdates,
   buildMercadoPagoSubscriptionUpdates,
-  getRecentMercadoPagoPendingAttempt
+  getRecentEfiBankPendingAttempt,
+  getRecentMercadoPagoPendingAttempt,
+  sanitizeEfiProviderRaw
 } from '../backend/src/services/paymentStatusRules.js';
 
 const baseDate = new Date('2026-06-12T00:00:00Z');
@@ -43,6 +47,46 @@ function assinaturaMercadoPagoAttempt({ currentPlan = 'pro_mensal', originalPlan
         id: paymentId,
         transaction_amount: amount,
         metadata: {
+          plano: originalPlan
+        }
+      }
+    }
+  };
+}
+
+function assinaturaEfiAttempt({ currentPlan = 'pro_mensal', originalPlan = 'pro_mensal', paymentId = 'fx123', amount = 49.9, status = 'ATIVA' } = {}) {
+  return {
+    ...assinatura,
+    user_id: 'user-1',
+    plano: currentPlan,
+    valor: currentPlan === 'pro_anual' ? 478.8 : 49.9,
+    tipo_cobranca: currentPlan === 'pro_anual' ? 'anual' : 'mensal',
+    payment_provider: 'efi',
+    provider_payment_id: paymentId,
+    provider_status: status,
+    provider_raw: {
+      attempt: {
+        plano_original: originalPlan,
+        valor_original: amount,
+        tipo_cobranca_original: originalPlan === 'pro_anual' ? 'anual' : 'mensal',
+        payment_id: paymentId,
+        payment_method_id: 'pix',
+        created_at: '2026-06-12T00:00:00Z',
+        metadata: {
+          user_id: 'user-1',
+          assinatura_id: 'sub-1',
+          plano: originalPlan
+        }
+      },
+      payment: {
+        id: paymentId,
+        txid: paymentId,
+        status,
+        amount,
+        payment_method_id: 'pix',
+        metadata: {
+          user_id: 'user-1',
+          assinatura_id: 'sub-1',
           plano: originalPlan
         }
       }
@@ -231,6 +275,145 @@ test('webhook valido Mercado Pago com pagamento aprovado ativa assinatura', () =
   assert.equal(updates.data_vencimento, '2026-07-12');
 });
 
+test('webhook valido EFI com pagamento aprovado ativa assinatura', () => {
+  const updates = buildEfiBankSubscriptionUpdates({
+    id: 'fx123',
+    txid: 'fx123',
+    status: 'CONCLUIDA',
+    amount: 49.9,
+    payment_method_id: 'pix',
+    metadata: {
+      user_id: 'user-1',
+      assinatura_id: 'sub-1',
+      plano: 'pro_mensal'
+    }
+  }, assinaturaEfiAttempt(), baseDate);
+
+  assert.equal(updates.status, 'ativo');
+  assert.equal(updates.bloqueado, false);
+  assert.equal(updates.payment_provider, 'efi');
+  assert.equal(updates.provider_payment_id, 'fx123');
+  assert.equal(updates.plano, 'pro_mensal');
+  assert.equal(updates.valor, 49.9);
+  assert.equal(updates.tipo_cobranca, 'mensal');
+  assert.equal(updates.data_vencimento, '2026-07-12');
+});
+
+test('provider_raw EFI sanitiza token e preserva attempt necessario', () => {
+  const raw = buildEfiBankProviderRaw({
+    attempt: {
+      plano_original: 'pro_mensal',
+      valor_original: 49.9,
+      tipo_cobranca_original: 'mensal',
+      payment_id: 'fx123',
+      payment_method_id: 'pix',
+      idempotency_key: 'idem-1',
+      created_at: '2026-06-12T00:00:00Z',
+      metadata: {
+        user_id: 'user-1',
+        assinatura_id: 'sub-1',
+        plano: 'pro_mensal',
+        access_token: 'secret-token'
+      }
+    },
+    payment: {
+      id: 'fx123',
+      txid: 'fx123',
+      status: 'ATIVA',
+      amount: 49.9,
+      payment_method_id: 'pix',
+      access_token: 'secret-token',
+      client_secret: 'client-secret',
+      chave: 'pix-key',
+      metadata: {
+        user_id: 'user-1',
+        assinatura_id: 'sub-1',
+        plano: 'pro_mensal',
+        email: 'cliente@example.com'
+      }
+    },
+    qrcode: {
+      qrcode: '000201-secret-pix-code',
+      imagemQrcode: 'base64-secret-image'
+    }
+  });
+
+  const serialized = JSON.stringify(raw);
+
+  assert.equal(raw.provider, 'efi');
+  assert.equal(raw.attempt.plano_original, 'pro_mensal');
+  assert.equal(raw.attempt.valor_original, 49.9);
+  assert.equal(raw.attempt.payment_id, 'fx123');
+  assert.equal(raw.attempt.idempotency_key, 'idem-1');
+  assert.equal(raw.payment.payment_id, 'fx123');
+  assert.equal(raw.payment.status, 'ATIVA');
+  assert.equal(raw.payment.valor, 49.9);
+  assert.equal(raw.payment.metadata.plano, 'pro_mensal');
+  assert.equal(raw.qrcode.has_qrcode, true);
+  assert.doesNotMatch(serialized, /secret-token|client-secret|pix-key|000201-secret-pix-code|base64-secret-image|cliente@example.com/);
+});
+
+test('provider_raw EFI sanitiza dados sensiveis de cartao', () => {
+  const raw = sanitizeEfiProviderRaw({
+    payment: {
+      id: 'card-1',
+      charge_id: 'card-1',
+      status: 'paid',
+      amount: 49.9,
+      payment_method_id: 'cartao',
+      payment_token: 'card-token',
+      card: {
+        number: '4111111111111111',
+        cvv: '123',
+        holder: 'Cliente Teste'
+      },
+      payment: {
+        credit_card: {
+          number: '4111111111111111',
+          cvv: '123'
+        }
+      },
+      metadata: {
+        user_id: 'user-1',
+        assinatura_id: 'sub-1',
+        plano: 'pro_mensal'
+      }
+    }
+  });
+
+  const serialized = JSON.stringify(raw);
+
+  assert.equal(raw.payment.payment_id, 'card-1');
+  assert.equal(raw.payment.charge_id, 'card-1');
+  assert.equal(raw.payment.payment_method, 'cartao');
+  assert.equal(raw.payment.valor, 49.9);
+  assert.doesNotMatch(serialized, /card-token|4111111111111111|123|Cliente Teste|credit_card|cvv|number|holder/);
+});
+
+test('provider_raw EFI ignorado preserva attempt sanitizado', () => {
+  const updates = buildEfiBankSubscriptionUpdates({
+    id: 'old-payment',
+    charge_id: 'old-payment',
+    status: 'paid',
+    amount: 49.9,
+    payment_method_id: 'cartao',
+    payment_token: 'token-antigo',
+    metadata: {
+      user_id: 'user-1',
+      assinatura_id: 'sub-1',
+      plano: 'pro_mensal'
+    }
+  }, assinaturaEfiAttempt({ paymentId: 'current-payment', status: 'waiting' }), baseDate);
+
+  const serialized = JSON.stringify(updates.provider_raw);
+
+  assert.equal(updates.ignored, true);
+  assert.equal(updates.provider_raw.attempt.payment_id, 'current-payment');
+  assert.equal(updates.provider_raw.attempt.plano_original, 'pro_mensal');
+  assert.equal(updates.provider_raw.payment.payment_id, 'old-payment');
+  assert.doesNotMatch(serialized, /token-antigo/);
+});
+
 test('pagamento pendente nao ativa assinatura', () => {
   const updates = buildAsaasSubscriptionUpdates({
     id: 'pay_pending',
@@ -249,6 +432,37 @@ test('pagamento pendente Mercado Pago nao ativa assinatura', () => {
   }, assinatura, baseDate);
 
   assert.equal(updates.status, 'pendente');
+  assert.equal(updates.bloqueado, true);
+  assert.equal(updates.data_vencimento, undefined);
+});
+
+test('pagamento pendente EFI nao ativa assinatura', () => {
+  const updates = buildEfiBankSubscriptionUpdates({
+    id: 'fx123',
+    txid: 'fx123',
+    status: 'ATIVA'
+  }, assinatura, baseDate);
+
+  assert.equal(updates.status, 'pendente');
+  assert.equal(updates.bloqueado, true);
+  assert.equal(updates.data_vencimento, undefined);
+});
+
+test('cartao EFI recusado nao ativa assinatura', () => {
+  const updates = buildEfiBankSubscriptionUpdates({
+    id: 'card-1',
+    charge_id: 'card-1',
+    status: 'rejected',
+    amount: 49.9,
+    payment_method_id: 'cartao',
+    metadata: {
+      user_id: 'user-1',
+      assinatura_id: 'sub-1',
+      plano: 'pro_mensal'
+    }
+  }, assinaturaEfiAttempt({ paymentId: 'card-1', status: 'waiting' }), baseDate);
+
+  assert.equal(updates.status, 'cancelado');
   assert.equal(updates.bloqueado, true);
   assert.equal(updates.data_vencimento, undefined);
 });
@@ -403,6 +617,19 @@ test('Pix pendente recente e detectado para impedir nova tentativa conflitante',
   assert.equal(pending.method, 'pix');
 });
 
+test('Pix EFI pendente recente e detectado para impedir nova tentativa conflitante', () => {
+  const pending = getRecentEfiBankPendingAttempt(assinaturaEfiAttempt({
+    paymentId: 'fxpending12345678901234567890',
+    status: 'ATIVA'
+  }), { id: 'pro_mensal' }, {
+    baseDate: new Date('2026-06-12T00:30:00Z')
+  });
+
+  assert.equal(pending.payment_id, 'fxpending12345678901234567890');
+  assert.equal(pending.plan_id, 'pro_mensal');
+  assert.equal(pending.method, 'pix');
+});
+
 test('Pix pendente expirado permite nova tentativa', () => {
   const pending = getRecentMercadoPagoPendingAttempt(assinaturaPendenteMercadoPago({
     paymentId: 'pix-expired',
@@ -410,6 +637,32 @@ test('Pix pendente expirado permite nova tentativa', () => {
     createdAt: '2026-06-12T00:00:00Z',
     expirationDate: '2026-06-12T00:20:00Z'
   }), { id: 'pro_mensal' }, {
+    baseDate: new Date('2026-06-12T00:30:00Z')
+  });
+
+  assert.equal(pending, null);
+});
+
+test('Pix EFI expirado permite nova tentativa', () => {
+  const pending = getRecentEfiBankPendingAttempt({
+    ...assinaturaEfiAttempt({
+      paymentId: 'fxexpired12345678901234567890',
+      status: 'ATIVA'
+    }),
+    provider_raw: {
+      ...assinaturaEfiAttempt({
+        paymentId: 'fxexpired12345678901234567890',
+        status: 'ATIVA'
+      }).provider_raw,
+      payment: {
+        ...assinaturaEfiAttempt({
+          paymentId: 'fxexpired12345678901234567890',
+          status: 'ATIVA'
+        }).provider_raw.payment,
+        expires_at: '2026-06-12T00:20:00Z'
+      }
+    }
+  }, { id: 'pro_mensal' }, {
     baseDate: new Date('2026-06-12T00:30:00Z')
   });
 
@@ -793,6 +1046,88 @@ test('webhook duplicado Mercado Pago aprovado nao avanca vencimento de novo', ()
   assert.equal(updates.outcome, 'duplicate_ignored');
   assert.equal(updates.status, undefined);
   assert.equal(updates.data_vencimento, undefined);
+});
+
+test('webhook duplicado EFI aprovado nao avanca vencimento de novo', () => {
+  const updates = buildEfiBankSubscriptionUpdates({
+    id: 'fx123',
+    txid: 'fx123',
+    status: 'CONCLUIDA'
+  }, {
+    ...assinatura,
+    status: 'ativo',
+    bloqueado: false,
+    payment_provider: 'efi',
+    provider_payment_id: 'fx123',
+    provider_status: 'CONCLUIDA',
+    data_vencimento: '2026-07-12'
+  }, new Date('2026-06-20T00:00:00Z'));
+
+  assert.equal(updates.provider_payment_id, 'fx123');
+  assert.equal(updates.provider_status, 'CONCLUIDA');
+  assert.equal(updates.already_processed, true);
+  assert.equal(updates.outcome, 'duplicate_ignored');
+  assert.equal(updates.status, undefined);
+  assert.equal(updates.data_vencimento, undefined);
+});
+
+test('valor pago diferente do valor original nao ativa assinatura EFI', () => {
+  const updates = buildEfiBankSubscriptionUpdates({
+    id: 'fx123',
+    txid: 'fx123',
+    status: 'CONCLUIDA',
+    amount: 1,
+    metadata: {
+      user_id: 'user-1',
+      assinatura_id: 'sub-1',
+      plano: 'pro_mensal'
+    }
+  }, assinaturaEfiAttempt(), baseDate);
+
+  assert.equal(updates.ignored, true);
+  assert.equal(updates.outcome, 'ignored_amount_mismatch');
+  assert.equal(updates.status, undefined);
+});
+
+test('plano do pagamento diferente do plano original nao ativa assinatura EFI', () => {
+  const updates = buildEfiBankSubscriptionUpdates({
+    id: 'fx123',
+    txid: 'fx123',
+    status: 'CONCLUIDA',
+    amount: 49.9,
+    metadata: {
+      user_id: 'user-1',
+      assinatura_id: 'sub-1',
+      plano: 'pro_anual'
+    }
+  }, assinaturaEfiAttempt(), baseDate);
+
+  assert.equal(updates.ignored, true);
+  assert.equal(updates.outcome, 'ignored_plan_mismatch');
+  assert.equal(updates.status, undefined);
+});
+
+test('pagamento antigo EFI nao libera plano errado', () => {
+  const updates = buildEfiBankSubscriptionUpdates({
+    id: 'fxold',
+    txid: 'fxold',
+    status: 'CONCLUIDA',
+    amount: 478.8,
+    metadata: {
+      user_id: 'user-1',
+      assinatura_id: 'sub-1',
+      plano: 'pro_anual'
+    }
+  }, assinaturaEfiAttempt({
+    currentPlan: 'pro_mensal',
+    originalPlan: 'pro_mensal',
+    paymentId: 'fxcurrent',
+    amount: 49.9
+  }), baseDate);
+
+  assert.equal(updates.ignored, true);
+  assert.equal(updates.outcome, 'ignored_not_current_attempt');
+  assert.equal(updates.status, undefined);
 });
 
 test('pagamento recorrente vencido bloqueia assinatura', () => {

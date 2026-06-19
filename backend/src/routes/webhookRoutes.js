@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { isAsaasEnabled } from '../config/features.js';
 import { asyncHandler } from '../middlewares/errorMiddleware.js';
-import { webhookAsaas, webhookMercadoPago } from '../controllers/pagamentoController.js';
+import { webhookAsaas, webhookEfi, webhookMercadoPago } from '../controllers/pagamentoController.js';
 
 const router = Router();
 
 router.post('/mercado-pago', asyncHandler(webhookMercadoPago));
+router.post('/efi', asyncHandler(webhookEfi));
 
 if (isAsaasEnabled()) {
   router.post('/asaas', asyncHandler(webhookAsaas));

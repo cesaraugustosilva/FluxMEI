@@ -99,6 +99,42 @@ export function validateAsaasWebhook(req) {
   return { validated: true };
 }
 
+export function validateEfiWebhook(req) {
+  const expectedSecret = process.env.EFI_WEBHOOK_SECRET;
+
+  if (!hasValue(expectedSecret)) {
+    if (isProduction()) {
+      console.error('[webhook:efi] configuracao insegura: EFI_WEBHOOK_SECRET ausente em producao.');
+      throw new AppError('Webhook EFI indisponivel por configuracao insegura.', 503);
+    }
+
+    warnMissingSecretOnce('efi', 'EFI_WEBHOOK_SECRET');
+    return { validated: false, reason: 'missing_secret_dev' };
+  }
+
+  const authorization = String(req.headers.authorization || '');
+  const bearerToken = authorization.toLowerCase().startsWith('bearer ')
+    ? authorization.slice(7)
+    : null;
+  const receivedSecret = req.headers['x-efi-webhook-secret']
+    || req.headers['efi-webhook-secret']
+    || req.headers['x-webhook-secret']
+    || bearerToken;
+
+  if (receivedSecret !== expectedSecret) {
+    logWebhookEvent({
+      provider: 'efi',
+      event: req.body?.evento || req.body?.event || req.body?.type || null,
+      paymentId: req.body?.txid || req.body?.charge_id || req.body?.id || null,
+      status: req.body?.status || null,
+      outcome: 'rejected_invalid_token'
+    });
+    throw new AppError('Webhook EFI nao autorizado.', 401);
+  }
+
+  return { validated: true };
+}
+
 export function logWebhookEvent({ provider, event = null, paymentId = null, subscriptionId = null, status = null, outcome = 'received' }) {
   console.info('[webhook:event]', {
     provider,
@@ -116,6 +152,10 @@ export function checkPaymentWebhookConfiguration() {
     || hasValue(process.env.MERCADO_PAGO_NOTIFICATION_URL);
   const asaasEnabled = hasValue(process.env.ASAAS_API_KEY)
     || hasValue(process.env.ASAAS_WEBHOOK_TOKEN);
+  const efiEnabled = hasValue(process.env.EFI_CLIENT_ID)
+    || hasValue(process.env.EFI_CLIENT_SECRET)
+    || hasValue(process.env.EFI_PIX_KEY)
+    || hasValue(process.env.EFI_WEBHOOK_SECRET);
 
   if (!isProduction()) {
     if (mercadoPagoEnabled && !hasValue(process.env.MERCADO_PAGO_WEBHOOK_SECRET)) {
@@ -123,6 +163,9 @@ export function checkPaymentWebhookConfiguration() {
     }
     if (asaasEnabled && !hasValue(process.env.ASAAS_WEBHOOK_TOKEN)) {
       warnMissingSecretOnce('asaas', 'ASAAS_WEBHOOK_TOKEN');
+    }
+    if (efiEnabled && !hasValue(process.env.EFI_WEBHOOK_SECRET)) {
+      warnMissingSecretOnce('efi', 'EFI_WEBHOOK_SECRET');
     }
     return;
   }
@@ -133,5 +176,9 @@ export function checkPaymentWebhookConfiguration() {
 
   if (asaasEnabled && !hasValue(process.env.ASAAS_WEBHOOK_TOKEN)) {
     console.error('[startup:webhooks] CRITICO: Asaas habilitado sem ASAAS_WEBHOOK_TOKEN. Webhook sera recusado em producao.');
+  }
+
+  if (efiEnabled && !hasValue(process.env.EFI_WEBHOOK_SECRET)) {
+    console.error('[startup:webhooks] CRITICO: EFI habilitado sem EFI_WEBHOOK_SECRET. Webhook sera recusado em producao.');
   }
 }

@@ -62,9 +62,10 @@ const PAYMENT_STATUS = {
 };
 
 let selectedPlan = FALLBACK_PLANS.pro_mensal;
-let paymentBrickController = null;
 let statusPoller = null;
 let currentPaymentId = null;
+let currentPaymentMethod = null;
+let currentBoletoPayment = null;
 let selectedPaymentMethod = 'pix';
 
 function normalizeApiUrl(url) {
@@ -184,6 +185,21 @@ function hidePixPanel() {
   document.getElementById('pixQrImage').removeAttribute('src');
   document.getElementById('pixCode').value = '';
   currentPaymentId = null;
+  if (currentPaymentMethod === 'pix') currentPaymentMethod = null;
+}
+
+function hideBoletoPanel() {
+  const panel = document.getElementById('boletoPanel');
+  panel.hidden = true;
+  document.getElementById('boletoLine').value = '';
+  const link = document.getElementById('boletoLink');
+  link.href = '#';
+  link.hidden = false;
+  const dueDate = document.getElementById('boletoDueDate');
+  if (dueDate) dueDate.textContent = '';
+  currentPaymentId = null;
+  currentBoletoPayment = null;
+  if (currentPaymentMethod === 'boleto') currentPaymentMethod = null;
 }
 
 function setGeneratePixLoading(isLoading) {
@@ -202,18 +218,40 @@ function isPixPayment(payment) {
     || Boolean(payment?.pix?.qr_code || payment?.pix?.qr_code_base64 || payment?.qr_code);
 }
 
+function isBoletoPayment(payment) {
+  const method = String(payment?.payment_method_id || payment?.method || '').toLowerCase();
+  const type = String(payment?.payment_type_id || '').toLowerCase();
+  return method === 'boleto'
+    || type === 'boleto'
+    || Boolean(payment?.bank_slip_url || payment?.invoice_url || payment?.digitable_line || payment?.linha_digitavel);
+}
+
+function normalizePaymentStatus(payment) {
+  return String(payment?.payment_status || payment?.status || '').trim().toLowerCase();
+}
+
+function isPendingPixStatus(payment) {
+  return ['ativa', 'active', 'pending', 'aguardando', 'authorized', 'awaiting_risk_analysis', 'waiting', 'new', 'processing', 'em_processamento'].includes(normalizePaymentStatus(payment));
+}
+
 function renderPixPanel(payment) {
   const pix = payment?.pix || payment || {};
-  const status = String(payment?.payment_status || payment?.status || '').toLowerCase();
   const qrCode = pix.qr_code || payment?.qr_code;
   const qrCodeBase64 = pix.qr_code_base64 || payment?.qr_code_base64;
 
-  if (!isPixPayment(payment) || status !== 'pending' || !qrCode) {
+  if (!isPixPayment(payment) || !isPendingPixStatus(payment)) {
     hidePixPanel();
-    return;
+    return false;
+  }
+
+  if (!qrCode) {
+    hidePixPanel();
+    showAlert('Pix gerado, mas nao recebemos o QR Code. Tente novamente em alguns instantes.');
+    return false;
   }
 
   currentPaymentId = payment.payment_id;
+  currentPaymentMethod = 'pix';
   const panel = document.getElementById('pixPanel');
   const image = document.getElementById('pixQrImage');
   const code = document.getElementById('pixCode');
@@ -230,6 +268,47 @@ function renderPixPanel(payment) {
 
   code.value = qrCode;
   panel.hidden = false;
+  return true;
+}
+
+function renderBoletoPanel(payment) {
+  const previousPayment = currentBoletoPayment || {};
+  const paymentId = payment?.payment_id || previousPayment.payment_id;
+  const link = payment?.bank_slip_url || payment?.invoice_url || previousPayment.bank_slip_url || previousPayment.invoice_url;
+  const line = payment?.digitable_line || payment?.linha_digitavel || previousPayment.digitable_line || previousPayment.linha_digitavel || '';
+  const dueDate = payment?.due_date || payment?.expires_at || previousPayment.due_date || previousPayment.expires_at || '';
+
+  if (!paymentId || (!link && !line)) {
+    hideBoletoPanel();
+    return false;
+  }
+
+  currentPaymentId = paymentId;
+  currentPaymentMethod = 'boleto';
+  currentBoletoPayment = {
+    ...previousPayment,
+    ...(payment || {}),
+    payment_id: paymentId,
+    invoice_url: payment?.invoice_url || previousPayment.invoice_url,
+    bank_slip_url: payment?.bank_slip_url || previousPayment.bank_slip_url,
+    digitable_line: payment?.digitable_line || previousPayment.digitable_line,
+    linha_digitavel: payment?.linha_digitavel || previousPayment.linha_digitavel,
+    due_date: payment?.due_date || previousPayment.due_date,
+    expires_at: payment?.expires_at || previousPayment.expires_at
+  };
+  const panel = document.getElementById('boletoPanel');
+  const linkElement = document.getElementById('boletoLink');
+  const lineElement = document.getElementById('boletoLine');
+  const dueDateElement = document.getElementById('boletoDueDate');
+
+  linkElement.href = link || '#';
+  linkElement.hidden = !link;
+  lineElement.value = line;
+  if (dueDateElement) {
+    dueDateElement.textContent = dueDate ? `Vencimento: ${dueDate}` : '';
+  }
+  panel.hidden = false;
+  return true;
 }
 
 function setBrickLoading(isLoading, message = 'Carregando meios de pagamento...') {
@@ -246,6 +325,16 @@ function setBrickVisible(isVisible) {
 
 function setPixGenerateVisible(isVisible) {
   const panel = document.getElementById('pixGeneratePanel');
+  if (panel) panel.hidden = !isVisible;
+}
+
+function setEfiCardVisible(isVisible) {
+  const panel = document.getElementById('efiCardPanel');
+  if (panel) panel.hidden = !isVisible;
+}
+
+function setBoletoGenerateVisible(isVisible) {
+  const panel = document.getElementById('boletoGeneratePanel');
   if (panel) panel.hidden = !isVisible;
 }
 
@@ -304,15 +393,6 @@ async function loadPlan(planId) {
   } catch {
     return normalizePlan(FALLBACK_PLANS[planId] || FALLBACK_PLANS.pro_mensal);
   }
-}
-
-async function loadPublicKey() {
-  const configuredKey = window.FLUXMEI_CONFIG?.MERCADO_PAGO_PUBLIC_KEY;
-  if (configuredKey) return configuredKey;
-
-  const data = await request('/pagamentos/mercado-pago/public-config', {}, { auth: false });
-  if (!data?.public_key) throw new Error('Public key do Mercado Pago nao configurada.');
-  return data.public_key;
 }
 
 function renderPlan(plan) {
@@ -381,19 +461,22 @@ async function checkPaymentStatus(paymentId = currentPaymentId, { silent = false
     return null;
   }
 
-  const button = document.getElementById('verifyPixButton');
+  const method = currentPaymentMethod || selectedPaymentMethod;
+  const button = document.getElementById(method === 'boleto' ? 'verifyBoletoButton' : 'verifyPixButton');
   if (button && !silent) {
     button.disabled = true;
     button.textContent = 'Verificando...';
   }
 
   try {
-    const statusPath = `/pagamentos/mercado-pago/status/${encodeURIComponent(paymentId)}`;
+    const statusPath = `/pagamentos/efi/status/${encodeURIComponent(paymentId)}`;
     const data = await request(statusPath);
     const statusKey = getStatusKeyFromPayment(data);
+    const paymentMethod = isBoletoPayment(data) || method === 'boleto' ? 'boleto' : 'pix';
 
     if (data.assinatura?.status === 'ativo' || data.assinatura?.estado === 'ativo') {
       hidePixPanel();
+      hideBoletoPanel();
       clearSubscribeIntent();
       showStatus('active', 'Pagamento aprovado! Sua assinatura foi ativada.');
       showAlert('Pagamento aprovado! Redirecionando para o painel...', 'success');
@@ -405,6 +488,7 @@ async function checkPaymentStatus(paymentId = currentPaymentId, { silent = false
 
     if (statusKey === 'approved') {
       hidePixPanel();
+      hideBoletoPanel();
       showStatus('approved', 'Pagamento aprovado. Estamos aguardando a confirmacao final do webhook.');
       showAlert('Pagamento aprovado! Estamos liberando seu acesso.', 'success');
       pollSubscriptionActivation();
@@ -412,15 +496,28 @@ async function checkPaymentStatus(paymentId = currentPaymentId, { silent = false
     }
 
     if (statusKey === 'pending' || statusKey === 'in_process') {
-      renderPixPanel(data);
-      showStatus('pending', 'Ainda nao identificamos o pagamento. Aguarde alguns instantes e tente novamente.');
-      showAlert('Ainda nao identificamos o pagamento. Aguarde alguns instantes e tente novamente.', 'success');
+      if (paymentMethod === 'boleto') {
+        const renderedBoleto = renderBoletoPanel(data);
+        showStatus('pending', 'Ainda nao identificamos o pagamento do boleto. Aguarde alguns instantes e tente novamente.');
+        if (renderedBoleto) {
+          showAlert('Ainda nao identificamos o pagamento do boleto. O boleto continua disponivel abaixo.', 'success');
+        }
+      } else {
+        const renderedPix = renderPixPanel(data);
+        showStatus('pending', 'Ainda nao identificamos o pagamento. Aguarde alguns instantes e tente novamente.');
+        if (renderedPix) {
+          showAlert('Ainda nao identificamos o pagamento. Aguarde alguns instantes e tente novamente.', 'success');
+        }
+      }
       return data;
     }
 
     hidePixPanel();
+    if (paymentMethod === 'boleto') hideBoletoPanel();
     showStatus('failure');
-    showAlert('O pagamento foi recusado ou cancelado. Gere um novo pagamento e tente novamente.');
+    showAlert(paymentMethod === 'boleto'
+      ? 'O boleto foi cancelado ou venceu. Gere um novo boleto e tente novamente.'
+      : 'O pagamento foi recusado ou cancelado. Gere um novo pagamento e tente novamente.');
     return data;
   } catch (error) {
     showAlert(error.message || 'Nao foi possivel verificar o pagamento.');
@@ -428,29 +525,38 @@ async function checkPaymentStatus(paymentId = currentPaymentId, { silent = false
   } finally {
     if (button && !silent) {
       button.disabled = false;
-      button.textContent = 'Ja paguei, verificar pagamento';
+      button.textContent = method === 'boleto' ? 'Ja paguei, verificar pagamento' : 'Ja paguei, verificar pagamento';
     }
   }
 }
 
 function getStatusKeyFromPayment(payment) {
-  const status = String(payment.payment_status || '').toLowerCase();
-  if (status === 'approved' || status === 'received' || status === 'confirmed' || status === 'received_in_cash') return 'approved';
-  if (['pending', 'authorized', 'awaiting_risk_analysis'].includes(status)) return 'pending';
+  const status = normalizePaymentStatus(payment);
+  if (['approved', 'received', 'confirmed', 'received_in_cash', 'concluida', 'paid', 'settled'].includes(status)) return 'approved';
+  if (['pending', 'authorized', 'awaiting_risk_analysis', 'ativa', 'active', 'aguardando', 'waiting', 'new', 'processing', 'em_processamento'].includes(status)) return 'pending';
   if (status === 'in_process') return 'in_process';
-  if (['rejected', 'cancelled', 'canceled', 'refunded', 'charged_back', 'overdue', 'refund_requested', 'chargeback_requested'].includes(status)) return 'failure';
+  if (['rejected', 'cancelled', 'canceled', 'expired', 'unpaid', 'refunded', 'charged_back', 'overdue', 'refund_requested', 'chargeback_requested'].includes(status)) return 'failure';
   return 'pending';
 }
 
-async function submitBrickPayment(formData) {
+async function submitEfiCardPayment() {
   clearAlert();
   setBrickLoading(true, 'Enviando pagamento...');
+  const token = document.getElementById('efiCardToken').value.trim();
+  if (!token) {
+    setBrickLoading(false);
+    showAlert('Informe o token seguro do cartao para continuar.');
+    return null;
+  }
 
-  const data = await request('/pagamentos/mercado-pago/processar-brick', {
+  const data = await request('/pagamentos/efi/criar-cartao', {
     method: 'POST',
     body: JSON.stringify({
       plano: selectedPlan.id,
-      payment: formData
+      payment: {
+        payment_token: token,
+        installments: 1
+      }
     })
   });
 
@@ -458,13 +564,13 @@ async function submitBrickPayment(formData) {
   showStatus(statusKey);
 
   if (statusKey === 'approved') {
-    showAlert('Pagamento aprovado pelo Mercado Pago. Aguardando confirmacao do webhook para liberar a assinatura.', 'success');
+    showAlert('Pagamento aprovado pela EFI Bank. Aguardando confirmacao do webhook para liberar a assinatura.', 'success');
     pollSubscriptionActivation();
   } else if (statusKey === 'pending' || statusKey === 'in_process') {
-    showAlert('Pagamento recebido pelo Mercado Pago e aguardando confirmacao.', 'success');
+    showAlert('Pagamento recebido pela EFI Bank e aguardando confirmacao.', 'success');
     pollSubscriptionActivation();
   } else {
-    showAlert('O pagamento nao foi aprovado. Voce pode tentar novamente no formulario ao lado.');
+    showAlert('O pagamento nao foi aprovado. Voce pode tentar novamente.');
   }
 
   setBrickLoading(false);
@@ -478,16 +584,18 @@ async function generatePixPayment() {
   showStatus('pending', 'Aguardando pagamento');
 
   try {
-    const data = await request('/pagamentos/mercado-pago/criar-pix', {
+    const data = await request('/pagamentos/efi/criar-pix', {
       method: 'POST',
       body: JSON.stringify({
         plano: selectedPlan.id
       })
     });
 
-    renderPixPanel(data);
+    const renderedPix = renderPixPanel(data);
     showStatus('pending', 'Aguardando pagamento');
-    showAlert('Pix gerado com sucesso', 'success');
+    if (renderedPix) {
+      showAlert('Pix gerado com sucesso', 'success');
+    }
     pollSubscriptionActivation();
     return data;
   } catch (error) {
@@ -498,60 +606,32 @@ async function generatePixPayment() {
   }
 }
 
-async function renderPaymentBrick(publicKey) {
-  if (!window.MercadoPago) {
-    throw new Error('SDK do Mercado Pago nao carregado.');
+async function generateBoletoPayment() {
+  clearAlert();
+  hidePixPanel();
+  hideBoletoPanel();
+  setGeneratePixLoading(true);
+  showStatus('pending', 'Aguardando pagamento');
+
+  try {
+    const data = await request('/pagamentos/efi/criar-boleto', {
+      method: 'POST',
+      body: JSON.stringify({
+        plano: selectedPlan.id
+      })
+    });
+
+    renderBoletoPanel(data);
+    showStatus('pending', 'Aguardando pagamento do boleto');
+    showAlert('Boleto gerado com sucesso', 'success');
+    pollSubscriptionActivation();
+    return data;
+  } catch (error) {
+    showAlert(error.message || 'Nao foi possivel gerar o boleto. Tente novamente em alguns instantes.');
+    return null;
+  } finally {
+    setGeneratePixLoading(false);
   }
-
-  if (paymentBrickController?.unmount) {
-    await paymentBrickController.unmount();
-  }
-
-  const mercadoPago = new window.MercadoPago(publicKey, { locale: 'pt-BR' });
-  const bricksBuilder = mercadoPago.bricks();
-
-  paymentBrickController = await bricksBuilder.create('payment', 'paymentBrick_container', {
-    initialization: {
-      amount: selectedPlan.preco
-    },
-    customization: {
-      paymentMethods: {
-        bankTransfer: 'none',
-        creditCard: 'all',
-        debitCard: 'all',
-        prepaidCard: 'all',
-        ticket: 'all'
-      },
-      visual: {
-        style: {
-          theme: 'dark'
-        }
-      }
-    },
-    callbacks: {
-      onReady: () => {
-        setBrickLoading(false);
-        setBrickVisible(true);
-      },
-      onSubmit: ({ formData }) => {
-        return new Promise((resolve, reject) => {
-          submitBrickPayment(formData)
-            .then(() => resolve())
-            .catch((error) => {
-              setBrickLoading(false);
-              showAlert(error.message || 'Nao foi possivel processar o pagamento.');
-              reject(error);
-            });
-        });
-      },
-      onError: (error) => {
-        setBrickLoading(false);
-        setBrickVisible(false);
-        if (error) console.error('[checkout:mercado-pago-brick]', error);
-        showAlert('O Mercado Pago nao conseguiu carregar o formulario. Atualize a pagina e tente novamente.');
-      }
-    }
-  });
 }
 
 async function selectPaymentMethod(method) {
@@ -567,32 +647,26 @@ async function selectPaymentMethod(method) {
     setBrickLoading(false);
     setBrickVisible(false);
     setPixGenerateVisible(true);
+    setEfiCardVisible(false);
+    setBoletoGenerateVisible(false);
+    hideBoletoPanel();
     return;
   }
 
   setPixGenerateVisible(false);
   hidePixPanel();
-  setBrickVisible(true);
-  setBrickLoading(true, 'Carregando cartao e boleto...');
+  hideBoletoPanel();
+  setBrickVisible(false);
+  setBrickLoading(false);
 
-  try {
-    await ensureMercadoPagoBrick();
-  } catch (error) {
-    setBrickLoading(false);
-    setBrickVisible(false);
-    showAlert(error.message || 'Nao foi possivel carregar cartao e boleto.');
-  }
-}
-
-async function ensureMercadoPagoBrick() {
-  if (paymentBrickController) {
-    setBrickLoading(false);
-    setBrickVisible(true);
+  if (method === 'cartao') {
+    setEfiCardVisible(true);
+    setBoletoGenerateVisible(false);
     return;
   }
 
-  const publicKey = await loadPublicKey();
-  await renderPaymentBrick(publicKey);
+  setEfiCardVisible(false);
+  setBoletoGenerateVisible(true);
 }
 
 function bindCheckoutEvents() {
@@ -604,6 +678,17 @@ function bindCheckoutEvents() {
 
   document.getElementById('generatePixButton').addEventListener('click', () => {
     generatePixPayment();
+  });
+
+  document.getElementById('payCardButton').addEventListener('click', () => {
+    submitEfiCardPayment().catch((error) => {
+      setBrickLoading(false);
+      showAlert(error.message || 'Nao foi possivel processar o pagamento.');
+    });
+  });
+
+  document.getElementById('generateBoletoButton').addEventListener('click', () => {
+    generateBoletoPayment();
   });
 
   document.getElementById('copyPixButton').addEventListener('click', async () => {
@@ -622,6 +707,23 @@ function bindCheckoutEvents() {
   document.getElementById('verifyPixButton').addEventListener('click', () => {
     checkPaymentStatus();
   });
+
+  document.getElementById('copyBoletoButton').addEventListener('click', async () => {
+    const code = document.getElementById('boletoLine').value;
+    if (!code) return;
+
+    try {
+      await navigator.clipboard.writeText(code);
+      showAlert('Linha digitavel copiada.', 'success');
+    } catch {
+      document.getElementById('boletoLine').select();
+      showAlert('Selecione e copie a linha digitavel manualmente.');
+    }
+  });
+
+  document.getElementById('verifyBoletoButton').addEventListener('click', () => {
+    checkPaymentStatus();
+  });
 }
 
 async function initCheckout() {
@@ -629,6 +731,8 @@ async function initCheckout() {
   setBrickVisible(false);
   setBrickLoading(false);
   setPixGenerateVisible(true);
+  setEfiCardVisible(false);
+  setBoletoGenerateVisible(false);
 
   const planId = getSelectedPlanId();
   if (isSubscribeIntentUrl()) saveSubscribeIntent(planId);
@@ -652,6 +756,8 @@ async function initCheckout() {
       setBrickVisible(false);
       setBrickLoading(false);
       setPixGenerateVisible(false);
+      setEfiCardVisible(false);
+      setBoletoGenerateVisible(false);
       showStatus('active', 'Sua assinatura ja esta ativa. Voce pode voltar ao app.');
       return;
     }
@@ -669,7 +775,6 @@ async function initCheckout() {
 }
 
 window.addEventListener('beforeunload', () => {
-  if (paymentBrickController?.unmount) paymentBrickController.unmount();
   if (statusPoller) window.clearInterval(statusPoller);
 });
 

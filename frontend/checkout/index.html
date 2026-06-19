@@ -65,7 +65,7 @@
         </section>
 
         <section class="security-box" aria-label="Seguranca">
-          <strong>O pagamento e processado com seguranca pelo Mercado Pago.</strong>
+          <strong>O pagamento e processado com seguranca pela EFI Bank.</strong>
           <span>O FluxMEI nao armazena dados de cartao.</span>
         </section>
 
@@ -78,14 +78,14 @@
         <div class="summary-head">
           <div>
             <span>Pagamento</span>
-            <strong id="providerTitle">Mercado Pago</strong>
+            <strong id="providerTitle">EFI Bank</strong>
           </div>
           <span class="payment-badge">Pix, cartao e boleto</span>
         </div>
 
         <section class="provider-panel" aria-label="Processador de pagamento">
-          <strong>Pagamento seguro processado pelo Mercado Pago.</strong>
-          <small>Pix gerado pelo FluxMEI com Mercado Pago. Cartao e boleto seguem pelo Payment Brick.</small>
+          <strong>Pagamento seguro processado pela EFI Bank.</strong>
+          <small>Pix, cartao e boleto sao criados pelo backend do FluxMEI. Dados sensiveis de cartao devem ser tokenizados antes do envio.</small>
         </section>
 
         <section class="payment-methods" aria-label="Forma de pagamento">
@@ -96,12 +96,12 @@
           </button>
           <button class="method-card" type="button" data-payment-method="cartao" aria-pressed="false">
             <span>Cartao</span>
-            <strong>Payment Brick</strong>
+            <strong>Token seguro</strong>
             <small>Dados protegidos</small>
           </button>
           <button class="method-card" type="button" data-payment-method="boleto" aria-pressed="false">
             <span>Boleto</span>
-            <strong>Payment Brick</strong>
+            <strong>Linha digitavel</strong>
             <small>Pagamento bancario</small>
           </button>
         </section>
@@ -123,12 +123,44 @@
         <div class="brick-loading" id="brickLoading">
           <span class="loading-spinner" aria-hidden="true"></span>
           <strong>Carregando meios de pagamento...</strong>
-          <span>Estamos preparando cartao e boleto no ambiente seguro do Mercado Pago.</span>
+          <span>Estamos preparando o pagamento no ambiente seguro da EFI Bank.</span>
         </div>
 
         <div class="brick-shell">
           <div class="brick-container" id="paymentBrick_container"></div>
         </div>
+
+        <section class="efi-card-panel" id="efiCardPanel" hidden aria-label="Pagamento via cartao">
+          <strong>Pagamento com cartao</strong>
+          <p>Informe apenas o token seguro gerado pelo fluxo de tokenizacao da EFI. O FluxMEI nao recebe nem armazena numero, CVV ou validade do cartao.</p>
+          <label class="pix-code-label" for="efiCardToken">Token seguro EFI</label>
+          <input id="efiCardToken" type="text" autocomplete="off" inputmode="text" />
+          <button class="pix-button" type="button" id="payCardButton">Pagar com cartao</button>
+        </section>
+
+        <section class="boleto-generate-panel" id="boletoGeneratePanel" hidden aria-label="Gerar boleto">
+          <strong>Gerar boleto para o plano escolhido</strong>
+          <p>Depois de gerar, use o link ou a linha digitavel retornada pela EFI Bank.</p>
+          <button class="pix-button" type="button" id="generateBoletoButton">Gerar boleto</button>
+        </section>
+
+        <section class="boleto-panel" id="boletoPanel" hidden aria-label="Pagamento via boleto">
+          <div class="pix-heading">
+            <div>
+              <span>Pagamento via boleto</span>
+              <strong>Aguardando pagamento</strong>
+            </div>
+            <span class="pix-status">Boleto gerado</span>
+          </div>
+          <a class="boleto-link" id="boletoLink" href="#" target="_blank" rel="noopener">Abrir boleto</a>
+          <small id="boletoDueDate"></small>
+          <label class="pix-code-label" for="boletoLine">Linha digitavel</label>
+          <textarea id="boletoLine" readonly rows="3"></textarea>
+          <div class="pix-actions">
+            <button class="pix-button" type="button" id="copyBoletoButton">Copiar linha digitavel</button>
+            <button class="pix-button secondary" type="button" id="verifyBoletoButton">Ja paguei, verificar pagamento</button>
+          </div>
+        </section>
 
         <section class="pix-panel" id="pixPanel" hidden aria-label="Pagamento via Pix">
           <div class="pix-heading">
@@ -157,7 +189,6 @@
   </main>
 
   <script src="/env.js"></script>
-  <script src="https://sdk.mercadopago.com/js/v2"></script>
   <script src="checkout.js"></script>
 </body>
 </html>
