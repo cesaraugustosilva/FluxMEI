@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import https from 'node:https';
+import crypto from 'node:crypto';
 import { URL } from 'node:url';
 import { AppError } from '../middlewares/errorMiddleware.js';
 
@@ -14,6 +15,7 @@ const CHARGES_BASE_URLS = {
 };
 
 let tokenCache = null;
+let requestClientOverride = null;
 
 function getEnvironment() {
   return process.env.EFI_ENVIRONMENT === 'production' || process.env.EFI_SANDBOX === 'false'
@@ -126,6 +128,10 @@ function httpsRequest(url, options = {}, body = null) {
 }
 
 async function request(baseUrl, path, { method = 'GET', body = null, headers = {}, auth = true } = {}) {
+  if (requestClientOverride) {
+    return requestClientOverride(baseUrl, path, { method, body, headers, auth });
+  }
+
   const config = getConfig();
   const token = auth ? await getAccessToken(config, baseUrl) : null;
   const payload = body ? JSON.stringify(body) : null;
@@ -284,9 +290,30 @@ function withFluxmeiMetadata(payment, metadata) {
   };
 }
 
-function buildTxid(assinaturaId, planId) {
-  const base = `fx${String(assinaturaId || '').replace(/[^a-zA-Z0-9]/g, '')}${String(planId || '').replace(/[^a-zA-Z0-9]/g, '')}`;
-  return base.slice(0, 35).padEnd(26, '0');
+function sanitizeTxid(value) {
+  return String(value || '').replace(/[^A-Za-z0-9]/g, '');
+}
+
+function buildTxid() {
+  const timestamp = Date.now().toString(36);
+  const random = crypto.randomBytes(18).toString('hex');
+  return sanitizeTxid(`fx${timestamp}${random}`).slice(0, 35);
+}
+
+function isDuplicateTxidError(error) {
+  const details = error?.details || {};
+  const haystack = [
+    error?.message,
+    details?.nome,
+    details?.name,
+    details?.mensagem,
+    details?.message,
+    ...(Array.isArray(details?.erros) ? details.erros.map((item) => JSON.stringify(item)) : [])
+  ].filter(Boolean).join(' ').toLowerCase();
+
+  return haystack.includes('txid_duplicado')
+    || haystack.includes('txid informado ja foi utilizado')
+    || haystack.includes('txid informado já foi utilizado');
 }
 
 function buildPixChargePayload({ plan, user, profile, pixKey }) {
@@ -348,18 +375,32 @@ async function criarPix({ plan, user, profile, assinatura, idempotencyKey }) {
   const config = getConfig();
   if (!config.pixKey) throw new AppError('EFI_PIX_KEY nao configurada.', 500);
 
-  const txid = buildTxid(`${assinatura.id}${Date.now()}`, plan.id);
   const metadata = {
     user_id: user.id,
     assinatura_id: assinatura.id,
     plano: plan.id
   };
 
-  const charge = await request(config.pixBaseUrl, `/v2/cob/${txid}`, {
-    method: 'PUT',
-    headers: idempotencyKey ? { 'x-idempotency-key': idempotencyKey } : {},
-    body: buildPixChargePayload({ plan, user, profile, pixKey: config.pixKey })
-  });
+  let txid = null;
+  let charge = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    txid = buildTxid();
+
+    try {
+      charge = await request(config.pixBaseUrl, `/v2/cob/${txid}`, {
+        method: 'PUT',
+        headers: idempotencyKey ? { 'x-idempotency-key': idempotencyKey } : {},
+        body: buildPixChargePayload({ plan, user, profile, pixKey: config.pixKey })
+      });
+      break;
+    } catch (error) {
+      if (attempt === 0 && isDuplicateTxidError(error)) {
+        console.warn('[efi:pix] txid duplicado retornado pela Efi. Gerando novo txid e tentando novamente uma unica vez.', { txid });
+        continue;
+      }
+      throw error;
+    }
+  }
 
   let qrcode = null;
   if (charge?.loc?.id) {
@@ -476,12 +517,20 @@ export const efiBankService = {
   onlyDigits,
   __test: {
     buildTxid,
+    sanitizeTxid,
+    isDuplicateTxidError,
     buildPixChargePayload,
     buildBoletoChargePayload,
     buildCardChargePayload,
     moneyString,
     moneyCents,
     logEfiErrorDetails,
-    sanitizeForLog
+    sanitizeForLog,
+    setRequestClientOverride(fn) {
+      requestClientOverride = fn;
+    },
+    clearRequestClientOverride() {
+      requestClientOverride = null;
+    }
   }
 };

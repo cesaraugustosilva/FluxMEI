@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { efiBankService } from '../backend/src/services/efiBankService.js';
 import { PAYMENT_PLANS } from '../backend/src/services/paymentStatusRules.js';
+import { AppError } from '../backend/src/middlewares/errorMiddleware.js';
 
 const efiServiceSource = readFileSync(new URL('../backend/src/services/efiService.js', import.meta.url), 'utf8');
 const efiControllerSource = readFileSync(new URL('../backend/src/controllers/efiController.js', import.meta.url), 'utf8');
@@ -71,6 +72,15 @@ test('txid Pix e sanitizado e respeita tamanho aceito', () => {
   assert.equal(txid.length <= 35, true);
 });
 
+test('duas chamadas de geracao de txid Pix retornam valores diferentes', () => {
+  const first = efiBankService.__test.buildTxid();
+  const second = efiBankService.__test.buildTxid();
+
+  assert.notEqual(first, second);
+  assert.match(first, /^[A-Za-z0-9]{26,35}$/);
+  assert.match(second, /^[A-Za-z0-9]{26,35}$/);
+});
+
 test('payload Pix omite devedor quando CPF ou CNPJ valido nao esta disponivel', () => {
   const payload = efiBankService.__test.buildPixChargePayload({
     plan: PAYMENT_PLANS.pro_mensal,
@@ -120,6 +130,90 @@ test('log detalhado da EFI mascara campos sensiveis em erros', () => {
   assert.match(serialized, /valor\.original/);
   assert.doesNotMatch(serialized, /pix-secret-key|secret-token|4111111111111111|123/);
   assert.match(serialized, /\[REDACTED\]/);
+});
+
+async function withEfiEnv(env, fn) {
+  const previous = {};
+  for (const key of Object.keys(env)) {
+    previous[key] = process.env[key];
+    process.env[key] = env[key];
+  }
+
+  try {
+    return await fn();
+  } finally {
+    for (const key of Object.keys(env)) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
+}
+
+test('erro txid_duplicado faz retry uma vez com novo txid sem duplicar pagamento', async () => {
+  const putTxids = [];
+  const successfulCharges = [];
+
+  await withEfiEnv({
+    EFI_CLIENT_ID: 'client-id',
+    EFI_CLIENT_SECRET: 'client-secret',
+    EFI_PIX_KEY: 'pix-key',
+    EFI_CERT_BASE64: Buffer.from('fake-cert').toString('base64'),
+    EFI_SANDBOX: 'true',
+    EFI_WEBHOOK_SECRET: 'webhook-secret'
+  }, async () => {
+    efiBankService.__test.setRequestClientOverride(async (baseUrl, path, options) => {
+      if (options.method === 'PUT' && path.startsWith('/v2/cob/')) {
+        const txid = decodeURIComponent(path.split('/').pop());
+        putTxids.push(txid);
+
+        if (putTxids.length === 1) {
+          throw new AppError('Campo txid informado ja foi utilizado em outra cobranca', 400, {
+            nome: 'txid_duplicado',
+            mensagem: 'Campo txid informado ja foi utilizado em outra cobranca',
+            erros: [{ campo: 'txid', mensagem: 'duplicado' }]
+          });
+        }
+
+        successfulCharges.push(txid);
+        return {
+          txid,
+          status: 'ATIVA',
+          loc: { id: 123 },
+          valor: { original: options.body.valor.original }
+        };
+      }
+
+      if (path === '/v2/loc/123/qrcode') {
+        return {
+          qrcode: '000201-retry',
+          imagemQrcode: 'base64-retry'
+        };
+      }
+
+      throw new Error(`Chamada inesperada: ${path}`);
+    });
+
+    try {
+      const result = await efiBankService.criarPix({
+        plan: PAYMENT_PLANS.pro_mensal,
+        user: payloadUser(),
+        profile: { nome: 'Cliente FluxMEI', cpf: '12345678901' },
+        assinatura: payloadAssinatura({ id: 'sub-1' }),
+        idempotencyKey: 'idem-1'
+      });
+
+      assert.equal(putTxids.length, 2);
+      assert.equal(successfulCharges.length, 1);
+      assert.notEqual(putTxids[0], putTxids[1]);
+      assert.match(putTxids[0], /^[A-Za-z0-9]{26,35}$/);
+      assert.match(putTxids[1], /^[A-Za-z0-9]{26,35}$/);
+      assert.equal(result.payment.txid, putTxids[1]);
+      assert.equal(result.payment.status, 'ATIVA');
+      assert.equal(result.qrcode.qrcode, '000201-retry');
+    } finally {
+      efiBankService.__test.clearRequestClientOverride();
+    }
+  });
 });
 
 function createMockResponse() {
