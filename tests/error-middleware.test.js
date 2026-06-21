@@ -49,7 +49,7 @@ test('desenvolvimento retorna details para debugging local', () => {
 test('producao nao retorna details nem payload externo', () => {
   withNodeEnv('production', () => {
     const res = createMockResponse();
-    const error = new AppError('Mercado Pago retornou erro bruto.', 502, { access_token: 'secret', sql: 'select * from assinaturas' });
+    const error = new AppError('Gateway retornou erro bruto.', 502, { access_token: 'secret', sql: 'select * from assinaturas' });
 
     errorHandler(error, {}, res, () => {});
 

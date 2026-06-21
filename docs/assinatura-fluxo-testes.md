@@ -2,43 +2,31 @@
 
 Este roteiro valida o fluxo atual de assinatura sem ativar assinatura pelo frontend e sem enfraquecer RLS ou webhooks.
 
-## Mapa do fluxo atual
+## Mapa Do Fluxo Atual
 
 1. Cadastro com teste gratis
-   - Frontend: `frontend/auth/shared/auth.js`, `register()`.
-   - Backend: `POST /api/auth/register`, `authController.register`.
-   - Se nao houver `subscription_intent=subscribe`, o backend chama `assinaturaService.createTrialSubscription`.
-   - Resultado esperado: assinatura `plano=gratuito`, `status=teste_gratis`, `bloqueado=false`, `teste_gratis_usado=true`.
+   - Frontend envia cadastro normal.
+   - Backend cria assinatura `plano=gratuito`, `status=teste_gratis`, `bloqueado=false`, `teste_gratis_usado=true`.
 
 2. Cadastro com assinatura direta
    - Landing/checkout salvam `fluxmei_intent=subscribe` e `fluxmei_subscribe_plan`.
-   - Frontend envia `subscription_intent=subscribe` e `plano`.
-   - Backend chama `assinaturaService.createPendingSubscription`.
-   - Resultado esperado: assinatura `status=pendente`, `bloqueado=true`, sem trial automatico.
+   - Backend cria assinatura `status=pendente`, `bloqueado=true`, sem trial automatico.
 
 3. Login e retorno para checkout
    - Login salva `fluxmei_access_token`.
-   - Se existir intent de assinatura, `redirectAfterAuth()` envia para `/checkout/?intent=subscribe&plan=...`.
-   - Checkout le o token em `localStorage` e envia `Authorization: Bearer <token>`.
+   - Checkout le o token e envia `Authorization: Bearer <token>`.
 
-4. Status e bloqueio
-   - Frontend app chama `GET /api/auth/me` e `GET /api/assinaturas/status`.
-   - Rotas principais usam `checkSubscriptionAccess`.
-   - `assinaturaService.evaluateAccess` permite trial ativo ou assinatura ativa.
-   - Trial vencido, assinatura vencida, pagamento pendente ou assinatura bloqueada retornam bloqueio/HTTP 402 nas rotas protegidas.
+4. Checkout e pagamento
+   - Pix: `POST /api/pagamentos/efi/pix`.
+   - Boleto: `POST /api/pagamentos/efi/boleto`.
+   - Cartao: `POST /api/pagamentos/efi/cartao`.
+   - Consulta de status nao ativa assinatura; ativacao depende do webhook Efí validado.
 
-5. Checkout e pagamento
-   - Checkout exige token para criar cobranca.
-   - `POST /api/pagamentos/mercado-pago/processar-brick` registra tentativa como `pendente`.
-   - O fluxo legado `POST /api/pagamentos/asaas/criar-cobranca` so deve ser testado com `ENABLE_ASAAS=true`.
-   - Consulta de status do pagamento nao ativa assinatura; a ativacao depende de webhook valido.
+5. Webhook e ativacao
+   - Webhook: `POST /api/webhooks/efi`.
+   - Backend valida segredo, consulta a Efí, confere plano/valor/tentativa atual e ativa assinatura se o pagamento estiver aprovado/concluido.
 
-6. Webhook e ativacao
-   - Asaas legado: `POST /api/webhooks/asaas`, com header `asaas-access-token`, apenas com `ENABLE_ASAAS=true`.
-   - Mercado Pago: `POST /api/webhooks/mercado-pago`, com assinatura `x-signature`.
-   - Apenas webhook validado chama a aplicacao de pagamento na assinatura.
-
-## Rotas dev seguras
+## Rotas Dev Seguras
 
 Disponiveis somente fora de producao e com usuario autenticado:
 
@@ -48,113 +36,62 @@ POST /api/dev/bloquear-assinatura
 POST /api/dev/liberar-assinatura
 ```
 
-Exemplos:
+## Cenarios Manuais
 
-```bash
-curl -X POST http://localhost:3002/api/dev/expirar-trial \
-  -H "Authorization: Bearer SEU_TOKEN"
-
-curl -X POST http://localhost:3002/api/dev/bloquear-assinatura \
-  -H "Authorization: Bearer SEU_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"status\":\"pendente\"}"
-
-curl -X POST http://localhost:3002/api/dev/liberar-assinatura \
-  -H "Authorization: Bearer SEU_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"plano\":\"pro_mensal\"}"
-```
-
-## Cenários manuais
-
-### 1. Usuario novo com teste gratis
+### 1. Usuario Novo Com Teste Gratis
 
 1. Na landing, clique em "Comecar teste gratis".
 2. Cadastre uma conta nova.
-3. Faca login se houver confirmacao de email.
-4. Abra `/app/`.
-5. Confirme que o painel carrega.
-6. Chame `GET /api/assinaturas/status`.
+3. Abra `/app/`.
+4. Chame `GET /api/assinaturas/status`.
 
-Esperado:
-- `status=teste_gratis`
-- `estado=teste_gratis`
-- `allowed=true`
-- rotas como `/api/dashboard` retornam 200.
+Esperado: `status=teste_gratis`, `allowed=true` e rotas internas retornam 200.
 
-### 2. Usuario novo com assinatura direta
+### 2. Usuario Novo Com Assinatura Direta
 
-1. Na landing, clique em "Assinar mensal agora" ou "Assinar anual com desconto".
+1. Clique em assinar um plano.
 2. Cadastre uma conta nova.
-3. Faca login se necessario.
-4. Confirme que volta para `/checkout/?intent=subscribe&plan=...`.
-5. Chame `GET /api/assinaturas/status`.
+3. Confirme retorno para `/checkout/?intent=subscribe&plan=...`.
+4. Chame `GET /api/assinaturas/status`.
 
-Esperado:
-- `status=pendente`
-- `estado=pendente_pagamento`
-- `bloqueado=true`
-- usuario nao recebe trial automatico.
-- checkout consegue criar cobranca com token valido.
+Esperado: `status=pendente`, `bloqueado=true`, sem trial automatico.
 
-### 3. Usuario com trial expirado
+### 3. Usuario Com Trial Expirado
 
 1. Login com usuario em trial.
 2. Chame `POST /api/dev/expirar-trial`.
 3. Abra `/app/` ou chame `/api/dashboard`.
 
-Esperado:
-- `GET /api/assinaturas/status` marca bloqueio.
-- `/api/dashboard` retorna 402.
-- painel mostra bloqueio e CTA para checkout.
+Esperado: bloqueio e HTTP 402 nas rotas protegidas.
 
-### 4. Usuario com pagamento pendente
+### 4. Usuario Com Pagamento Pendente
 
 1. Abra checkout logado.
-2. Crie uma cobranca Pix/boleto.
-3. Nao envie webhook de pagamento aprovado.
+2. Crie uma cobranca Pix ou boleto.
+3. Nao envie webhook aprovado.
 4. Clique em "Ja paguei, verificar pagamento".
 
-Esperado:
-- assinatura continua `status=pendente`, `bloqueado=true`.
-- status de pagamento pode aparecer como pendente/aprovado pelo provedor, mas a assinatura so muda apos webhook valido.
+Esperado: assinatura continua pendente/bloqueada e o painel do meio de pagamento continua visivel.
 
-### 5. Usuario com assinatura ativa
+### 5. Usuario Com Assinatura Ativa
 
 1. Em desenvolvimento, chame `POST /api/dev/liberar-assinatura`.
 2. Abra `/app/`.
 3. Chame `/api/dashboard`.
 
-Esperado:
-- `GET /api/assinaturas/status` retorna `estado=ativo`.
-- rotas protegidas retornam 200.
-- painel fica liberado.
+Esperado: `estado=ativo` e rotas protegidas retornam 200.
 
-### 6. Webhook invalido
+### 6. Webhook Invalido
 
-1. Se o legado Asaas estiver habilitado com `ENABLE_ASAAS=true`, envie webhook Asaas sem `asaas-access-token` correto.
-2. Envie webhook Mercado Pago sem assinatura valida.
+1. Envie `POST /api/webhooks/efi` sem segredo ou com segredo incorreto.
 
-Esperado em producao/homologacao:
-- Asaas retorna 401.
-- Mercado Pago retorna 401.
-- assinatura nao ativa.
+Esperado: HTTP 401 ou 503 em producao e assinatura nao ativa.
 
-### 7. Webhook valido
+### 7. Webhook Valido
 
-1. Configure token/secret no provedor e no backend.
+1. Configure `EFI_WEBHOOK_SECRET` no backend e no painel Efí.
 2. Gere cobranca real de sandbox.
-3. Pague ou use simulacao oficial do provedor.
+3. Pague ou use simulacao oficial.
 4. Aguarde webhook.
 
-Esperado:
-- pagamento aprovado ativa assinatura.
-- pagamento pendente mantem `status=pendente`.
-- pagamento recusado/cancelado mantem assinatura bloqueada/cancelada.
-
-## Pontos manuais obrigatorios
-
-- Validar assinatura real do Mercado Pago com headers oficiais.
-- Validar webhook real Asaas com `asaas-access-token`.
-- Validar credenciais e URLs no Render.
-- Confirmar URLs de redirect no Supabase Auth.
+Esperado: pagamento aprovado ativa assinatura; pagamento pendente mantem bloqueio; pagamento cancelado/vencido nao libera acesso.

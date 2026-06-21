@@ -3,7 +3,6 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const apiUrl = process.env.FLUXMEI_API_URL;
-const mercadoPagoPublicKey = process.env.MERCADO_PAGO_PUBLIC_KEY || process.env.FLUXMEI_MERCADO_PAGO_PUBLIC_KEY;
 
 if (!apiUrl) {
   throw new Error('FLUXMEI_API_URL nao configurada.');
@@ -16,7 +15,6 @@ const envPath = resolve(frontendDir, 'env.js');
 writeFileSync(
   envPath,
   `window.FLUXMEI_CONFIG = ${JSON.stringify({
-    API_URL: apiUrl.replace(/\/$/, ''),
-    ...(mercadoPagoPublicKey ? { MERCADO_PAGO_PUBLIC_KEY: mercadoPagoPublicKey } : {})
+    API_URL: apiUrl.replace(/\/$/, '')
   })};\n`
 );

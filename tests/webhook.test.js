@@ -1,11 +1,6 @@
-import crypto from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  validateAsaasWebhook,
-  validateEfiWebhook,
-  validateMercadoPagoWebhook
-} from '../backend/src/services/webhookSecurityService.js';
+import { validateEfiWebhook } from '../backend/src/services/webhookSecurityService.js';
 
 function withEnv(env, fn) {
   const previous = {};
@@ -24,57 +19,7 @@ function withEnv(env, fn) {
   }
 }
 
-test('webhook invalido Asaas nao passa validacao', () => {
-  withEnv({ NODE_ENV: 'production', ASAAS_WEBHOOK_TOKEN: 'expected-token' }, () => {
-    assert.throws(() => validateAsaasWebhook({
-      headers: { 'asaas-access-token': 'wrong-token' },
-      body: { event: 'PAYMENT_RECEIVED', payment: { id: 'pay_1', status: 'RECEIVED' } }
-    }), /nao autorizado/i);
-  });
-});
-
-test('webhook valido Asaas passa validacao', () => {
-  withEnv({ NODE_ENV: 'production', ASAAS_WEBHOOK_TOKEN: 'expected-token' }, () => {
-    const result = validateAsaasWebhook({
-      headers: { 'asaas-access-token': 'expected-token' },
-      body: { event: 'PAYMENT_RECEIVED', payment: { id: 'pay_1', status: 'RECEIVED' } }
-    });
-
-    assert.equal(result.validated, true);
-  });
-});
-
-test('webhook invalido Mercado Pago nao passa validacao', () => {
-  withEnv({ NODE_ENV: 'production', MERCADO_PAGO_WEBHOOK_SECRET: 'secret' }, () => {
-    assert.throws(() => validateMercadoPagoWebhook({
-      headers: {
-        'x-request-id': 'req-1',
-        'x-signature': 'ts=1,v1=invalid'
-      }
-    }, '123'), /nao autorizado/i);
-  });
-});
-
-test('webhook valido Mercado Pago passa validacao', () => {
-  withEnv({ NODE_ENV: 'production', MERCADO_PAGO_WEBHOOK_SECRET: 'secret' }, () => {
-    const dataId = '123';
-    const requestId = 'req-1';
-    const ts = '1700000000';
-    const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
-    const signature = crypto.createHmac('sha256', 'secret').update(manifest).digest('hex');
-
-    const result = validateMercadoPagoWebhook({
-      headers: {
-        'x-request-id': requestId,
-        'x-signature': `ts=${ts},v1=${signature}`
-      }
-    }, dataId);
-
-    assert.equal(result.validated, true);
-  });
-});
-
-test('webhook invalido EFI nao passa validacao', () => {
+test('webhook EFI invalido nao passa validacao', () => {
   withEnv({ NODE_ENV: 'production', EFI_WEBHOOK_SECRET: 'expected-secret' }, () => {
     assert.throws(() => validateEfiWebhook({
       headers: { 'x-efi-webhook-secret': 'wrong-secret' },
@@ -83,7 +28,7 @@ test('webhook invalido EFI nao passa validacao', () => {
   });
 });
 
-test('webhook valido EFI passa validacao', () => {
+test('webhook EFI valido passa validacao por bearer token', () => {
   withEnv({ NODE_ENV: 'production', EFI_WEBHOOK_SECRET: 'expected-secret' }, () => {
     const result = validateEfiWebhook({
       headers: { authorization: 'Bearer expected-secret' },
@@ -91,5 +36,14 @@ test('webhook valido EFI passa validacao', () => {
     });
 
     assert.equal(result.validated, true);
+  });
+});
+
+test('webhook EFI sem segredo e recusado em producao', () => {
+  withEnv({ NODE_ENV: 'production', EFI_WEBHOOK_SECRET: '' }, () => {
+    assert.throws(() => validateEfiWebhook({
+      headers: {},
+      body: { txid: 'fx123', status: 'CONCLUIDA' }
+    }), /configuracao insegura/i);
   });
 });

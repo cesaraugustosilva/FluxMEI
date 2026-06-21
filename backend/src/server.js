@@ -17,7 +17,6 @@ import assinaturaRoutes from './routes/assinaturaRoutes.js';
 import pagamentoRoutes from './routes/pagamentoRoutes.js';
 import webhookRoutes from './routes/webhookRoutes.js';
 import devRoutes from './routes/devRoutes.js';
-import { logLegacyFeatureStatus } from './config/features.js';
 import { planos } from './controllers/assinaturaController.js';
 import { asyncHandler, errorHandler, notFoundHandler } from './middlewares/errorMiddleware.js';
 import { checkPaymentWebhookConfiguration } from './services/webhookSecurityService.js';
@@ -30,7 +29,6 @@ const envFile = process.env.FLUXMEI_ENV_FILE || path.resolve(__dirname, '..', '.
 
 dotenv.config({ path: envFile });
 checkPaymentWebhookConfiguration();
-logLegacyFeatureStatus();
 
 app.set('trust proxy', 1);
 
@@ -38,12 +36,12 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://sdk.mercadopago.com'],
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
       imgSrc: ["'self'", 'data:', 'https:'],
-      frameSrc: ["'self'", 'https://*.mercadopago.com', 'https://*.mercadopago.com.br'],
-      connectSrc: ["'self'", 'https://*.supabase.co', 'https://generativelanguage.googleapis.com', 'https://api.mercadopago.com', 'https://*.mercadopago.com', 'https://*.efipay.com.br']
+      frameSrc: ["'self'"],
+      connectSrc: ["'self'", 'https://*.supabase.co', 'https://generativelanguage.googleapis.com', 'https://*.efipay.com.br']
     }
   }
 }));

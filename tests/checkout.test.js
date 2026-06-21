@@ -2,11 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import express from 'express';
 
 const checkoutHtml = readFileSync(new URL('../frontend/checkout/index.html', import.meta.url), 'utf8');
 const checkoutJs = readFileSync(new URL('../frontend/checkout/checkout.js', import.meta.url), 'utf8');
-const pagamentoRoutesSource = readFileSync(new URL('../backend/src/routes/pagamentoRoutes.js', import.meta.url), 'utf8');
 
 function createCheckoutHarness() {
   const elements = new Map();
@@ -105,11 +103,9 @@ test('checkout principal usa EFI Bank para Pix, cartao e boleto', () => {
   assert.match(checkoutHtml, /id="pixPanel"/);
   assert.match(checkoutHtml, /id="pixCode"/);
   assert.doesNotMatch(checkoutHtml, /name="paymentProvider"/);
-  assert.doesNotMatch(checkoutHtml, /name="asaasMethod"/);
-  assert.doesNotMatch(checkoutHtml, /Gerar pagamento Asaas/);
 });
 
-test('checkout principal chama rotas EFI sem Asaas e sem Brick', () => {
+test('checkout principal chama somente rotas EFI', () => {
   assert.match(checkoutJs, /\/pagamentos\/efi\/criar-pix/);
   assert.match(checkoutJs, /\/pagamentos\/efi\/criar-cartao/);
   assert.match(checkoutJs, /\/pagamentos\/efi\/criar-boleto/);
@@ -118,11 +114,6 @@ test('checkout principal chama rotas EFI sem Asaas e sem Brick', () => {
   assert.match(checkoutJs, /generateBoletoPayment/);
   assert.match(checkoutJs, /submitEfiCardPayment/);
   assert.match(checkoutJs, /copyPixButton/);
-  assert.doesNotMatch(checkoutJs, /\/pagamentos\/mercado-pago\/criar-checkout/);
-  assert.doesNotMatch(checkoutJs, /\/pagamentos\/mercado-pago\/criar-pix/);
-  assert.doesNotMatch(checkoutJs, /\/pagamentos\/mercado-pago\/processar-brick/);
-  assert.doesNotMatch(checkoutJs, /\/pagamentos\/asaas/);
-  assert.doesNotMatch(checkoutJs, /createAsaasCharge/);
 });
 
 test('Pix EFI com status ATIVA renderiza painel', () => {
@@ -306,50 +297,4 @@ test('checkout nao rearma intent antiga sem query de assinatura', () => {
 test('checkout com assinatura ativa limpa intent de assinatura', () => {
   assert.match(checkoutJs, /if \(subscriptionStatus\?\.estado === 'ativo'\) \{\s*clearSubscribeIntent\(\);/);
   assert.match(checkoutJs, /showStatus\('active', 'Sua assinatura ja esta ativa\. Voce pode voltar ao app\.'\)/);
-});
-
-test('Checkout Pro legado retorna 410 e nao passa por criacao de pagamento', async () => {
-  process.env.NODE_ENV = 'production';
-  process.env.ENABLE_ASAAS = 'false';
-  process.env.SUPABASE_URL = 'https://example.supabase.co';
-  process.env.SUPABASE_ANON_KEY = 'test-anon-key';
-  process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
-
-  assert.match(
-    pagamentoRoutesSource,
-    /router\.post\('\/mercado-pago\/criar-checkout', asyncHandler\(checkoutMercadoPagoLegadoDesativado\)\)/
-  );
-  assert.doesNotMatch(
-    pagamentoRoutesSource,
-    /router\.post\('\/mercado-pago\/criar-checkout', paymentRateLimiter, authMiddleware/
-  );
-
-  const { default: pagamentoRoutes } = await import('../backend/src/routes/pagamentoRoutes.js?checkout-pro-disabled');
-  const app = express();
-  app.use(express.json());
-  app.use('/api/pagamentos', pagamentoRoutes);
-
-  const server = await new Promise((resolve) => {
-    const instance = app.listen(0, () => resolve(instance));
-  });
-
-  try {
-    const { port } = server.address();
-    const response = await fetch(`http://127.0.0.1:${port}/api/pagamentos/mercado-pago/criar-checkout`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ plano: 'pro_mensal' })
-    });
-    const body = await response.json();
-
-    assert.equal(response.status, 410);
-    assert.deepEqual(body, {
-      success: false,
-      message: 'Fluxo legado desativado. Utilize o checkout atual.'
-    });
-  } finally {
-    await new Promise((resolve, reject) => {
-      server.close((error) => (error ? reject(error) : resolve()));
-    });
-  }
 });

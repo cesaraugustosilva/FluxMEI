@@ -96,9 +96,6 @@ create table if not exists public.assinaturas (
   provider_subscription_id text,
   provider_status text,
   provider_raw jsonb,
-  mercado_pago_preference_id text,
-  mercado_pago_payment_id text,
-  mercado_pago_status text,
   checkout_url text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -128,8 +125,6 @@ create index if not exists idx_assinaturas_user_status on public.assinaturas(use
 create index if not exists idx_assinaturas_user_created on public.assinaturas(user_id, created_at desc);
 create index if not exists idx_assinaturas_provider_payment on public.assinaturas(payment_provider, provider_payment_id);
 create index if not exists idx_assinaturas_provider_subscription on public.assinaturas(payment_provider, provider_subscription_id);
-create index if not exists idx_assinaturas_mercado_pago_payment on public.assinaturas(mercado_pago_payment_id);
-create index if not exists idx_assinaturas_mercado_pago_preference on public.assinaturas(mercado_pago_preference_id);
 create index if not exists idx_payment_attempt_locks_expires on public.payment_attempt_locks(provider, plano, status, expires_at);
 
 drop trigger if exists set_profiles_updated_at on public.profiles;

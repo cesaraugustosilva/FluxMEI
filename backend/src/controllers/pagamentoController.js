@@ -2,77 +2,31 @@ import crypto from 'node:crypto';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
 import { PLANOS, assinaturaService } from '../services/assinaturaService.js';
-import { asaasService } from '../services/asaasService.js';
 import { efiBankService } from '../services/efiBankService.js';
-import { mercadoPagoService } from '../services/mercadoPagoService.js';
 import {
   PAYMENT_PLANS,
-  buildAsaasPaymentAttempt,
   buildEfiBankPaymentAttempt,
   buildEfiBankProviderRaw,
   buildEfiBankSubscriptionUpdates,
   buildPendingPaymentAttemptUpdates,
-  buildMercadoPagoPaymentAttempt,
-  buildMercadoPagoProviderRaw,
-  buildAsaasSubscriptionUpdates,
-  buildMercadoPagoSubscriptionUpdates,
-  getRecentEfiBankPendingAttempt,
-  getRecentMercadoPagoPendingAttempt,
-  isAsaasPendingStatus
+  getRecentEfiBankPendingAttempt
 } from '../services/paymentStatusRules.js';
-import { logWebhookEvent, validateAsaasWebhook, validateEfiWebhook, validateMercadoPagoWebhook } from '../services/webhookSecurityService.js';
+import { logWebhookEvent, validateEfiWebhook } from '../services/webhookSecurityService.js';
 import { sanitizeText } from '../utils/validation.js';
+
+const PENDING_PAYMENT_MESSAGE = 'Voce ja possui um pagamento pendente. Conclua ou aguarde a expiracao antes de gerar outro.';
+const PROCESSING_PAYMENT_MESSAGE = 'Ja existe uma tentativa de pagamento em processamento. Aguarde alguns instantes e tente novamente.';
+const EFI_BANK_LOCK_TTL_SECONDS = 120;
 
 function validatePlanId(value, fallback = null) {
   const plano = sanitizeText(value || fallback, { field: 'Plano', required: true, max: 80 });
   const plan = PAYMENT_PLANS[plano];
-  if (!plan || !PLANOS[plano]) throw new AppError('Plano inválido.');
+  if (!plan || !PLANOS[plano]) throw new AppError('Plano invalido.');
   return { plano, plan };
 }
 
 function validatePaymentId(value) {
   return sanitizeText(value, { field: 'payment_id', required: true, max: 120, rejectDangerous: true });
-}
-
-function getRequestBaseUrl(req) {
-  const host = req.get('host');
-  if (!host) return null;
-  return `${req.protocol}://${host}`;
-}
-
-function getFrontendBaseUrl(req) {
-  const configuredUrl = (process.env.FRONTEND_URL || '')
-    .split(',')
-    .map((url) => url.trim().replace(/\/$/, ''))
-    .find(Boolean);
-
-  return configuredUrl || getRequestBaseUrl(req);
-}
-
-function getBackUrls(req) {
-  const baseUrl = getFrontendBaseUrl(req);
-  if (!baseUrl) return null;
-
-  return {
-    success: `${baseUrl}/checkout/?status=success`,
-    failure: `${baseUrl}/checkout/?status=failure`,
-    pending: `${baseUrl}/checkout/?status=pending`
-  };
-}
-
-function getNotificationUrl() {
-  if (process.env.MERCADO_PAGO_NOTIFICATION_URL) {
-    return process.env.MERCADO_PAGO_NOTIFICATION_URL;
-  }
-
-  const publicUrl = (process.env.PUBLIC_URL || process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
-  return publicUrl ? `${publicUrl}/api/webhooks/mercado-pago` : null;
-}
-
-function getMercadoPagoPublicKey() {
-  const publicKey = process.env.MERCADO_PAGO_PUBLIC_KEY;
-  if (!publicKey) throw new AppError('MERCADO_PAGO_PUBLIC_KEY nao configurada.', 500);
-  return publicKey;
 }
 
 async function getProfile(userId) {
@@ -99,13 +53,17 @@ async function getLatestSubscription(userId) {
   return data || null;
 }
 
-async function findSubscriptionByProviderPayment(provider, paymentId) {
-  if (!provider || !paymentId) return null;
+async function ensureUserSubscription(userId, planId) {
+  return await getLatestSubscription(userId) || await assinaturaService.createPendingSubscription(userId, planId);
+}
+
+async function findSubscriptionByProviderPayment(paymentId) {
+  if (!paymentId) return null;
 
   const { data, error } = await supabaseAdmin
     .from('assinaturas')
     .select('*')
-    .eq('payment_provider', provider)
+    .eq('payment_provider', 'efi')
     .eq('provider_payment_id', String(paymentId))
     .maybeSingle();
 
@@ -113,17 +71,16 @@ async function findSubscriptionByProviderPayment(provider, paymentId) {
   return data || null;
 }
 
-async function findSubscriptionByProviderSubscription(provider, subscriptionId) {
-  if (!provider || !subscriptionId) return null;
+async function findSubscriptionById(assinaturaId) {
+  if (!assinaturaId) return null;
 
   const { data, error } = await supabaseAdmin
     .from('assinaturas')
     .select('*')
-    .eq('payment_provider', provider)
-    .eq('provider_subscription_id', String(subscriptionId))
+    .eq('id', assinaturaId)
     .maybeSingle();
 
-  if (error) throw new AppError('Erro ao buscar assinatura por assinatura do processador.', 500, error.message);
+  if (error) throw new AppError('Erro ao buscar assinatura EFI.', 500, error.message);
   return data || null;
 }
 
@@ -139,413 +96,137 @@ async function updateAssinaturaById(assinaturaId, payload) {
   return data;
 }
 
-async function ensureUserSubscription(userId, planId) {
-  return await getLatestSubscription(userId) || await assinaturaService.createPendingSubscription(userId, planId);
-}
-
-function normalizeAsaasMethod(value = 'pix') {
-  const method = String(value || '').toLowerCase();
-  if (['boleto', 'pix', 'cartao'].includes(method)) return method;
-  if (['card', 'credit_card', 'creditcard'].includes(method)) return 'cartao';
-  return 'pix';
-}
-
-function shouldCreateRecurringAsaasSubscription({ plan, method, recurring }) {
-  if (!recurring) return false;
-  if (plan.tipo_cobranca !== 'mensal') return false;
-  return ['pix', 'boleto', 'cartao'].includes(method);
-}
-
-async function getFirstSubscriptionPayment(subscriptionId) {
-  if (!subscriptionId) return null;
-  const payments = await asaasService.listarCobrancas({
-    subscription: subscriptionId,
-    limit: 1,
-    order: 'asc',
-    sort: 'dueDate'
+async function acquireEfiAttemptLock(userId, plan) {
+  const { data, error } = await supabaseAdmin.rpc('acquire_payment_attempt_lock', {
+    p_user_id: userId,
+    p_provider: 'efi',
+    p_plano: plan.id,
+    p_ttl_seconds: EFI_BANK_LOCK_TTL_SECONDS
   });
-  return payments?.data?.[0] || null;
+
+  if (error) throw new AppError('Erro ao reservar tentativa de pagamento.', 500, error.message);
+  const lock = Array.isArray(data) ? data[0] : data;
+  return {
+    acquired: Boolean(lock?.acquired),
+    lockId: lock?.lock_id || null,
+    expiresAt: lock?.expires_at || null
+  };
 }
 
-function getCheckoutUrl(preference) {
-  if (process.env.MERCADO_PAGO_USE_SANDBOX === 'true') {
-    return preference?.sandbox_init_point || preference?.init_point || null;
+async function releaseEfiAttemptLock(lockId) {
+  if (!lockId) return false;
+  const { data, error } = await supabaseAdmin.rpc('release_payment_attempt_lock', {
+    p_lock_id: lockId
+  });
+  if (error) throw new AppError('Erro ao liberar tentativa de pagamento.', 500, error.message);
+  return Boolean(data);
+}
+
+async function handleEfiLockDenied(userId, plan) {
+  const assinatura = await getLatestSubscription(userId);
+  const pendingAttempt = getRecentEfiBankPendingAttempt(assinatura, plan);
+  if (pendingAttempt?.method === 'pix') {
+    const reusablePix = pendingEfiPixResponsePayload(pendingAttempt);
+    if (reusablePix) return reusablePix;
   }
 
-  return preference?.init_point || preference?.sandbox_init_point || null;
+  throw new AppError(PROCESSING_PAYMENT_MESSAGE, 409);
 }
 
-function splitName(fullName = '') {
-  const parts = String(fullName).trim().split(/\s+/).filter(Boolean);
-  return {
-    firstName: parts[0] || '',
-    lastName: parts.slice(1).join(' ')
-  };
-}
+async function revalidateEfiAttemptAfterLock(userId, plan, { allowReusablePix = false } = {}) {
+  const assinatura = await ensureUserSubscription(userId, plan.id);
+  const pendingAttempt = getRecentEfiBankPendingAttempt(assinatura, plan);
+  if (!pendingAttempt) return { assinatura, reusable: null };
 
-function sanitizeBrickPaymentData(formData = {}) {
-  const payer = formData.payer || {};
-  const payerIdentification = payer.identification || {};
-
-  return {
-    token: formData.token || null,
-    payment_method_id: formData.payment_method_id || formData.paymentMethodId || null,
-    issuer_id: formData.issuer_id || formData.issuer || null,
-    installments: Number(formData.installments || 1),
-    payer: {
-      email: payer.email || formData.payer_email || formData.email || null,
-      identification: {
-        type: payerIdentification.type || formData.identificationType || null,
-        number: mercadoPagoService.onlyDigits(payerIdentification.number || formData.identificationNumber || formData.number)
-      },
-      address: payer.address || undefined
-    }
-  };
-}
-
-function buildBrickPaymentPayload({ formData, plan, user, profile, assinatura }) {
-  const ownerName = profile?.nome || user.user_metadata?.nome || user.email || '';
-  const payerName = splitName(ownerName);
-  const documentNumber = mercadoPagoService.onlyDigits(profile?.cpf || profile?.cnpj);
-  const brickData = sanitizeBrickPaymentData(formData);
-
-  if (!brickData.payment_method_id) throw new AppError('Meio de pagamento nao informado.');
-
-  const payer = {
-    email: user.email,
-    first_name: payerName.firstName || undefined,
-    last_name: payerName.lastName || undefined,
-    identification: {
-      type: documentNumber ? (documentNumber.length > 11 ? 'CNPJ' : 'CPF') : brickData.payer.identification.type,
-      number: documentNumber || brickData.payer.identification.number
-    },
-    address: brickData.payer.address
-  };
-
-  const payment = {
-    transaction_amount: plan.value,
-    description: plan.description,
-    payment_method_id: brickData.payment_method_id,
-    installments: Number.isFinite(brickData.installments) && brickData.installments > 0 ? brickData.installments : 1,
-    issuer_id: brickData.issuer_id || undefined,
-    payer,
-    external_reference: assinatura.id,
-    metadata: {
-      user_id: user.id,
-      assinatura_id: assinatura.id,
-      plano: plan.id
-    },
-    notification_url: getNotificationUrl() || undefined,
-    statement_descriptor: 'FLUXMEI'
-  };
-
-  if (brickData.token) payment.token = brickData.token;
-  if (!payment.payer.identification?.type || !payment.payer.identification?.number) {
-    delete payment.payer.identification;
+  if (allowReusablePix && pendingAttempt.method === 'pix') {
+    const reusable = pendingEfiPixResponsePayload(pendingAttempt);
+    if (reusable) return { assinatura, reusable };
   }
-  if (!payment.payer.address) delete payment.payer.address;
-  if (!payment.notification_url) delete payment.notification_url;
-  if (!payment.issuer_id) delete payment.issuer_id;
 
-  return payment;
+  throw new AppError(PENDING_PAYMENT_MESSAGE, 409);
 }
 
-function buildPixPaymentPayload({ plan, user, profile, assinatura }) {
-  const ownerName = profile?.nome || user.user_metadata?.nome || user.email || '';
-  const payerName = splitName(ownerName);
-  const documentNumber = mercadoPagoService.onlyDigits(profile?.cpf || profile?.cnpj);
-  const externalReference = `${user.id}:${assinatura.id}:${plan.id}`;
-
-  const payment = {
-    transaction_amount: plan.value,
-    description: plan.description,
-    payment_method_id: 'pix',
-    payer: {
-      email: user.email,
-      first_name: payerName.firstName || undefined,
-      last_name: payerName.lastName || undefined,
-      identification: documentNumber ? {
-        type: documentNumber.length > 11 ? 'CNPJ' : 'CPF',
-        number: documentNumber
-      } : undefined
-    },
-    external_reference: externalReference,
-    metadata: {
-      user_id: user.id,
-      assinatura_id: assinatura.id,
-      plano: plan.id
-    },
-    notification_url: getNotificationUrl() || undefined,
-    statement_descriptor: 'FLUXMEI'
-  };
-
-  if (!payment.payer.identification) delete payment.payer.identification;
-  if (!payment.notification_url) delete payment.notification_url;
-
-  return payment;
-}
-
-async function registerBrickPaymentAttempt(assinatura, plan, payment, { idempotencyKey = null, method = null } = {}) {
-  const attempt = buildMercadoPagoPaymentAttempt({
-    plan,
-    payment,
-    idempotencyKey,
-    method
-  });
-
-  const updates = buildPendingPaymentAttemptUpdates({
-    assinatura,
-    providerUpdates: {
-      plano: plan.id,
-      valor: plan.value,
-      tipo_cobranca: plan.tipo_cobranca,
-      payment_provider: 'mercado_pago',
-      provider_payment_id: payment?.id ? String(payment.id) : null,
-      provider_status: payment?.status || 'payment_created',
-      provider_raw: buildMercadoPagoProviderRaw({ payment: payment || null, attempt }),
-      mercado_pago_payment_id: payment?.id ? String(payment.id) : null,
-      mercado_pago_status: payment?.status || 'payment_created',
-      checkout_url: null,
-      renovacao_automatica: false
-    }
-  });
-
-  return updateAssinaturaById(assinatura.id, updates);
-}
-
-async function registerCheckoutPreferenceAttempt(assinatura, plan, preference) {
-  const attempt = buildMercadoPagoPaymentAttempt({
-    plan,
-    payment: {
-      id: null,
-      payment_method_id: 'checkout_preference',
-      metadata: {
-        user_id: assinatura.user_id || null,
-        assinatura_id: assinatura.id,
-        plano: plan.id
-      }
-    },
-    method: 'checkout_preference'
-  });
-
-  const checkoutUrl = getCheckoutUrl(preference);
-  const updates = buildPendingPaymentAttemptUpdates({
-    assinatura,
-    providerUpdates: {
-      plano: plan.id,
-      valor: plan.value,
-      tipo_cobranca: plan.tipo_cobranca,
-      payment_provider: 'mercado_pago',
-      provider_payment_id: null,
-      provider_status: 'preference_created',
-      provider_raw: buildMercadoPagoProviderRaw({ payment: preference || null, attempt }),
-      mercado_pago_preference_id: preference.id,
-      mercado_pago_payment_id: null,
-      mercado_pago_status: 'preference_created',
-      checkout_url: checkoutUrl,
-      renovacao_automatica: false
-    }
-  });
-
-  return updateAssinaturaById(assinatura.id, updates);
-}
-
-async function registerPixPaymentAttempt(assinatura, plan, payment, options = {}) {
-  return registerBrickPaymentAttempt(assinatura, plan, payment, options);
-}
-
-async function registerEfiPaymentAttempt(assinatura, plan, payment, { idempotencyKey = null, method = null, qrcode = null } = {}) {
-  const attempt = buildEfiBankPaymentAttempt({
-    plan,
-    payment,
-    idempotencyKey,
-    method
-  });
-
-  const paymentId = payment?.id || payment?.txid || payment?.charge_id ? String(payment.id || payment.txid || payment.charge_id) : null;
-  const updates = buildPendingPaymentAttemptUpdates({
-    assinatura,
-    providerUpdates: {
-      plano: plan.id,
-      valor: plan.value,
-      tipo_cobranca: plan.tipo_cobranca,
-      payment_provider: 'efi',
-      provider_payment_id: paymentId,
-      provider_status: payment?.status || 'created',
-      provider_raw: buildEfiBankProviderRaw({ payment: payment || null, attempt, qrcode }),
-      checkout_url: payment?.link || payment?.payment_url || payment?.billet_link || null,
-      renovacao_automatica: false
-    }
-  });
-
-  return updateAssinaturaById(assinatura.id, updates);
-}
-
-function normalizeAsaasPixData(qrCode) {
-  if (!qrCode) return null;
-  const payload = qrCode.payload || qrCode.qr_code || null;
-  const encodedImage = qrCode.encodedImage || qrCode.encoded_image || qrCode.qr_code_base64 || null;
-  const expirationDate = qrCode.expirationDate || qrCode.expiration_date || null;
-
-  if (!payload && !encodedImage && !expirationDate) return null;
-
-  return {
-    qr_code: payload,
-    qr_code_base64: encodedImage,
-    expiration_date: expirationDate
-  };
-}
-
-function asaasPaymentResponsePayload(payment, pixQrCode = null) {
-  return {
-    payment_id: payment?.id ? String(payment.id) : null,
-    payment_status: payment?.status || null,
-    status_detail: payment?.status || null,
-    payment_method_id: String(payment?.billingType || '').toLowerCase(),
-    payment_type_id: payment?.billingType || null,
-    invoice_url: payment?.invoiceUrl || null,
-    bank_slip_url: payment?.bankSlipUrl || null,
-    due_date: payment?.dueDate || null,
-    pix: normalizeAsaasPixData(pixQrCode)
-  };
-}
-
-async function registerAsaasPaymentAttempt({ assinatura, plan, customer, payment, pixQrCode = null, subscription = null, recurring = false, method = null }) {
-  const attempt = buildAsaasPaymentAttempt({ plan, payment, subscription, recurring, method });
-  const updates = buildPendingPaymentAttemptUpdates({
-    assinatura,
-    providerUpdates: {
-      plano: plan.id,
-      valor: plan.value,
-      tipo_cobranca: plan.tipo_cobranca,
-      payment_provider: 'asaas',
-      provider_payment_id: payment?.id ? String(payment.id) : null,
-      provider_customer_id: customer?.id || assinatura.provider_customer_id || null,
-      provider_subscription_id: subscription?.id || payment?.subscription || assinatura.provider_subscription_id || null,
-      provider_status: subscription?.status || payment?.status || 'CREATED',
-      provider_raw: {
-        attempt,
-        subscription,
-        payment,
-        pixQrCode
-      },
-      checkout_url: payment?.invoiceUrl || payment?.bankSlipUrl || null,
-      renovacao_automatica: Boolean(recurring)
-    }
-  });
-
-  return updateAssinaturaById(assinatura.id, updates);
-}
-
-async function aplicarPagamentoAsaasNaAssinatura(payment, assinatura, event = null) {
-  const updates = buildAsaasSubscriptionUpdates(payment, assinatura, new Date(), event);
-  return updateAssinaturaById(assinatura.id, updates);
-}
-
-function extractPixData(payment) {
-  const transactionData = payment?.point_of_interaction?.transaction_data || {};
-  const qrCode = transactionData.qr_code || null;
-  const qrCodeBase64 = transactionData.qr_code_base64 || null;
-  const ticketUrl = transactionData.ticket_url || null;
-
-  if (!qrCode && !qrCodeBase64 && !ticketUrl) return null;
-
-  return {
-    qr_code: qrCode,
-    qr_code_base64: qrCodeBase64,
-    ticket_url: ticketUrl
-  };
-}
-
-function paymentResponsePayload(payment, fallbackPaymentMethodId = null) {
-  const pix = extractPixData(payment);
-
-  return {
-    payment_id: payment?.id ? String(payment.id) : null,
-    payment_status: payment?.status || null,
-    status_detail: payment?.status_detail || null,
-    payment_method_id: payment?.payment_method_id || fallbackPaymentMethodId,
-    payment_type_id: payment?.payment_type_id || null,
-    transaction_details: payment?.transaction_details || null,
-    pix
-  };
-}
-
-const PENDING_PAYMENT_MESSAGE = 'Você já possui um pagamento pendente. Conclua ou aguarde a expiração antes de gerar outro.';
-const PROCESSING_PAYMENT_MESSAGE = 'Já existe uma tentativa de pagamento em processamento. Aguarde alguns instantes e tente novamente.';
-const MERCADO_PAGO_LOCK_TTL_SECONDS = 120;
-const EFI_BANK_LOCK_TTL_SECONDS = 120;
-
-function pendingPixResponsePayload(pendingAttempt) {
-  const payment = pendingAttempt?.payment || null;
-  if (!payment) return null;
-  const pix = extractPixData(payment);
-  if (!pix?.qr_code) return null;
-
-  return {
-    success: true,
-    reused: true,
-    ...paymentResponsePayload(payment, 'pix'),
-    status: payment?.status || pendingAttempt.status || null,
-    qr_code: pix.qr_code,
-    qr_code_base64: pix.qr_code_base64 || null,
-    ticket_url: pix.ticket_url || null,
-    expires_at: pendingAttempt.expires_at,
-    message: 'Pix pendente encontrado. Utilize o pagamento já gerado.'
-  };
-}
-
-function assertNoRecentPendingMercadoPagoAttempt(assinatura, plan, { allowReusablePix = false } = {}) {
-  const pendingAttempt = getRecentMercadoPagoPendingAttempt(assinatura, plan);
+function assertNoRecentPendingEfiAttempt(assinatura, plan, { allowReusablePix = false } = {}) {
+  const pendingAttempt = getRecentEfiBankPendingAttempt(assinatura, plan);
   if (!pendingAttempt) return null;
 
-  if (allowReusablePix) {
-    const reusablePix = pendingPixResponsePayload(pendingAttempt);
+  if (allowReusablePix && pendingAttempt.method === 'pix') {
+    const reusablePix = pendingEfiPixResponsePayload(pendingAttempt);
     if (reusablePix) return reusablePix;
   }
 
   throw new AppError(PENDING_PAYMENT_MESSAGE, 409);
 }
 
-function efiPixResponsePayload(payment, qrcode = null) {
+function getPaymentId(payment) {
+  return payment?.id || payment?.txid || payment?.charge_id || payment?.chargeId || null;
+}
+
+function getPaymentPlan(payment) {
+  return payment?.metadata?.plano
+    || payment?.fluxmei_metadata?.plano
+    || payment?.custom_id?.split?.(':')?.[2]
+    || null;
+}
+
+function getPaymentSubscriptionId(payment) {
+  return payment?.metadata?.assinatura_id
+    || payment?.fluxmei_metadata?.assinatura_id
+    || payment?.custom_id?.split?.(':')?.[1]
+    || null;
+}
+
+function getPaymentAmount(payment) {
+  if (payment?.amount !== undefined) return payment.amount;
+  if (payment?.valor?.original !== undefined) return Number(payment.valor.original);
+  if (payment?.total !== undefined) return Number(payment.total) / 100;
+  return null;
+}
+
+function normalizeQrCode(payment, qrcode = null) {
   const qrCode = qrcode?.qrcode || qrcode?.qr_code || payment?.pix?.qr_code || payment?.qr_code || null;
   const qrCodeBase64 = qrcode?.imagemQrcode || qrcode?.imagem_qrcode || qrcode?.qr_code_base64 || payment?.qr_code_base64 || null;
-  const paymentId = payment?.id || payment?.txid || payment?.charge_id ? String(payment.id || payment.txid || payment.charge_id) : null;
 
   return {
-    payment_id: paymentId,
-    txid: payment?.txid || paymentId,
+    qr_code: qrCode,
+    qr_code_base64: qrCodeBase64
+  };
+}
+
+function efiPixResponsePayload(payment, qrcode = null) {
+  const paymentId = getPaymentId(payment);
+  const pix = normalizeQrCode(payment, qrcode);
+
+  return {
+    payment_id: paymentId ? String(paymentId) : null,
+    txid: payment?.txid || (paymentId ? String(paymentId) : null),
     payment_status: payment?.status || null,
     status: payment?.status || null,
     payment_method_id: 'pix',
     payment_type_id: 'pix',
-    valor: payment?.amount ?? payment?.valor?.original ?? null,
-    plano: payment?.metadata?.plano || payment?.fluxmei_metadata?.plano || null,
-    pix: {
-      qr_code: qrCode,
-      qr_code_base64: qrCodeBase64
-    },
-    qr_code: qrCode,
-    qr_code_base64: qrCodeBase64,
-    copia_e_cola: qrCode,
+    valor: getPaymentAmount(payment),
+    plano: getPaymentPlan(payment),
+    pix,
+    qr_code: pix.qr_code,
+    qr_code_base64: pix.qr_code_base64,
+    copia_e_cola: pix.qr_code,
     ticket_url: qrcode?.linkVisualizacao || qrcode?.ticket_url || null
   };
 }
 
 function efiPaymentResponsePayload(payment, fallbackPaymentMethodId = null, qrcode = null) {
-  if ((payment?.payment_method_id || fallbackPaymentMethodId) === 'pix') {
-    return efiPixResponsePayload(payment, qrcode);
-  }
+  const method = payment?.payment_method_id || payment?.method || fallbackPaymentMethodId;
+  if (method === 'pix') return efiPixResponsePayload(payment, qrcode);
 
   return {
-    payment_id: payment?.id || payment?.charge_id || payment?.txid ? String(payment.id || payment.charge_id || payment.txid) : null,
+    payment_id: getPaymentId(payment) ? String(getPaymentId(payment)) : null,
     charge_id: payment?.charge_id || payment?.id ? String(payment.charge_id || payment.id) : null,
     payment_status: payment?.status || null,
     status: payment?.status || null,
-    payment_method_id: payment?.payment_method_id || fallbackPaymentMethodId,
+    payment_method_id: method,
     payment_type_id: payment?.method || fallbackPaymentMethodId,
-    valor: payment?.amount ?? (payment?.total ? Number(payment.total) / 100 : null),
-    plano: payment?.metadata?.plano || payment?.fluxmei_metadata?.plano || payment?.custom_id?.split?.(':')?.[2] || null,
+    valor: getPaymentAmount(payment),
+    plano: getPaymentPlan(payment),
     invoice_url: payment?.link || payment?.payment_url || payment?.billet_link || null,
     bank_slip_url: payment?.billet_link || payment?.pdf?.charge || payment?.link || null,
     digitable_line: payment?.barcode || payment?.linha_digitavel || payment?.payment?.banking_billet?.barcode || null,
@@ -557,581 +238,139 @@ function pendingEfiPixResponsePayload(pendingAttempt) {
   const payment = pendingAttempt?.payment || null;
   const qrcode = pendingAttempt?.qrcode || null;
   if (!payment) return null;
+
   const payload = efiPixResponsePayload(payment, qrcode);
   if (!payload.qr_code) return null;
 
   return {
     success: true,
-    reused: true,
     provider: 'efi',
+    reused: true,
     ...payload,
     expires_at: pendingAttempt.expires_at,
     message: 'Pix pendente encontrado. Utilize o pagamento ja gerado.'
   };
 }
 
-function assertNoRecentPendingEfiAttempt(assinatura, plan, { allowReusablePix = false } = {}) {
-  const pendingAttempt = getRecentEfiBankPendingAttempt(assinatura, plan);
-  if (!pendingAttempt) return null;
-
-  if (allowReusablePix) {
-    const reusablePix = pendingEfiPixResponsePayload(pendingAttempt);
-    if (reusablePix) return reusablePix;
-  }
-
-  throw new AppError(PENDING_PAYMENT_MESSAGE, 409);
-}
-
-async function acquirePaymentAttemptLock(userId, provider, plan, ttlSeconds) {
-  const { data, error } = await supabaseAdmin.rpc('acquire_payment_attempt_lock', {
-    p_user_id: userId,
-    p_provider: provider,
-    p_plano: plan.id,
-    p_ttl_seconds: ttlSeconds
-  });
-
-  if (error) throw new AppError('Erro ao reservar tentativa de pagamento.', 500, error.message);
-
-  const result = Array.isArray(data) ? data[0] : data;
-  return {
-    acquired: Boolean(result?.acquired),
-    lockId: result?.lock_id || null,
-    expiresAt: result?.expires_at || null
-  };
-}
-
-async function releasePaymentAttemptLock(lockId, provider = 'pagamento') {
-  if (!lockId) return;
-
-  const { error } = await supabaseAdmin.rpc('release_payment_attempt_lock', {
-    p_lock_id: lockId
-  });
-
-  if (error) {
-    console.warn(`[pagamento:${provider}] falha ao liberar trava de tentativa`, {
-      lock_id: lockId,
-      error: error.message
-    });
-  }
-}
-
-async function acquireMercadoPagoAttemptLock(userId, plan) {
-  return acquirePaymentAttemptLock(userId, 'mercado_pago', plan, MERCADO_PAGO_LOCK_TTL_SECONDS);
-}
-
-async function releaseMercadoPagoAttemptLock(lockId) {
-  return releasePaymentAttemptLock(lockId, 'mercado-pago');
-}
-
-async function handleMercadoPagoLockDenied(userId, plan, { allowReusablePix = false } = {}) {
-  const assinatura = await getLatestSubscription(userId);
-  if (assinatura) {
-    const reusablePix = assertNoRecentPendingMercadoPagoAttempt(assinatura, plan, { allowReusablePix });
-    if (reusablePix) return reusablePix;
-  }
-
-  throw new AppError(PROCESSING_PAYMENT_MESSAGE, 409);
-}
-
-async function revalidateMercadoPagoAttemptAfterLock(userId, plan, { allowReusablePix = false } = {}) {
-  const assinatura = await getLatestSubscription(userId);
-  if (!assinatura) throw new AppError('Assinatura nao encontrada para este usuario.', 404);
-
-  const reusablePix = assertNoRecentPendingMercadoPagoAttempt(assinatura, plan, { allowReusablePix });
-  return { assinatura, reusablePix };
-}
-
-async function acquireEfiAttemptLock(userId, plan) {
-  return acquirePaymentAttemptLock(userId, 'efi', plan, EFI_BANK_LOCK_TTL_SECONDS);
-}
-
-async function releaseEfiAttemptLock(lockId) {
-  return releasePaymentAttemptLock(lockId, 'efi');
-}
-
-async function handleEfiLockDenied(userId, plan, { allowReusablePix = false } = {}) {
-  const assinatura = await getLatestSubscription(userId);
-  if (assinatura) {
-    const reusablePix = assertNoRecentPendingEfiAttempt(assinatura, plan, { allowReusablePix });
-    if (reusablePix) return reusablePix;
-  }
-
-  throw new AppError(PROCESSING_PAYMENT_MESSAGE, 409);
-}
-
-async function revalidateEfiAttemptAfterLock(userId, plan, { allowReusablePix = false } = {}) {
-  const assinatura = await getLatestSubscription(userId);
-  if (!assinatura) throw new AppError('Assinatura nao encontrada para este usuario.', 404);
-
-  const reusablePix = assertNoRecentPendingEfiAttempt(assinatura, plan, { allowReusablePix });
-  return { assinatura, reusablePix };
-}
-
-export async function mercadoPagoPublicConfig(req, res) {
-  res.json({
-    public_key: getMercadoPagoPublicKey()
-  });
-}
-
-export async function checkoutMercadoPagoLegadoDesativado(req, res) {
-  res.status(410).json({
-    success: false,
-    message: 'Fluxo legado desativado. Utilize o checkout atual.'
-  });
-}
-
-export async function criarCheckoutMercadoPago(req, res) {
-  const { plano, plan } = validatePlanId(req.body?.plano);
-
-  const profile = await getProfile(req.user.id);
-  const assinatura = await ensureUserSubscription(req.user.id, plano);
-
-  const preference = await mercadoPagoService.criarPreferencia({
+async function registerEfiPaymentAttempt(assinatura, plan, payment, { idempotencyKey = null, method = null, qrcode = null } = {}) {
+  const attempt = buildEfiBankPaymentAttempt({
     plan,
-    user: req.user,
-    profile,
+    payment,
+    idempotencyKey,
+    method
+  });
+
+  const paymentId = getPaymentId(payment);
+  const updates = buildPendingPaymentAttemptUpdates({
     assinatura,
-    backUrls: getBackUrls(req),
-    notificationUrl: getNotificationUrl()
+    providerUpdates: {
+      plano: plan.id,
+      valor: plan.value,
+      tipo_cobranca: plan.tipo_cobranca,
+      payment_provider: 'efi',
+      provider_payment_id: paymentId ? String(paymentId) : null,
+      provider_status: payment?.status || 'created',
+      provider_raw: buildEfiBankProviderRaw({ payment: payment || null, attempt, qrcode }),
+      checkout_url: payment?.link || payment?.payment_url || payment?.billet_link || null,
+      renovacao_automatica: false
+    }
   });
 
-  const checkoutUrl = getCheckoutUrl(preference);
-  if (!checkoutUrl) throw new AppError('Mercado Pago nao retornou URL de checkout.', 502, preference);
-
-  await registerCheckoutPreferenceAttempt(assinatura, plan, preference);
-
-  res.status(201).json({
-    success: true,
-    checkout_url: checkoutUrl,
-    preference_id: preference.id,
-    message: 'Pagamento criado com sucesso'
-  });
+  return updateAssinaturaById(assinatura.id, updates);
 }
 
-export async function processarPagamentoBrick(req, res) {
+async function criarPagamentoEfi(req, res, method) {
   const { plano, plan } = validatePlanId(req.body?.plano);
+  if (!req.user?.email) throw new AppError('Usuario autenticado sem e-mail cadastrado.', 400);
 
   const profile = await getProfile(req.user.id);
   const assinatura = await ensureUserSubscription(req.user.id, plano);
-  assertNoRecentPendingMercadoPagoAttempt(assinatura, plan);
+  const reusable = assertNoRecentPendingEfiAttempt(assinatura, plan, { allowReusablePix: method === 'pix' });
+  if (reusable) return res.status(200).json(reusable);
 
   let attemptLock = null;
   let paymentCreated = false;
   let shouldReleaseLock = false;
 
   try {
-    attemptLock = await acquireMercadoPagoAttemptLock(req.user.id, plan);
+    attemptLock = await acquireEfiAttemptLock(req.user.id, plan);
     if (!attemptLock.acquired) {
-      await handleMercadoPagoLockDenied(req.user.id, plan);
+      const lockedReusable = await handleEfiLockDenied(req.user.id, plan);
+      if (lockedReusable) return res.status(200).json(lockedReusable);
     }
     shouldReleaseLock = true;
 
-    const { assinatura: lockedAssinatura } = await revalidateMercadoPagoAttemptAfterLock(req.user.id, plan);
-    const paymentPayload = buildBrickPaymentPayload({
-      formData: req.body?.payment || req.body?.formData || {},
-      plan,
-      user: req.user,
-      profile,
-      assinatura: lockedAssinatura
+    const { assinatura: lockedAssinatura, reusable: lockedReusable } = await revalidateEfiAttemptAfterLock(req.user.id, plan, {
+      allowReusablePix: method === 'pix'
     });
+    if (lockedReusable) return res.status(200).json(lockedReusable);
 
     const idempotencyKey = crypto.randomUUID();
-    const payment = await mercadoPagoService.criarPagamento({
-      payment: paymentPayload,
-      idempotencyKey
-    });
+    let payment;
+    let qrcode = null;
+
+    if (method === 'pix') {
+      const result = await efiBankService.criarPix({ plan, user: req.user, profile, assinatura: lockedAssinatura, idempotencyKey });
+      payment = result.payment;
+      qrcode = result.qrcode || null;
+    } else if (method === 'boleto') {
+      payment = await efiBankService.criarBoleto({ plan, user: req.user, profile, assinatura: lockedAssinatura, idempotencyKey });
+    } else {
+      payment = await efiBankService.criarCartao({
+        plan,
+        user: req.user,
+        profile,
+        assinatura: lockedAssinatura,
+        card: req.body?.payment || req.body?.card || {},
+        idempotencyKey
+      });
+    }
+
     paymentCreated = true;
     shouldReleaseLock = false;
 
-    await registerBrickPaymentAttempt(lockedAssinatura, plan, payment, {
+    await registerEfiPaymentAttempt(lockedAssinatura, plan, payment, {
       idempotencyKey,
-      method: paymentPayload.payment_method_id
+      method,
+      qrcode
     });
     shouldReleaseLock = true;
 
-    res.status(201).json({
+    const messages = {
+      pix: 'Pix gerado com sucesso',
+      boleto: 'Boleto gerado com sucesso',
+      cartao: 'Pagamento enviado a EFI Bank'
+    };
+
+    return res.status(201).json({
       success: true,
-      ...paymentResponsePayload(payment, paymentPayload.payment_method_id),
-      message: 'Pagamento enviado ao Mercado Pago'
+      provider: 'efi',
+      ...efiPaymentResponsePayload(payment, method, qrcode),
+      message: messages[method]
     });
   } catch (error) {
     if (attemptLock?.acquired && attemptLock.lockId && !paymentCreated) {
-      await releaseMercadoPagoAttemptLock(attemptLock.lockId);
+      await releaseEfiAttemptLock(attemptLock.lockId);
       shouldReleaseLock = false;
     }
     throw error;
   } finally {
     if (attemptLock?.acquired && attemptLock.lockId && shouldReleaseLock) {
-      await releaseMercadoPagoAttemptLock(attemptLock.lockId);
-    }
-  }
-}
-
-export async function criarPixMercadoPago(req, res) {
-  const { plano, plan } = validatePlanId(req.body?.plano);
-  if (!req.user?.email) throw new AppError('Usuário autenticado sem e-mail cadastrado.', 400);
-
-  const profile = await getProfile(req.user.id);
-  const assinatura = await ensureUserSubscription(req.user.id, plano);
-  const reusablePix = assertNoRecentPendingMercadoPagoAttempt(assinatura, plan, { allowReusablePix: true });
-  if (reusablePix) {
-    res.status(200).json(reusablePix);
-    return;
-  }
-
-  let attemptLock = null;
-  let paymentCreated = false;
-  let shouldReleaseLock = false;
-
-  try {
-    attemptLock = await acquireMercadoPagoAttemptLock(req.user.id, plan);
-    if (!attemptLock.acquired) {
-      const lockedPix = await handleMercadoPagoLockDenied(req.user.id, plan, { allowReusablePix: true });
-      if (lockedPix) {
-        res.status(200).json(lockedPix);
-        return;
-      }
-    }
-    shouldReleaseLock = true;
-
-    const { assinatura: lockedAssinatura, reusablePix: lockedReusablePix } = await revalidateMercadoPagoAttemptAfterLock(req.user.id, plan, { allowReusablePix: true });
-    if (lockedReusablePix) {
-      res.status(200).json(lockedReusablePix);
-      return;
-    }
-
-    const paymentPayload = buildPixPaymentPayload({
-      plan,
-      user: req.user,
-      profile,
-      assinatura: lockedAssinatura
-    });
-
-    const idempotencyKey = crypto.randomUUID();
-    const payment = await mercadoPagoService.criarPagamento({
-      payment: paymentPayload,
-      idempotencyKey
-    });
-    paymentCreated = true;
-    shouldReleaseLock = false;
-
-    await registerPixPaymentAttempt(lockedAssinatura, plan, payment, {
-      idempotencyKey,
-      method: 'pix'
-    });
-    shouldReleaseLock = true;
-    const pix = extractPixData(payment);
-
-    res.status(201).json({
-      success: true,
-      ...paymentResponsePayload(payment, 'pix'),
-      status: payment?.status || null,
-      qr_code: pix?.qr_code || null,
-      qr_code_base64: pix?.qr_code_base64 || null,
-      ticket_url: pix?.ticket_url || null,
-      message: 'Pix gerado com sucesso'
-    });
-  } catch (error) {
-    if (attemptLock?.acquired && attemptLock.lockId && !paymentCreated) {
-      await releaseMercadoPagoAttemptLock(attemptLock.lockId);
-      shouldReleaseLock = false;
-    }
-    throw error;
-  } finally {
-    if (attemptLock?.acquired && attemptLock.lockId && shouldReleaseLock) {
-      await releaseMercadoPagoAttemptLock(attemptLock.lockId);
+      await releaseEfiAttemptLock(attemptLock.lockId);
     }
   }
 }
 
 export async function criarPixEfi(req, res) {
-  const { plano, plan } = validatePlanId(req.body?.plano);
-  if (!req.user?.email) throw new AppError('Usuario autenticado sem e-mail cadastrado.', 400);
-
-  const profile = await getProfile(req.user.id);
-  const assinatura = await ensureUserSubscription(req.user.id, plano);
-  const reusablePix = assertNoRecentPendingEfiAttempt(assinatura, plan, { allowReusablePix: true });
-  if (reusablePix) {
-    res.status(200).json(reusablePix);
-    return;
-  }
-
-  let attemptLock = null;
-  let paymentCreated = false;
-  let shouldReleaseLock = false;
-
-  try {
-    attemptLock = await acquireEfiAttemptLock(req.user.id, plan);
-    if (!attemptLock.acquired) {
-      const lockedPix = await handleEfiLockDenied(req.user.id, plan, { allowReusablePix: true });
-      if (lockedPix) {
-        res.status(200).json(lockedPix);
-        return;
-      }
-    }
-    shouldReleaseLock = true;
-
-    const { assinatura: lockedAssinatura, reusablePix: lockedReusablePix } = await revalidateEfiAttemptAfterLock(req.user.id, plan, { allowReusablePix: true });
-    if (lockedReusablePix) {
-      res.status(200).json(lockedReusablePix);
-      return;
-    }
-
-    const idempotencyKey = crypto.randomUUID();
-    const { payment, qrcode } = await efiBankService.criarPix({
-      plan,
-      user: req.user,
-      profile,
-      assinatura: lockedAssinatura,
-      idempotencyKey
-    });
-    paymentCreated = true;
-    shouldReleaseLock = false;
-
-    await registerEfiPaymentAttempt(lockedAssinatura, plan, payment, {
-      idempotencyKey,
-      method: 'pix',
-      qrcode
-    });
-    shouldReleaseLock = true;
-
-    res.status(201).json({
-      success: true,
-      provider: 'efi',
-      ...efiPaymentResponsePayload(payment, 'pix', qrcode),
-      message: 'Pix gerado com sucesso'
-    });
-  } catch (error) {
-    if (attemptLock?.acquired && attemptLock.lockId && !paymentCreated) {
-      await releaseEfiAttemptLock(attemptLock.lockId);
-      shouldReleaseLock = false;
-    }
-    throw error;
-  } finally {
-    if (attemptLock?.acquired && attemptLock.lockId && shouldReleaseLock) {
-      await releaseEfiAttemptLock(attemptLock.lockId);
-    }
-  }
-}
-
-export async function criarCartaoEfi(req, res) {
-  const { plano, plan } = validatePlanId(req.body?.plano);
-  if (!req.user?.email) throw new AppError('Usuario autenticado sem e-mail cadastrado.', 400);
-
-  const profile = await getProfile(req.user.id);
-  const assinatura = await ensureUserSubscription(req.user.id, plano);
-  assertNoRecentPendingEfiAttempt(assinatura, plan);
-
-  let attemptLock = null;
-  let paymentCreated = false;
-  let shouldReleaseLock = false;
-
-  try {
-    attemptLock = await acquireEfiAttemptLock(req.user.id, plan);
-    if (!attemptLock.acquired) {
-      await handleEfiLockDenied(req.user.id, plan);
-    }
-    shouldReleaseLock = true;
-
-    const { assinatura: lockedAssinatura } = await revalidateEfiAttemptAfterLock(req.user.id, plan);
-    const idempotencyKey = crypto.randomUUID();
-    const payment = await efiBankService.criarCartao({
-      plan,
-      user: req.user,
-      profile,
-      assinatura: lockedAssinatura,
-      card: req.body?.payment || req.body?.card || {},
-      idempotencyKey
-    });
-    paymentCreated = true;
-    shouldReleaseLock = false;
-
-    await registerEfiPaymentAttempt(lockedAssinatura, plan, payment, {
-      idempotencyKey,
-      method: 'cartao'
-    });
-    shouldReleaseLock = true;
-
-    res.status(201).json({
-      success: true,
-      provider: 'efi',
-      ...efiPaymentResponsePayload(payment, 'cartao'),
-      message: 'Pagamento enviado a EFI Bank'
-    });
-  } catch (error) {
-    if (attemptLock?.acquired && attemptLock.lockId && !paymentCreated) {
-      await releaseEfiAttemptLock(attemptLock.lockId);
-      shouldReleaseLock = false;
-    }
-    throw error;
-  } finally {
-    if (attemptLock?.acquired && attemptLock.lockId && shouldReleaseLock) {
-      await releaseEfiAttemptLock(attemptLock.lockId);
-    }
-  }
+  return criarPagamentoEfi(req, res, 'pix');
 }
 
 export async function criarBoletoEfi(req, res) {
-  const { plano, plan } = validatePlanId(req.body?.plano);
-  if (!req.user?.email) throw new AppError('Usuario autenticado sem e-mail cadastrado.', 400);
-
-  const profile = await getProfile(req.user.id);
-  const assinatura = await ensureUserSubscription(req.user.id, plano);
-  assertNoRecentPendingEfiAttempt(assinatura, plan);
-
-  let attemptLock = null;
-  let paymentCreated = false;
-  let shouldReleaseLock = false;
-
-  try {
-    attemptLock = await acquireEfiAttemptLock(req.user.id, plan);
-    if (!attemptLock.acquired) {
-      await handleEfiLockDenied(req.user.id, plan);
-    }
-    shouldReleaseLock = true;
-
-    const { assinatura: lockedAssinatura } = await revalidateEfiAttemptAfterLock(req.user.id, plan);
-    const idempotencyKey = crypto.randomUUID();
-    const payment = await efiBankService.criarBoleto({
-      plan,
-      user: req.user,
-      profile,
-      assinatura: lockedAssinatura,
-      idempotencyKey
-    });
-    paymentCreated = true;
-    shouldReleaseLock = false;
-
-    await registerEfiPaymentAttempt(lockedAssinatura, plan, payment, {
-      idempotencyKey,
-      method: 'boleto'
-    });
-    shouldReleaseLock = true;
-
-    res.status(201).json({
-      success: true,
-      provider: 'efi',
-      ...efiPaymentResponsePayload(payment, 'boleto'),
-      message: 'Boleto gerado com sucesso'
-    });
-  } catch (error) {
-    if (attemptLock?.acquired && attemptLock.lockId && !paymentCreated) {
-      await releaseEfiAttemptLock(attemptLock.lockId);
-      shouldReleaseLock = false;
-    }
-    throw error;
-  } finally {
-    if (attemptLock?.acquired && attemptLock.lockId && shouldReleaseLock) {
-      await releaseEfiAttemptLock(attemptLock.lockId);
-    }
-  }
+  return criarPagamentoEfi(req, res, 'boleto');
 }
 
-export async function criarCobrancaAsaas(req, res) {
-  const { plano, plan } = validatePlanId(req.body?.plano, 'pro_mensal');
-
-  const method = normalizeAsaasMethod(req.body?.metodo || req.body?.method || req.body?.billingType);
-  const recurring = req.body?.recorrente !== false && req.body?.recurring !== false;
-  const profile = await getProfile(req.user.id);
-  const assinatura = await ensureUserSubscription(req.user.id, plano);
-
-  if (assinatura.status === 'ativo' && !assinatura.bloqueado) {
-    throw new AppError('Sua assinatura ja esta ativa.', 409);
-  }
-
-  if (assinatura.payment_provider === 'asaas' && assinatura.provider_subscription_id && assinatura.status === 'pendente') {
-    throw new AppError('Ja existe uma assinatura Asaas pendente para este usuario.', 409);
-  }
-
-  const customer = await asaasService.criarOuBuscarCliente({
-    user: req.user,
-    profile,
-    existingCustomerId: assinatura.payment_provider === 'asaas' ? assinatura.provider_customer_id : null
-  });
-
-  if (shouldCreateRecurringAsaasSubscription({ plan, method, recurring })) {
-    const subscription = await asaasService.criarAssinatura({
-      customerId: customer.id,
-      plan,
-      method: method === 'cartao' ? 'undefined' : method,
-      externalReference: assinatura.id
-    });
-
-    const payment = await getFirstSubscriptionPayment(subscription.id);
-    let pixQrCode = null;
-    if (payment?.id && asaasService.normalizeBillingType(method) === 'PIX') {
-      pixQrCode = await asaasService.obterPixQrCode(payment.id);
-    }
-
-    await registerAsaasPaymentAttempt({
-      assinatura,
-      plan,
-      customer,
-      payment,
-      pixQrCode,
-      subscription,
-      recurring: true,
-      method
-    });
-
-    res.status(201).json({
-      success: true,
-      provider: 'asaas',
-      recurring: true,
-      subscription_id: subscription.id,
-      subscription_status: subscription.status || null,
-      ...asaasPaymentResponsePayload(payment, pixQrCode),
-      message: payment?.id
-        ? 'Assinatura recorrente criada no Asaas'
-        : 'Assinatura recorrente criada no Asaas. Aguardando geracao da primeira cobranca.'
-    });
-    return;
-  }
-
-  const payment = await asaasService.criarCobranca({
-    customerId: customer.id,
-    plan,
-    method: method === 'cartao' ? 'undefined' : method,
-    externalReference: assinatura.id
-  });
-
-  let pixQrCode = null;
-  if (asaasService.normalizeBillingType(method) === 'PIX') {
-    pixQrCode = await asaasService.obterPixQrCode(payment.id);
-  }
-
-  await registerAsaasPaymentAttempt({ assinatura, plan, customer, payment, pixQrCode, method });
-
-  res.status(201).json({
-    success: true,
-    provider: 'asaas',
-    recurring: false,
-    ...asaasPaymentResponsePayload(payment, pixQrCode),
-    message: 'Cobranca criada no Asaas'
-  });
-}
-
-async function aplicarPagamentoNaAssinatura(payment, assinatura) {
-  const updates = buildMercadoPagoSubscriptionUpdates(payment, assinatura);
-  if (updates.already_processed || updates.ignored) {
-    return {
-      ...assinatura,
-      payment_provider: updates.payment_provider,
-      already_processed: Boolean(updates.already_processed),
-      ignored: Boolean(updates.ignored),
-      outcome: updates.outcome
-    };
-  }
-
-  const { data, error } = await supabaseAdmin
-    .from('assinaturas')
-    .update(updates)
-    .eq('id', assinatura.id)
-    .select()
-    .single();
-
-  if (error) throw new AppError('Erro ao atualizar assinatura pelo pagamento.', 500, error.message);
-  return data;
+export async function criarCartaoEfi(req, res) {
+  return criarPagamentoEfi(req, res, 'cartao');
 }
 
 async function aplicarPagamentoEfiNaAssinatura(payment, assinatura) {
@@ -1149,71 +388,11 @@ async function aplicarPagamentoEfiNaAssinatura(payment, assinatura) {
   return updateAssinaturaById(assinatura.id, updates);
 }
 
-export async function sincronizarRetornoMercadoPago(req, res) {
-  const paymentId = validatePaymentId(req.query.payment_id || req.query.collection_id || req.body?.payment_id || req.body?.collection_id);
-
-  const payment = await mercadoPagoService.consultarPagamento(paymentId);
-  const assinatura = await findSubscriptionFromPayment(payment);
-
-  if (!assinatura || assinatura.user_id !== req.user.id) {
-    throw new AppError('Pagamento nao encontrado para este usuario.', 404);
-  }
-
-  res.json({
-    success: true,
-    payment_status: payment.status,
-    assinatura,
-    message: 'Status consultado. A assinatura sera alterada somente apos webhook valido do Mercado Pago.'
-  });
-}
-
-export async function statusPagamentoMercadoPago(req, res) {
-  const paymentId = validatePaymentId(req.params.paymentId || req.query.payment_id);
-
-  const payment = await mercadoPagoService.consultarPagamento(paymentId);
-  const assinatura = await findSubscriptionFromPayment(payment);
-
-  if (!assinatura || assinatura.user_id !== req.user.id) {
-    throw new AppError('Pagamento nao encontrado para este usuario.', 404);
-  }
-
-  res.json({
-    success: true,
-    ...paymentResponsePayload(payment),
-    assinatura,
-    message: 'Status consultado. A assinatura sera alterada somente apos webhook valido do Mercado Pago.'
-  });
-}
-
-export async function statusPagamentoAsaas(req, res) {
-  const paymentId = validatePaymentId(req.params.paymentId);
-
-  const payment = await asaasService.consultarPagamento(paymentId);
-  const assinatura = await findSubscriptionByProviderPayment('asaas', payment.id);
-
-  if (!assinatura || assinatura.user_id !== req.user.id) {
-    throw new AppError('Pagamento nao encontrado para este usuario.', 404);
-  }
-
-  let pixQrCode = null;
-  if (payment.billingType === 'PIX' && isAsaasPendingStatus(payment.status)) {
-    pixQrCode = await asaasService.obterPixQrCode(payment.id);
-  }
-
-  res.json({
-    success: true,
-    provider: 'asaas',
-    ...asaasPaymentResponsePayload(payment, pixQrCode),
-    assinatura,
-    message: 'Status consultado. A assinatura sera alterada somente apos webhook valido do Asaas.'
-  });
-}
-
 export async function statusPagamentoEfi(req, res) {
   const paymentId = validatePaymentId(req.params.paymentId);
-
   const payment = await efiBankService.consultarPagamento(paymentId);
-  const assinatura = await findSubscriptionByProviderPayment('efi', payment.id || payment.txid || payment.charge_id || paymentId);
+  const currentPaymentId = getPaymentId(payment) || paymentId;
+  const assinatura = await findSubscriptionByProviderPayment(currentPaymentId);
 
   if (!assinatura || assinatura.user_id !== req.user.id) {
     throw new AppError('Pagamento nao encontrado para este usuario.', 404);
@@ -1226,91 +405,6 @@ export async function statusPagamentoEfi(req, res) {
     assinatura,
     message: 'Status consultado. A assinatura sera alterada somente apos webhook valido da EFI Bank.'
   });
-}
-
-async function findSubscriptionFromPayment(payment) {
-  const externalReference = payment?.external_reference;
-  const paymentId = payment?.id ? String(payment.id) : null;
-
-  if (paymentId) {
-    const { data, error } = await supabaseAdmin
-      .from('assinaturas')
-      .select('*')
-      .eq('mercado_pago_payment_id', paymentId)
-      .maybeSingle();
-    if (error) throw new AppError('Erro ao buscar assinatura.', 500, error.message);
-    if (data) return data;
-  }
-
-  if (externalReference) {
-    const reference = String(externalReference);
-    const assinaturaId = reference.includes(':') ? reference.split(':')[1] : reference;
-    const { data: assinaturaById, error: assinaturaError } = await supabaseAdmin
-      .from('assinaturas')
-      .select('*')
-      .eq('id', assinaturaId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (assinaturaError) throw new AppError('Erro ao buscar assinatura.', 500, assinaturaError.message);
-    if (assinaturaById) return assinaturaById;
-
-    if (!reference.includes(':')) {
-      const { data: assinaturaByUser, error: userError } = await supabaseAdmin
-        .from('assinaturas')
-        .select('*')
-        .eq('user_id', reference)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (userError) throw new AppError('Erro ao buscar assinatura.', 500, userError.message);
-      if (assinaturaByUser) return assinaturaByUser;
-    }
-  }
-
-  return null;
-}
-
-function getNotificationPaymentId(req) {
-  return req.query?.['data.id']
-    || req.query?.id
-    || req.body?.data?.id
-    || req.body?.id
-    || null;
-}
-
-function isPaymentNotification(req) {
-  const type = req.query?.type || req.body?.type;
-  const topic = req.query?.topic || req.body?.topic;
-  return !type && !topic ? true : type === 'payment' || topic === 'payment';
-}
-
-export async function webhookMercadoPago(req, res) {
-  const paymentId = getNotificationPaymentId(req);
-  validateMercadoPagoWebhook(req, paymentId);
-
-  if (!paymentId || !isPaymentNotification(req)) {
-    logWebhookEvent({ provider: 'mercado_pago', event: req.query?.type || req.body?.type || req.query?.topic || req.body?.topic, paymentId, outcome: 'ignored' });
-    return res.json({ received: true, ignored: true });
-  }
-
-  const payment = await mercadoPagoService.consultarPagamento(paymentId);
-  logWebhookEvent({ provider: 'mercado_pago', event: 'payment', paymentId, status: payment?.status, outcome: 'processing' });
-  const assinatura = await findSubscriptionFromPayment(payment);
-  if (!assinatura) {
-    logWebhookEvent({ provider: 'mercado_pago', event: 'payment', paymentId, status: payment?.status, outcome: 'ignored_no_subscription' });
-    return res.json({ received: true, ignored: true });
-  }
-
-  const updatedAssinatura = await aplicarPagamentoNaAssinatura(payment, assinatura);
-  logWebhookEvent({
-    provider: 'mercado_pago',
-    event: 'payment',
-    paymentId,
-    status: payment?.status,
-    outcome: updatedAssinatura.outcome || (updatedAssinatura.already_processed ? 'duplicate_ignored' : 'applied')
-  });
-  res.json({ received: true });
 }
 
 function getEfiWebhookPaymentId(req) {
@@ -1332,6 +426,7 @@ export async function webhookEfi(req, res) {
   const paymentId = getEfiWebhookPaymentId(req);
   const event = req.body?.evento || req.body?.event || req.body?.type || (req.body?.pix ? 'pix' : 'payment');
   console.info('[webhook:efi]', { event, payment_id: paymentId || null, outcome: paymentId ? 'received' : 'ignored_no_payment_id' });
+
   if (!paymentId) {
     logWebhookEvent({ provider: 'efi', event, outcome: 'ignored' });
     return res.json({ received: true, ignored: true });
@@ -1341,18 +436,10 @@ export async function webhookEfi(req, res) {
   console.info('[webhook:efi]', { event, payment_id: paymentId, status: payment?.status || null, outcome: 'consulted' });
   logWebhookEvent({ provider: 'efi', event, paymentId, status: payment?.status, outcome: 'processing' });
 
-  let assinatura = await findSubscriptionByProviderPayment('efi', payment.id || payment.txid || payment.charge_id || paymentId);
+  const currentPaymentId = getPaymentId(payment) || paymentId;
+  let assinatura = await findSubscriptionByProviderPayment(currentPaymentId);
   if (!assinatura) {
-    const assinaturaId = payment?.metadata?.assinatura_id || payment?.fluxmei_metadata?.assinatura_id || payment?.custom_id?.split?.(':')?.[1];
-    if (assinaturaId) {
-      const { data, error } = await supabaseAdmin
-        .from('assinaturas')
-        .select('*')
-        .eq('id', assinaturaId)
-        .maybeSingle();
-      if (error) throw new AppError('Erro ao buscar assinatura EFI.', 500, error.message);
-      assinatura = data || null;
-    }
+    assinatura = await findSubscriptionById(getPaymentSubscriptionId(payment));
   }
 
   if (!assinatura) {
@@ -1361,84 +448,21 @@ export async function webhookEfi(req, res) {
   }
 
   const updatedAssinatura = await aplicarPagamentoEfiNaAssinatura(payment, assinatura);
+  const outcome = updatedAssinatura.outcome || (updatedAssinatura.already_processed ? 'duplicate_ignored' : 'applied');
+
   logWebhookEvent({
     provider: 'efi',
     event,
     paymentId,
     status: payment?.status,
-    outcome: updatedAssinatura.outcome || (updatedAssinatura.already_processed ? 'duplicate_ignored' : 'applied')
+    outcome
   });
   console.info('[webhook:efi]', {
     event,
     payment_id: paymentId,
     status: payment?.status || null,
-    outcome: updatedAssinatura.outcome || (updatedAssinatura.already_processed ? 'duplicate_ignored' : 'applied')
+    outcome
   });
-  res.json({ received: true, event });
-}
 
-export async function webhookAsaas(req, res) {
-  validateAsaasWebhook(req);
-
-  const event = req.body?.event;
-  const payment = req.body?.payment;
-  const subscription = req.body?.subscription;
-
-  if (!payment?.id && subscription?.id) {
-    logWebhookEvent({ provider: 'asaas', event, paymentId: null, subscriptionId: subscription.id, status: subscription.status, outcome: 'subscription_event' });
-    const assinatura = await findSubscriptionByProviderSubscription('asaas', subscription.id);
-    if (!assinatura) {
-      logWebhookEvent({ provider: 'asaas', event, subscriptionId: subscription.id, status: subscription.status, outcome: 'ignored_no_subscription' });
-      return res.json({ received: true, ignored: true });
-    }
-
-    const updates = {
-      payment_provider: 'asaas',
-      provider_subscription_id: String(subscription.id),
-      provider_customer_id: subscription.customer || assinatura.provider_customer_id || null,
-      provider_status: subscription.status || event,
-      provider_raw: subscription
-    };
-
-    if (event === 'SUBSCRIPTION_DELETED') {
-      updates.status = 'cancelado';
-      updates.bloqueado = true;
-      updates.renovacao_automatica = false;
-    }
-
-    await updateAssinaturaById(assinatura.id, updates);
-    logWebhookEvent({ provider: 'asaas', event, subscriptionId: subscription.id, status: subscription.status, outcome: 'subscription_updated' });
-    return res.json({ received: true, event });
-  }
-
-  if (!payment?.id) {
-    logWebhookEvent({ provider: 'asaas', event, outcome: 'ignored' });
-    return res.json({ received: true, ignored: true });
-  }
-
-  logWebhookEvent({ provider: 'asaas', event, paymentId: payment.id, subscriptionId: payment.subscription, status: payment.status, outcome: 'processing' });
-
-  let assinatura = await findSubscriptionByProviderPayment('asaas', payment.id);
-  if (!assinatura && payment.subscription) {
-    assinatura = await findSubscriptionByProviderSubscription('asaas', payment.subscription);
-  }
-
-  if (!assinatura && payment.externalReference) {
-    const { data, error } = await supabaseAdmin
-      .from('assinaturas')
-      .select('*')
-      .eq('id', payment.externalReference)
-      .maybeSingle();
-    if (error) throw new AppError('Erro ao buscar assinatura Asaas.', 500, error.message);
-    assinatura = data || null;
-  }
-
-  if (!assinatura) {
-    logWebhookEvent({ provider: 'asaas', event, paymentId: payment.id, subscriptionId: payment.subscription, status: payment.status, outcome: 'ignored_no_subscription' });
-    return res.json({ received: true, ignored: true });
-  }
-
-  await aplicarPagamentoAsaasNaAssinatura(payment, assinatura, event);
-  logWebhookEvent({ provider: 'asaas', event, paymentId: payment.id, subscriptionId: payment.subscription || assinatura.provider_subscription_id, status: payment.status, outcome: 'applied' });
-  res.json({ received: true, event });
+  return res.json({ received: true, event });
 }

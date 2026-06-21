@@ -2,7 +2,7 @@
 -- Seguro para rodar mais de uma vez no Supabase.
 --
 -- Objetivo:
--- - impedir que duas requisicoes simultaneas criem duas cobrancas Mercado Pago
+-- - impedir que duas requisicoes simultaneas criem duas cobrancas Efí
 --   para o mesmo usuario/provedor/plano;
 -- - nao remover dados existentes;
 -- - manter assinaturas existentes intactas.

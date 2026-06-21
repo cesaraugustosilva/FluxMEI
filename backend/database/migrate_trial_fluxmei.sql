@@ -1,21 +1,18 @@
--- FluxMEI - trial gratis de 7 dias + campos Mercado Pago.
--- Execute no SQL Editor do Supabase caso o banco ja exista.
+-- FluxMEI - trial gratis de 7 dias e campos genericos de pagamento.
+-- Seguro para rodar mais de uma vez no Supabase.
 
 alter table public.assinaturas add column if not exists data_trial_fim date default (current_date + 7);
 alter table public.assinaturas add column if not exists teste_gratis_usado boolean not null default false;
 alter table public.assinaturas add column if not exists bloqueado boolean not null default false;
 alter table public.assinaturas add column if not exists renovacao_automatica boolean not null default false;
-alter table public.assinaturas add column if not exists mercado_pago_preference_id text;
-alter table public.assinaturas add column if not exists mercado_pago_payment_id text;
-alter table public.assinaturas add column if not exists mercado_pago_status text;
 alter table public.assinaturas add column if not exists checkout_url text;
 
-drop index if exists public.idx_assinaturas_asaas_payment;
-drop index if exists public.idx_assinaturas_asaas_subscription;
-
-alter table public.assinaturas drop column if exists asaas_customer_id;
-alter table public.assinaturas drop column if exists asaas_subscription_id;
-alter table public.assinaturas drop column if exists asaas_payment_id;
+alter table public.assinaturas add column if not exists payment_provider text;
+alter table public.assinaturas add column if not exists provider_payment_id text;
+alter table public.assinaturas add column if not exists provider_customer_id text;
+alter table public.assinaturas add column if not exists provider_subscription_id text;
+alter table public.assinaturas add column if not exists provider_status text;
+alter table public.assinaturas add column if not exists provider_raw jsonb;
 
 alter table public.assinaturas drop constraint if exists assinaturas_status_check;
 alter table public.assinaturas add constraint assinaturas_status_check
@@ -39,8 +36,8 @@ set
   renovacao_automatica = false
 where status is null or status = 'ativo';
 
-create index if not exists idx_assinaturas_mercado_pago_payment
-on public.assinaturas(mercado_pago_payment_id);
+create index if not exists idx_assinaturas_provider_payment
+on public.assinaturas(payment_provider, provider_payment_id);
 
-create index if not exists idx_assinaturas_mercado_pago_preference
-on public.assinaturas(mercado_pago_preference_id);
+create index if not exists idx_assinaturas_provider_subscription
+on public.assinaturas(payment_provider, provider_subscription_id);

@@ -13,12 +13,3 @@ on public.assinaturas(payment_provider, provider_payment_id);
 
 create index if not exists idx_assinaturas_provider_subscription
 on public.assinaturas(payment_provider, provider_subscription_id);
-
-update public.assinaturas
-set
-  payment_provider = coalesce(payment_provider, 'mercado_pago'),
-  provider_payment_id = coalesce(provider_payment_id, mercado_pago_payment_id),
-  provider_status = coalesce(provider_status, mercado_pago_status)
-where
-  (mercado_pago_payment_id is not null or mercado_pago_status is not null)
-  and payment_provider is null;

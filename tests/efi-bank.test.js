@@ -323,7 +323,7 @@ test('Pix EFI reconsulta assinatura apos lock e reutiliza tentativa existente', 
   });
 });
 
-test('Brick/cartao EFI bloqueia tentativa concorrente apos lock', async () => {
+test('Cartao EFI bloqueia tentativa concorrente apos lock', async () => {
   await withMockedEfiEnvironment(assinaturaBase(), async ({ criarCartaoEfi, stats }) => {
     const response = createMockResponse();
     await assert.rejects(() => criarCartaoEfi({
