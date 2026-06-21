@@ -6,9 +6,17 @@ release/
 .env
 .env.*
 !.env.example
+*.p12
+*.pem
+*.key
+certs/
 
 backend/node_modules/
 backend/.env
 backend/.env.*
 !backend/.env.example
+backend/certs/
+backend/**/*.p12
+backend/**/*.pem
+backend/**/*.key
 frontend/env.js

@@ -113,6 +113,7 @@ MERCADO_PAGO_NOTIFICATION_URL=https://api.seudominio.com/api/webhooks/mercado-pa
 EFI_CLIENT_ID=seu_client_id_efi
 EFI_CLIENT_SECRET=seu_client_secret_efi
 EFI_ENVIRONMENT=sandbox
+EFI_SANDBOX=true
 EFI_PIX_KEY=sua_chave_pix_efi
 EFI_CERT_PATH=./certs/efi.p12
 EFI_CERT_BASE64=
@@ -144,6 +145,7 @@ Deploy recomendado:
 - Webhook Asaas apenas se o fluxo legado estiver habilitado no backend
 
 Consulte o passo a passo completo em `DEPLOY.md`.
+Para a configuracao operacional da EFI Bank, consulte `docs/efi-bank-integracao.md`.
 
 ## Observacoes De Seguranca
 

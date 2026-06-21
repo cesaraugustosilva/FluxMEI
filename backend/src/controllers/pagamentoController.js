@@ -510,19 +510,24 @@ function assertNoRecentPendingMercadoPagoAttempt(assinatura, plan, { allowReusab
 function efiPixResponsePayload(payment, qrcode = null) {
   const qrCode = qrcode?.qrcode || qrcode?.qr_code || payment?.pix?.qr_code || payment?.qr_code || null;
   const qrCodeBase64 = qrcode?.imagemQrcode || qrcode?.imagem_qrcode || qrcode?.qr_code_base64 || payment?.qr_code_base64 || null;
+  const paymentId = payment?.id || payment?.txid || payment?.charge_id ? String(payment.id || payment.txid || payment.charge_id) : null;
 
   return {
-    payment_id: payment?.id || payment?.txid || payment?.charge_id ? String(payment.id || payment.txid || payment.charge_id) : null,
+    payment_id: paymentId,
+    txid: payment?.txid || paymentId,
     payment_status: payment?.status || null,
     status: payment?.status || null,
     payment_method_id: 'pix',
     payment_type_id: 'pix',
+    valor: payment?.amount ?? payment?.valor?.original ?? null,
+    plano: payment?.metadata?.plano || payment?.fluxmei_metadata?.plano || null,
     pix: {
       qr_code: qrCode,
       qr_code_base64: qrCodeBase64
     },
     qr_code: qrCode,
     qr_code_base64: qrCodeBase64,
+    copia_e_cola: qrCode,
     ticket_url: qrcode?.linkVisualizacao || qrcode?.ticket_url || null
   };
 }
@@ -534,10 +539,13 @@ function efiPaymentResponsePayload(payment, fallbackPaymentMethodId = null, qrco
 
   return {
     payment_id: payment?.id || payment?.charge_id || payment?.txid ? String(payment.id || payment.charge_id || payment.txid) : null,
+    charge_id: payment?.charge_id || payment?.id ? String(payment.charge_id || payment.id) : null,
     payment_status: payment?.status || null,
     status: payment?.status || null,
     payment_method_id: payment?.payment_method_id || fallbackPaymentMethodId,
     payment_type_id: payment?.method || fallbackPaymentMethodId,
+    valor: payment?.amount ?? (payment?.total ? Number(payment.total) / 100 : null),
+    plano: payment?.metadata?.plano || payment?.fluxmei_metadata?.plano || payment?.custom_id?.split?.(':')?.[2] || null,
     invoice_url: payment?.link || payment?.payment_url || payment?.billet_link || null,
     bank_slip_url: payment?.billet_link || payment?.pdf?.charge || payment?.link || null,
     digitable_line: payment?.barcode || payment?.linha_digitavel || payment?.payment?.banking_billet?.barcode || null,
@@ -1323,12 +1331,14 @@ export async function webhookEfi(req, res) {
 
   const paymentId = getEfiWebhookPaymentId(req);
   const event = req.body?.evento || req.body?.event || req.body?.type || (req.body?.pix ? 'pix' : 'payment');
+  console.info('[webhook:efi]', { event, payment_id: paymentId || null, outcome: paymentId ? 'received' : 'ignored_no_payment_id' });
   if (!paymentId) {
     logWebhookEvent({ provider: 'efi', event, outcome: 'ignored' });
     return res.json({ received: true, ignored: true });
   }
 
   const payment = await efiBankService.consultarPagamento(paymentId);
+  console.info('[webhook:efi]', { event, payment_id: paymentId, status: payment?.status || null, outcome: 'consulted' });
   logWebhookEvent({ provider: 'efi', event, paymentId, status: payment?.status, outcome: 'processing' });
 
   let assinatura = await findSubscriptionByProviderPayment('efi', payment.id || payment.txid || payment.charge_id || paymentId);
@@ -1356,6 +1366,12 @@ export async function webhookEfi(req, res) {
     event,
     paymentId,
     status: payment?.status,
+    outcome: updatedAssinatura.outcome || (updatedAssinatura.already_processed ? 'duplicate_ignored' : 'applied')
+  });
+  console.info('[webhook:efi]', {
+    event,
+    payment_id: paymentId,
+    status: payment?.status || null,
     outcome: updatedAssinatura.outcome || (updatedAssinatura.already_processed ? 'duplicate_ignored' : 'applied')
   });
   res.json({ received: true, event });

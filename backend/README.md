@@ -37,6 +37,7 @@ MERCADO_PAGO_NOTIFICATION_URL=https://seudominio.com/api/webhooks/mercado-pago
 EFI_CLIENT_ID=seu_client_id_efi
 EFI_CLIENT_SECRET=seu_client_secret_efi
 EFI_ENVIRONMENT=sandbox
+EFI_SANDBOX=true
 EFI_PIX_KEY=sua_chave_pix_efi
 EFI_CERT_PATH=./certs/efi.p12
 EFI_CERT_BASE64=
@@ -123,6 +124,9 @@ Principais rotas:
 - `POST /api/pagamentos/efi/criar-pix`
 - `POST /api/pagamentos/efi/criar-cartao`
 - `POST /api/pagamentos/efi/criar-boleto`
+- `POST /api/pagamentos/efi/pix`
+- `POST /api/pagamentos/efi/cartao`
+- `POST /api/pagamentos/efi/boleto`
 - `GET /api/pagamentos/efi/status/:paymentId`
 - `POST /api/webhooks/efi`
 - `POST /api/pagamentos/mercado-pago/criar-checkout` legado/desativado, retorna `410 Gone`
@@ -182,11 +186,16 @@ https://seudominio.com/api/webhooks/efi
 POST /api/pagamentos/efi/criar-pix
 POST /api/pagamentos/efi/criar-cartao
 POST /api/pagamentos/efi/criar-boleto
+POST /api/pagamentos/efi/pix
+POST /api/pagamentos/efi/cartao
+POST /api/pagamentos/efi/boleto
 GET /api/pagamentos/efi/status/:paymentId
 ```
 
 4. Cartao deve usar token seguro EFI. Numero, CVV e validade nao devem ser enviados ao backend.
 5. A assinatura so e liberada pelo webhook EFI validado, apos consulta do pagamento e validacao de plano/valor.
+
+Guia completo: `../docs/efi-bank-integracao.md`.
 
 ## Mercado Pago Legado/Fallback
 1. Configure as variaveis `MERCADO_PAGO_PUBLIC_KEY`, `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` e `MERCADO_PAGO_NOTIFICATION_URL`. Em producao, `MERCADO_PAGO_WEBHOOK_SECRET` e obrigatorio; se estiver ausente, o webhook retorna 503 e nao processa o pagamento.

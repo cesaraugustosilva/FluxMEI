@@ -99,6 +99,6 @@ test('reset de senha continua funcionando em dev sem FRONTEND_URL', () => {
 
   assert.equal(
     getPasswordResetRedirectUrl(),
-    'http://localhost:3000/auth/recovery/nova-senha.html'
+    'http://localhost:3002/auth/recovery/nova-senha.html'
   );
 });

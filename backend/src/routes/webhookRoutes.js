@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { isAsaasEnabled } from '../config/features.js';
 import { asyncHandler } from '../middlewares/errorMiddleware.js';
-import { webhookAsaas, webhookEfi, webhookMercadoPago } from '../controllers/pagamentoController.js';
+import { webhookAsaas, webhookMercadoPago } from '../controllers/pagamentoController.js';
+import { receberWebhook as webhookEfi } from '../controllers/efiController.js';
 
 const router = Router();
 

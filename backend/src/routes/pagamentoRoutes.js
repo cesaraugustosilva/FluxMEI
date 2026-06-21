@@ -17,6 +17,11 @@ import {
   sincronizarRetornoMercadoPago,
   statusPagamentoMercadoPago
 } from '../controllers/pagamentoController.js';
+import {
+  criarBoleto as criarBoletoEfiCurto,
+  criarCartao as criarCartaoEfiCurto,
+  criarPix as criarPixEfiCurto
+} from '../controllers/efiController.js';
 
 const router = Router();
 
@@ -31,6 +36,9 @@ router.post('/mercado-pago/sincronizar', paymentRateLimiter, authMiddleware, asy
 router.post('/efi/criar-pix', paymentRateLimiter, authMiddleware, asyncHandler(criarPixEfi));
 router.post('/efi/criar-cartao', paymentRateLimiter, authMiddleware, asyncHandler(criarCartaoEfi));
 router.post('/efi/criar-boleto', paymentRateLimiter, authMiddleware, asyncHandler(criarBoletoEfi));
+router.post('/efi/pix', paymentRateLimiter, authMiddleware, asyncHandler(criarPixEfiCurto));
+router.post('/efi/cartao', paymentRateLimiter, authMiddleware, asyncHandler(criarCartaoEfiCurto));
+router.post('/efi/boleto', paymentRateLimiter, authMiddleware, asyncHandler(criarBoletoEfiCurto));
 router.get('/efi/status/:paymentId', paymentRateLimiter, authMiddleware, asyncHandler(statusPagamentoEfi));
 
 if (isAsaasEnabled()) {

@@ -1,5 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const efiServiceSource = readFileSync(new URL('../backend/src/services/efiService.js', import.meta.url), 'utf8');
+const efiControllerSource = readFileSync(new URL('../backend/src/controllers/efiController.js', import.meta.url), 'utf8');
+
+test('servico EFI configura SDK oficial e controller dedicado', () => {
+  assert.match(efiServiceSource, /from 'sdk-node-apis-efi'/);
+  assert.match(efiServiceSource, /new EfiPay\(options\)/);
+  assert.match(efiServiceSource, /EFI_CLIENT_ID/);
+  assert.match(efiServiceSource, /EFI_CLIENT_SECRET/);
+  assert.match(efiServiceSource, /EFI_CERT_PATH/);
+  assert.match(efiServiceSource, /EFI_SANDBOX/);
+  assert.match(efiControllerSource, /criarPixEfi/);
+  assert.match(efiControllerSource, /webhookEfi/);
+});
 
 function createMockResponse() {
   return {
@@ -225,7 +240,12 @@ test('Pix EFI criado registra tentativa e retorna copia e cola', async () => {
     assert.equal(response.statusCode, 201);
     assert.equal(response.payload.provider, 'efi');
     assert.equal(response.payload.payment_id, 'fxpixnew12345678901234567890');
+    assert.equal(response.payload.txid, 'fxpixnew12345678901234567890');
+    assert.equal(response.payload.status, 'ATIVA');
     assert.equal(response.payload.qr_code, '000201-efi-pix-new');
+    assert.equal(response.payload.copia_e_cola, '000201-efi-pix-new');
+    assert.equal(response.payload.valor, 49.9);
+    assert.equal(response.payload.plano, 'pro_mensal');
     assert.equal(stats.pixCreated, 1);
     assert.equal(stats.updated, 1);
     assert.equal(stats.locksReleased, 1);
@@ -249,7 +269,10 @@ test('Cartao EFI aprovado registra tentativa sem dados sensiveis', async () => {
 
     assert.equal(response.statusCode, 201);
     assert.equal(response.payload.provider, 'efi');
+    assert.equal(response.payload.charge_id, 'card-1');
     assert.equal(response.payload.payment_status, 'paid');
+    assert.equal(response.payload.valor, 49.9);
+    assert.equal(response.payload.plano, 'pro_mensal');
     assert.equal(stats.cardCreated, 1);
     assert.equal(stats.updated, 1);
     assert.equal(stats.lastUpdate.provider_raw.attempt.plano_original, 'pro_mensal');
@@ -270,8 +293,12 @@ test('Boleto EFI gerado retorna link e linha digitavel', async () => {
 
     assert.equal(response.statusCode, 201);
     assert.equal(response.payload.provider, 'efi');
+    assert.equal(response.payload.charge_id, 'boleto-1');
+    assert.equal(response.payload.status, 'waiting');
     assert.equal(response.payload.bank_slip_url, 'https://efi.example/boleto-1');
     assert.equal(response.payload.digitable_line, '00190000000000000000000000000000000000000000');
+    assert.equal(response.payload.valor, 49.9);
+    assert.equal(response.payload.plano, 'pro_mensal');
     assert.equal(stats.boletoCreated, 1);
     assert.equal(stats.updated, 1);
   });

@@ -57,7 +57,7 @@ function getSafeResetFrontendUrl() {
     return allowedUrl.toString().replace(/\/$/, '');
   }
 
-  if (!isProduction()) return 'http://localhost:3000';
+  if (!isProduction()) return 'http://localhost:3002';
   throw new AppError('URL de recuperacao de senha nao configurada.', 500, null, { expose: false });
 }
 

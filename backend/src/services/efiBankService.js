@@ -16,7 +16,9 @@ const CHARGES_BASE_URLS = {
 let tokenCache = null;
 
 function getEnvironment() {
-  return process.env.EFI_ENVIRONMENT === 'production' ? 'production' : 'sandbox';
+  return process.env.EFI_ENVIRONMENT === 'production' || process.env.EFI_SANDBOX === 'false'
+    ? 'production'
+    : 'sandbox';
 }
 
 function getConfig() {
@@ -25,11 +27,16 @@ function getConfig() {
   const pixKey = process.env.EFI_PIX_KEY;
   const certPath = process.env.EFI_CERT_PATH;
   const certBase64 = process.env.EFI_CERT_BASE64;
+  const sandbox = process.env.EFI_SANDBOX;
+  const webhookSecret = process.env.EFI_WEBHOOK_SECRET;
   const environment = getEnvironment();
 
   if (!clientId) throw new AppError('EFI_CLIENT_ID nao configurado.', 500);
   if (!clientSecret) throw new AppError('EFI_CLIENT_SECRET nao configurado.', 500);
+  if (!pixKey) throw new AppError('EFI_PIX_KEY nao configurada.', 500);
   if (!certPath && !certBase64) throw new AppError('EFI_CERT_PATH ou EFI_CERT_BASE64 nao configurado.', 500);
+  if (!sandbox) throw new AppError('EFI_SANDBOX nao configurado.', 500);
+  if (!webhookSecret) throw new AppError('EFI_WEBHOOK_SECRET nao configurado.', 500);
 
   return {
     clientId,

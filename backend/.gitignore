@@ -3,3 +3,7 @@ node_modules/
 .env.*
 !.env.example
 npm-debug.log*
+certs/
+*.p12
+*.pem
+*.key
