@@ -46,16 +46,16 @@ declare
   v_expires_at timestamptz;
   v_ttl_seconds integer := greatest(coalesce(p_ttl_seconds, 120), 10);
 begin
-  update public.payment_attempt_locks
+  update public.payment_attempt_locks as pal
   set
     status = 'locked',
     expires_at = now() + make_interval(secs => v_ttl_seconds)
   where
-    user_id = p_user_id
-    and provider = p_provider
-    and plano = p_plano
-    and (status <> 'locked' or expires_at <= now())
-  returning payment_attempt_locks.id, payment_attempt_locks.expires_at
+    pal.user_id = p_user_id
+    and pal.provider = p_provider
+    and pal.plano = p_plano
+    and (pal.status <> 'locked' or pal.expires_at <= now())
+  returning pal.id, pal.expires_at
   into v_lock_id, v_expires_at;
 
   if found then
@@ -64,20 +64,20 @@ begin
   end if;
 
   begin
-    insert into public.payment_attempt_locks (user_id, provider, plano, status, expires_at)
+    insert into public.payment_attempt_locks as pal (user_id, provider, plano, status, expires_at)
     values (p_user_id, p_provider, p_plano, 'locked', now() + make_interval(secs => v_ttl_seconds))
-    returning payment_attempt_locks.id, payment_attempt_locks.expires_at
+    returning pal.id, pal.expires_at
     into v_lock_id, v_expires_at;
 
     return query select true, v_lock_id, v_expires_at;
     return;
   exception when unique_violation then
-    select id, payment_attempt_locks.expires_at
+    select pal.id, pal.expires_at
     into v_lock_id, v_expires_at
-    from public.payment_attempt_locks
-    where user_id = p_user_id
-      and provider = p_provider
-      and plano = p_plano;
+    from public.payment_attempt_locks as pal
+    where pal.user_id = p_user_id
+      and pal.provider = p_provider
+      and pal.plano = p_plano;
 
     return query select false, v_lock_id, v_expires_at;
     return;
@@ -92,9 +92,9 @@ security definer
 set search_path = public
 as $$
 begin
-  update public.payment_attempt_locks
+  update public.payment_attempt_locks as pal
   set status = 'released'
-  where id = p_lock_id;
+  where pal.id = p_lock_id;
 
   return found;
 end;
