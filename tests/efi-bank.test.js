@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { efiBankService } from '../backend/src/services/efiBankService.js';
+import { PAYMENT_PLANS } from '../backend/src/services/paymentStatusRules.js';
 
 const efiServiceSource = readFileSync(new URL('../backend/src/services/efiService.js', import.meta.url), 'utf8');
 const efiControllerSource = readFileSync(new URL('../backend/src/controllers/efiController.js', import.meta.url), 'utf8');
@@ -14,6 +16,110 @@ test('servico EFI configura SDK oficial e controller dedicado', () => {
   assert.match(efiServiceSource, /EFI_SANDBOX/);
   assert.match(efiControllerSource, /criarPixEfi/);
   assert.match(efiControllerSource, /webhookEfi/);
+});
+
+function payloadUser(extra = {}) {
+  return {
+    id: 'user-1',
+    email: 'cliente@example.com',
+    user_metadata: {},
+    ...extra
+  };
+}
+
+function payloadAssinatura(extra = {}) {
+  return {
+    id: 'sub-com-hifen-1',
+    ...extra
+  };
+}
+
+test('payload Pix mensal envia valor original como string com duas casas', () => {
+  const payload = efiBankService.__test.buildPixChargePayload({
+    plan: PAYMENT_PLANS.pro_mensal,
+    user: payloadUser(),
+    profile: { nome: 'Cliente FluxMEI', cpf: '123.456.789-01' },
+    pixKey: ' chave-pix '
+  });
+
+  assert.equal(payload.valor.original, '49.90');
+  assert.equal(typeof payload.valor.original, 'string');
+  assert.equal(payload.calendario.expiracao, 3600);
+  assert.equal(Number.isInteger(payload.calendario.expiracao), true);
+  assert.equal(payload.chave, 'chave-pix');
+});
+
+test('payload Pix anual envia valor correto', () => {
+  const payload = efiBankService.__test.buildPixChargePayload({
+    plan: PAYMENT_PLANS.pro_anual,
+    user: payloadUser(),
+    profile: { nome: 'Cliente FluxMEI', cnpj: '12.345.678/0001-90' },
+    pixKey: 'pix-key'
+  });
+
+  assert.equal(payload.valor.original, '478.80');
+  assert.equal(typeof payload.valor.original, 'string');
+  assert.equal(payload.devedor.cnpj, '12345678000190');
+});
+
+test('txid Pix e sanitizado e respeita tamanho aceito', () => {
+  const txid = efiBankService.__test.buildTxid(payloadAssinatura().id, 'pro-mensal especial');
+
+  assert.match(txid, /^[A-Za-z0-9]+$/);
+  assert.doesNotMatch(txid, /[-\s_]/);
+  assert.equal(txid.length >= 26, true);
+  assert.equal(txid.length <= 35, true);
+});
+
+test('payload Pix omite devedor quando CPF ou CNPJ valido nao esta disponivel', () => {
+  const payload = efiBankService.__test.buildPixChargePayload({
+    plan: PAYMENT_PLANS.pro_mensal,
+    user: payloadUser(),
+    profile: { nome: 'Cliente FluxMEI', cpf: '123', cnpj: '' },
+    pixKey: 'pix-key'
+  });
+
+  assert.equal(Object.hasOwn(payload, 'devedor'), false);
+  assert.equal(payload.valor.original, '49.90');
+});
+
+test('payload boleto e cartao removem opcionais vazios e mantem tipos numericos', () => {
+  const boleto = efiBankService.__test.buildBoletoChargePayload({
+    plan: PAYMENT_PLANS.pro_mensal,
+    user: payloadUser(),
+    profile: { nome: 'Cliente FluxMEI' },
+    assinatura: payloadAssinatura()
+  });
+  const cartao = efiBankService.__test.buildCardChargePayload({
+    plan: PAYMENT_PLANS.pro_mensal,
+    user: payloadUser(),
+    profile: { nome: 'Cliente FluxMEI' },
+    assinatura: payloadAssinatura(),
+    card: { payment_token: 'token-seguro', installments: 'abc', billing_address: {} }
+  });
+
+  assert.equal(boleto.items[0].value, 4990);
+  assert.equal(boleto.items[0].amount, 1);
+  assert.equal(Object.hasOwn(boleto.metadata, 'notification_url'), false);
+  assert.equal(cartao.items[0].value, 4990);
+  assert.equal(cartao.payment.credit_card.installments, 1);
+  assert.equal(Object.hasOwn(cartao.payment.credit_card, 'billing_address'), false);
+});
+
+test('log detalhado da EFI mascara campos sensiveis em erros', () => {
+  const sanitized = efiBankService.__test.sanitizeForLog({
+    erros: [
+      { campo: 'valor.original', mensagem: 'formato invalido' },
+      { campo: 'chave', valor: 'pix-secret-key' },
+      { token: 'secret-token' },
+      { card: { number: '4111111111111111', cvv: '123' } }
+    ]
+  });
+
+  const serialized = JSON.stringify(sanitized, null, 2);
+  assert.match(serialized, /valor\.original/);
+  assert.doesNotMatch(serialized, /pix-secret-key|secret-token|4111111111111111|123/);
+  assert.match(serialized, /\[REDACTED\]/);
 });
 
 function createMockResponse() {

@@ -68,6 +68,30 @@ function parseResponseBody(response, body) {
   }
 }
 
+const SENSITIVE_KEY_PATTERN = /(token|secret|certificate|cert|authorization|password|senha|chave|card|cvv|number|holder|payment_token|client_secret|access_token)/i;
+
+function sanitizeForLog(value, key = '') {
+  if (SENSITIVE_KEY_PATTERN.test(key)) return '[REDACTED]';
+  if (Array.isArray(value)) return value.map((item) => sanitizeForLog(item));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([entryKey, entryValue]) => {
+        if (entryKey === 'valor' && SENSITIVE_KEY_PATTERN.test(String(value.campo || value.field || ''))) {
+          return [entryKey, '[REDACTED]'];
+        }
+        return [entryKey, sanitizeForLog(entryValue, entryKey)];
+      })
+    );
+  }
+  return value;
+}
+
+function logEfiErrorDetails(data) {
+  if (!data?.erros) return;
+
+  console.error('[efi:error:details]', JSON.stringify(sanitizeForLog(data.erros), null, 2));
+}
+
 function httpsRequest(url, options = {}, body = null) {
   return new Promise((resolve, reject) => {
     const parsedUrl = new URL(url);
@@ -125,6 +149,7 @@ async function request(baseUrl, path, { method = 'GET', body = null, headers = {
 
   if (!response.ok) {
     const data = response.data;
+    logEfiErrorDetails(data);
     const message = data?.mensagem
       || data?.message
       || data?.error_description
@@ -178,11 +203,25 @@ function onlyDigits(value) {
 }
 
 function moneyString(value) {
-  return Number(value || 0).toFixed(2);
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) {
+    throw new AppError('Valor de pagamento invalido.', 400);
+  }
+  return number.toFixed(2);
 }
 
 function moneyCents(value) {
-  return Math.round(Number(value || 0) * 100);
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) {
+    throw new AppError('Valor de pagamento invalido.', 400);
+  }
+  return Math.round(number * 100);
+}
+
+function positiveInteger(value, fallback = 1) {
+  const number = Number(value ?? fallback);
+  if (!Number.isInteger(number) || number <= 0) return fallback;
+  return number;
 }
 
 function splitName(fullName = '') {
@@ -197,6 +236,30 @@ function cleanObject(value) {
   return Object.fromEntries(
     Object.entries(value || {}).filter(([, item]) => item !== undefined && item !== null && item !== '')
   );
+}
+
+function deepCleanObject(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => deepCleanObject(item))
+      .filter((item) => item !== undefined && item !== null && item !== '');
+  }
+
+  if (value && typeof value === 'object') {
+    const cleaned = Object.fromEntries(
+      Object.entries(value)
+        .map(([key, item]) => [key, deepCleanObject(item)])
+        .filter(([, item]) => {
+          if (item === undefined || item === null || item === '') return false;
+          if (Array.isArray(item) && item.length === 0) return false;
+          if (item && typeof item === 'object' && !Array.isArray(item) && Object.keys(item).length === 0) return false;
+          return true;
+        })
+    );
+    return Object.keys(cleaned).length ? cleaned : undefined;
+  }
+
+  return value;
 }
 
 function normalizeCustomer({ user, profile }) {
@@ -226,34 +289,76 @@ function buildTxid(assinaturaId, planId) {
   return base.slice(0, 35).padEnd(26, '0');
 }
 
+function buildPixChargePayload({ plan, user, profile, pixKey }) {
+  const customer = normalizeCustomer({ user, profile });
+  const devedor = customer.cpf || customer.cnpj
+    ? cleanObject({
+      nome: customer.name,
+      cpf: customer.cpf,
+      cnpj: customer.cnpj
+    })
+    : null;
+
+  return deepCleanObject({
+    calendario: { expiracao: 3600 },
+    ...(devedor ? { devedor } : {}),
+    valor: { original: moneyString(plan.value) },
+    chave: String(pixKey || '').trim(),
+    solicitacaoPagador: plan.description
+  });
+}
+
+function buildChargeMetadata({ user, assinatura, plan }) {
+  return cleanObject({
+    custom_id: `${user.id}:${assinatura.id}:${plan.id}`,
+    notification_url: getWebhookUrl()
+  });
+}
+
+function buildBoletoChargePayload({ plan, user, profile, assinatura }) {
+  return deepCleanObject({
+    items: [{ name: plan.title, value: moneyCents(plan.value), amount: 1 }],
+    metadata: buildChargeMetadata({ user, assinatura, plan }),
+    payment: {
+      banking_billet: {
+        expire_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        customer: normalizeCustomer({ user, profile }),
+        message: plan.description
+      }
+    }
+  });
+}
+
+function buildCardChargePayload({ plan, user, profile, assinatura, card }) {
+  return deepCleanObject({
+    items: [{ name: plan.title, value: moneyCents(plan.value), amount: 1 }],
+    metadata: buildChargeMetadata({ user, assinatura, plan }),
+    payment: {
+      credit_card: {
+        installments: positiveInteger(card?.installments, 1),
+        payment_token: card?.payment_token || card?.paymentToken || card?.token,
+        customer: normalizeCustomer({ user, profile }),
+        billing_address: card?.billing_address || card?.billingAddress || undefined
+      }
+    }
+  });
+}
+
 async function criarPix({ plan, user, profile, assinatura, idempotencyKey }) {
   const config = getConfig();
   if (!config.pixKey) throw new AppError('EFI_PIX_KEY nao configurada.', 500);
 
   const txid = buildTxid(`${assinatura.id}${Date.now()}`, plan.id);
-  const customer = normalizeCustomer({ user, profile });
   const metadata = {
     user_id: user.id,
     assinatura_id: assinatura.id,
     plano: plan.id
   };
 
-  const devedor = cleanObject({
-    nome: customer.name,
-    cpf: customer.cpf,
-    cnpj: customer.cnpj
-  });
-
   const charge = await request(config.pixBaseUrl, `/v2/cob/${txid}`, {
     method: 'PUT',
     headers: idempotencyKey ? { 'x-idempotency-key': idempotencyKey } : {},
-    body: {
-      calendario: { expiracao: 3600 },
-      ...(Object.keys(devedor).length ? { devedor } : {}),
-      valor: { original: moneyString(plan.value) },
-      chave: config.pixKey,
-      solicitacaoPagador: plan.description
-    }
+    body: buildPixChargePayload({ plan, user, profile, pixKey: config.pixKey })
   });
 
   let qrcode = null;
@@ -277,7 +382,6 @@ async function criarPix({ plan, user, profile, assinatura, idempotencyKey }) {
 
 async function criarBoleto({ plan, user, profile, assinatura, idempotencyKey }) {
   const config = getConfig();
-  const customer = normalizeCustomer({ user, profile });
   const metadata = {
     user_id: user.id,
     assinatura_id: assinatura.id,
@@ -287,17 +391,7 @@ async function criarBoleto({ plan, user, profile, assinatura, idempotencyKey }) 
   const charge = await request(config.chargesBaseUrl, '/v1/charge/one-step', {
     method: 'POST',
     headers: idempotencyKey ? { 'x-idempotency-key': idempotencyKey } : {},
-    body: {
-      items: [{ name: plan.title, value: moneyCents(plan.value), amount: 1 }],
-      metadata: { custom_id: `${user.id}:${assinatura.id}:${plan.id}`, notification_url: getWebhookUrl() },
-      payment: {
-        banking_billet: {
-          expire_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-          customer,
-          message: plan.description
-        }
-      }
-    }
+    body: buildBoletoChargePayload({ plan, user, profile, assinatura })
   });
 
   return withFluxmeiMetadata({
@@ -319,7 +413,6 @@ async function criarCartao({ plan, user, profile, assinatura, card, idempotencyK
   }
 
   const config = getConfig();
-  const customer = normalizeCustomer({ user, profile });
   const metadata = {
     user_id: user.id,
     assinatura_id: assinatura.id,
@@ -329,18 +422,7 @@ async function criarCartao({ plan, user, profile, assinatura, card, idempotencyK
   const charge = await request(config.chargesBaseUrl, '/v1/charge/one-step', {
     method: 'POST',
     headers: idempotencyKey ? { 'x-idempotency-key': idempotencyKey } : {},
-    body: {
-      items: [{ name: plan.title, value: moneyCents(plan.value), amount: 1 }],
-      metadata: { custom_id: `${user.id}:${assinatura.id}:${plan.id}`, notification_url: getWebhookUrl() },
-      payment: {
-        credit_card: {
-          installments: Number(card?.installments || 1),
-          payment_token: paymentToken,
-          customer,
-          billing_address: card?.billing_address || card?.billingAddress || undefined
-        }
-      }
-    }
+    body: buildCardChargePayload({ plan, user, profile, assinatura, card })
   });
 
   return withFluxmeiMetadata({
@@ -391,5 +473,15 @@ export const efiBankService = {
   criarBoleto,
   criarCartao,
   consultarPagamento,
-  onlyDigits
+  onlyDigits,
+  __test: {
+    buildTxid,
+    buildPixChargePayload,
+    buildBoletoChargePayload,
+    buildCardChargePayload,
+    moneyString,
+    moneyCents,
+    logEfiErrorDetails,
+    sanitizeForLog
+  }
 };
