@@ -37,7 +37,10 @@ export function validateEfiWebhook(req) {
   const receivedSecret = req.headers['x-efi-webhook-secret']
     || req.headers['efi-webhook-secret']
     || req.headers['x-webhook-secret']
-    || bearerToken;
+    || bearerToken
+    || req.query?.secret
+    || req.query?.token
+    || req.query?.webhook_secret;
 
   if (receivedSecret !== expectedSecret) {
     logWebhookEvent({

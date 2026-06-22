@@ -322,6 +322,7 @@ async function withMockedEfiEnvironment(assinatura, fn, options = {}) {
   const originalCriarCartao = efiBankService.criarCartao;
   const originalCriarBoleto = efiBankService.criarBoleto;
   const originalConsultarPagamento = efiBankService.consultarPagamento;
+  const originalConsultarNotificacao = efiBankService.consultarNotificacao;
   const stats = { pixCreated: 0, cardCreated: 0, boletoCreated: 0, updated: 0, locksAcquired: 0, locksReleased: 0, lastUpdate: null };
   const profile = { nome: 'Cliente FluxMEI', cpf: '12345678901' };
   const assinaturaSequence = options.assinaturaSequence || null;
@@ -416,6 +417,14 @@ async function withMockedEfiEnvironment(assinatura, fn, options = {}) {
     payment_method_id: 'pix',
     metadata: { user_id: 'user-1', assinatura_id: 'sub-1', plano: 'pro_mensal' }
   };
+  efiBankService.consultarNotificacao = async () => options.consultarNotificacao || options.consultarPagamento || {
+    id: 'boleto-1',
+    charge_id: 'boleto-1',
+    status: 'paid',
+    amount: 49.9,
+    payment_method_id: 'boleto',
+    custom_id: 'user-1:sub-1:pro_mensal'
+  };
 
   try {
     await fn({ ...controller, stats });
@@ -426,6 +435,7 @@ async function withMockedEfiEnvironment(assinatura, fn, options = {}) {
     efiBankService.criarCartao = originalCriarCartao;
     efiBankService.criarBoleto = originalCriarBoleto;
     efiBankService.consultarPagamento = originalConsultarPagamento;
+    efiBankService.consultarNotificacao = originalConsultarNotificacao;
   }
 }
 
@@ -604,6 +614,93 @@ test('Webhook EFI aprovado ativa assinatura', async () => {
       id: 'fxpix123456789012345678901',
       txid: 'fxpix123456789012345678901',
       status: 'CONCLUIDA',
+      amount: 49.9,
+      payment_method_id: 'pix',
+      metadata: { user_id: 'user-1', assinatura_id: 'sub-1', plano: 'pro_mensal' }
+    }
+  });
+
+  if (previousSecret === undefined) delete process.env.EFI_WEBHOOK_SECRET;
+  else process.env.EFI_WEBHOOK_SECRET = previousSecret;
+});
+
+test('Webhook EFI de boleto por notification ativa assinatura', async () => {
+  const previousSecret = process.env.EFI_WEBHOOK_SECRET;
+  process.env.EFI_WEBHOOK_SECRET = 'secret';
+  const assinatura = assinaturaBase({
+    payment_provider: 'efi',
+    provider_payment_id: 'boleto-1',
+    provider_status: 'waiting',
+    provider_raw: {
+      attempt: {
+        plano_original: 'pro_mensal',
+        valor_original: 49.9,
+        tipo_cobranca_original: 'mensal',
+        payment_id: 'boleto-1',
+        payment_method_id: 'boleto',
+        created_at: new Date().toISOString(),
+        metadata: { user_id: 'user-1', assinatura_id: 'sub-1', plano: 'pro_mensal' }
+      },
+      payment: {
+        id: 'boleto-1',
+        charge_id: 'boleto-1',
+        status: 'waiting',
+        payment_method_id: 'boleto',
+        amount: 49.9,
+        custom_id: 'user-1:sub-1:pro_mensal'
+      }
+    }
+  });
+
+  await withMockedEfiEnvironment(assinatura, async ({ webhookEfi, stats }) => {
+    const response = createMockResponse();
+    await webhookEfi({
+      headers: { 'x-efi-webhook-secret': 'secret' },
+      query: {},
+      body: { notification: 'notification-token' }
+    }, response);
+
+    assert.equal(response.payload.received, true);
+    assert.equal(stats.updated, 1);
+    assert.equal(stats.lastUpdate.status, 'ativo');
+    assert.equal(stats.lastUpdate.bloqueado, false);
+    assert.ok(stats.lastUpdate.paid_at);
+  }, {
+    consultarNotificacao: {
+      id: 'boleto-1',
+      charge_id: 'boleto-1',
+      status: 'paid',
+      amount: 49.9,
+      payment_method_id: 'boleto',
+      custom_id: 'user-1:sub-1:pro_mensal'
+    }
+  });
+
+  if (previousSecret === undefined) delete process.env.EFI_WEBHOOK_SECRET;
+  else process.env.EFI_WEBHOOK_SECRET = previousSecret;
+});
+
+test('Webhook EFI sem pagamento confirmado nao ativa assinatura', async () => {
+  const previousSecret = process.env.EFI_WEBHOOK_SECRET;
+  process.env.EFI_WEBHOOK_SECRET = 'secret';
+
+  await withMockedEfiEnvironment(assinaturaEfiPendentePix(), async ({ webhookEfi, stats }) => {
+    const response = createMockResponse();
+    await webhookEfi({
+      headers: { 'x-efi-webhook-secret': 'secret' },
+      query: {},
+      body: { pix: [{ txid: 'fxpix123456789012345678901' }] }
+    }, response);
+
+    assert.equal(response.payload.received, true);
+    assert.equal(stats.updated, 1);
+    assert.equal(stats.lastUpdate.status, 'pendente');
+    assert.notEqual(stats.lastUpdate.status, 'ativo');
+  }, {
+    consultarPagamento: {
+      id: 'fxpix123456789012345678901',
+      txid: 'fxpix123456789012345678901',
+      status: 'ATIVA',
       amount: 49.9,
       payment_method_id: 'pix',
       metadata: { user_id: 'user-1', assinatura_id: 'sub-1', plano: 'pro_mensal' }

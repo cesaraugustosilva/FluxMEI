@@ -19,6 +19,12 @@ function logEfiPaymentEvent({ action, userId = null, plan = null, status = null,
 
 function withEfiPaymentLog(action, handler) {
   return async (req, res) => {
+    const originalJson = res.json.bind(res);
+    res.json = (payload) => {
+      res.payload = payload;
+      return originalJson(payload);
+    };
+
     logEfiPaymentEvent({
       action,
       userId: req.user?.id || null,
@@ -33,7 +39,7 @@ function withEfiPaymentLog(action, handler) {
         userId: req.user?.id || null,
         plan: req.body?.plano || null,
         status: res.statusCode,
-        paymentId: res.payload?.payment_id || null,
+        paymentId: res.payload?.payment_id || res.payload?.txid || res.payload?.charge_id || null,
         outcome: 'completed'
       });
     } catch (error) {

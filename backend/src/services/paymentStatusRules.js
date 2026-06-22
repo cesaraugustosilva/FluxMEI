@@ -404,6 +404,7 @@ export function buildEfiBankSubscriptionUpdates(payment, assinatura, baseDate = 
     updates.bloqueado = false;
     updates.data_inicio = baseDate.toISOString().slice(0, 10);
     updates.data_vencimento = todayPlusDays(planConfig.dias, baseDate);
+    updates.paid_at = baseDate.toISOString();
     updates.renovacao_automatica = false;
   } else if (EFI_BANK_PENDING_STATUSES.includes(normalizedStatus)) {
     Object.assign(updates, buildPendingPaymentAttemptUpdates({ assinatura, baseDate }));

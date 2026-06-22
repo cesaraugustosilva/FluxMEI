@@ -25,7 +25,7 @@ EFI_CERT_PASSPHRASE=
 EFI_SANDBOX=true
 EFI_ENVIRONMENT=sandbox
 EFI_WEBHOOK_SECRET=um_segredo_forte
-EFI_WEBHOOK_URL=https://api.seudominio.com/api/webhooks/efi
+EFI_WEBHOOK_URL=https://fluxmei.onrender.com/api/webhooks/efi
 ```
 
 Use `EFI_ENVIRONMENT=production` ou `EFI_SANDBOX=false` apenas em producao.
@@ -228,15 +228,27 @@ Numero, CVV, validade e dados sensiveis do cartao nao devem chegar ao backend.
 Configure no painel EFI:
 
 ```text
+https://fluxmei.onrender.com/api/webhooks/efi
+```
+
+Se houver dominio proprio de API, use o dominio real da API:
+
+```text
 https://api.seudominio.com/api/webhooks/efi
 ```
 
-Envie o segredo por um destes headers:
+O backend valida `EFI_WEBHOOK_SECRET`. Envie o segredo por um destes headers:
 
 - `Authorization: Bearer <EFI_WEBHOOK_SECRET>`
 - `x-efi-webhook-secret`
 - `efi-webhook-secret`
 - `x-webhook-secret`
+
+Se o painel da Efí nao permitir configurar headers customizados, configure o webhook com query string:
+
+```text
+https://fluxmei.onrender.com/api/webhooks/efi?secret=<EFI_WEBHOOK_SECRET>
+```
 
 Em producao, o webhook EFI e recusado se `EFI_WEBHOOK_SECRET` nao estiver configurado.
 
@@ -245,13 +257,28 @@ Em producao, o webhook EFI e recusado se `EFI_WEBHOOK_SECRET` nao estiver config
 Quando o webhook recebe um evento:
 
 1. valida o segredo;
-2. consulta a EFI pelo `txid`, `charge_id` ou `id`;
+2. consulta a EFI pelo `txid` de Pix, `charge_id` de cobrancas ou `notification` da API Cobrancas;
 3. localiza a assinatura;
 4. valida pagamento atual, plano e valor;
 5. ativa a assinatura quando o status for aprovado/concluido;
 6. remove bloqueio;
 7. registra metodo, status, pagamento e vencimento;
 8. ignora webhooks duplicados sem avancar vencimento novamente.
+
+Para registrar a data de pagamento, execute a migracao `backend/database/migrate_payment_provider_fields.sql`, que adiciona `paid_at` em `assinaturas`.
+
+## Teste de ativacao no Supabase
+
+1. Gere Pix, boleto ou cartao pelo checkout.
+2. Confirme que `assinaturas.payment_provider = 'efi'`.
+3. Confirme que `provider_payment_id` contem o `txid` do Pix ou `charge_id` de boleto/cartao.
+4. Pague ou simule pagamento na Efí.
+5. Aguarde o webhook em `https://fluxmei.onrender.com/api/webhooks/efi`.
+6. Verifique em `assinaturas`:
+   - `status = 'ativo'`
+   - `bloqueado = false`
+   - `paid_at` preenchido
+   - `data_vencimento` com +30 dias no mensal ou +365 dias no anual.
 
 ## Idempotencia e auditoria
 

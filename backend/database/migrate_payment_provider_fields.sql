@@ -7,6 +7,7 @@ alter table public.assinaturas add column if not exists provider_customer_id tex
 alter table public.assinaturas add column if not exists provider_subscription_id text;
 alter table public.assinaturas add column if not exists provider_status text;
 alter table public.assinaturas add column if not exists provider_raw jsonb;
+alter table public.assinaturas add column if not exists paid_at timestamptz;
 
 create index if not exists idx_assinaturas_provider_payment
 on public.assinaturas(payment_provider, provider_payment_id);

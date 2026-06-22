@@ -40,6 +40,13 @@ const FORBIDDEN_CARD_FIELDS = new Set([
 const CARD_TOP_LEVEL_FIELDS = ['plano', 'payment', 'card', 'valor', 'parcelas', 'installments', 'nome', 'email', 'cpf', 'cnpj', 'documento'];
 const CARD_PAYMENT_FIELDS = ['payment_token', 'paymentToken', 'token', 'installments', 'parcelas', 'nome', 'holder_name', 'holderName', 'email', 'cpf', 'cnpj', 'documento'];
 
+function sanitizeLogId(value) {
+  if (!value) return null;
+  const text = String(value);
+  if (text.length <= 16) return text;
+  return `${text.slice(0, 8)}...${text.slice(-6)}`;
+}
+
 function validatePlanId(value, fallback = null) {
   const plano = sanitizeText(value || fallback, { field: 'Plano', required: true, max: 80 });
   const plan = PAYMENT_PLANS[plano];
@@ -386,6 +393,22 @@ function isEfiPaidStatus(status) {
   return EFI_BANK_PAID_STATUSES.includes(String(status || '').trim().toLowerCase());
 }
 
+function logEfiPaymentCreated({ method, payment, plan, assinatura, idempotencyKey }) {
+  console.info('[efi:payment]', {
+    action: `create_${method}`,
+    provider: 'efi',
+    method,
+    payment_id: sanitizeLogId(getPaymentId(payment)),
+    txid: sanitizeLogId(payment?.txid),
+    charge_id: sanitizeLogId(payment?.charge_id || payment?.chargeId),
+    status: payment?.status || null,
+    plan: plan?.id || null,
+    assinatura_id: assinatura?.id || null,
+    idempotency_key: sanitizeLogId(idempotencyKey),
+    outcome: 'created'
+  });
+}
+
 async function criarPagamentoEfi(req, res, method) {
   const { plano, plan } = validatePlanId(req.body?.plano);
   if (!req.user?.email) throw new AppError('Usuario autenticado sem e-mail cadastrado.', 400);
@@ -446,6 +469,7 @@ async function criarPagamentoEfi(req, res, method) {
     if (method === 'cartao' && isEfiPaidStatus(payment?.status)) {
       updatedAssinatura = await aplicarPagamentoEfiNaAssinatura(payment, updatedAssinatura);
     }
+    logEfiPaymentCreated({ method, payment, plan, assinatura: updatedAssinatura, idempotencyKey });
     shouldReleaseLock = true;
 
     const messages = {
@@ -520,62 +544,144 @@ export async function statusPagamentoEfi(req, res) {
   });
 }
 
-function getEfiWebhookPaymentId(req) {
-  return req.body?.txid
+function getNestedFirst(value, paths) {
+  for (const path of paths) {
+    const found = path.reduce((current, key) => current?.[key], value);
+    if (found) return found;
+  }
+  return null;
+}
+
+function getEfiWebhookInfo(req) {
+  const pixTxid = req.body?.txid
     || req.body?.pix?.[0]?.txid
     || req.body?.data?.txid
-    || req.body?.data?.id
-    || req.body?.charge_id
+    || req.query?.txid
+    || null;
+  if (pixTxid) {
+    return {
+      event: req.body?.evento || req.body?.event || req.body?.type || 'pix',
+      method: 'pix',
+      lookupType: 'txid',
+      lookupId: pixTxid,
+      txid: pixTxid
+    };
+  }
+
+  const notification = req.body?.notification
+    || req.body?.notification_token
+    || req.body?.notificacao
+    || req.query?.notification
+    || req.query?.notification_token
+    || null;
+  if (notification) {
+    return {
+      event: req.body?.evento || req.body?.event || req.body?.type || 'notification',
+      method: 'cobranca',
+      lookupType: 'notification',
+      lookupId: notification,
+      notification: sanitizeLogId(notification)
+    };
+  }
+
+  const chargeId = req.body?.charge_id
     || req.body?.chargeId
     || req.body?.id
-    || req.query?.txid
+    || req.query?.charge_id
     || req.query?.id
-    || null;
+    || getNestedFirst(req.body, [
+      ['data', 'charge_id'],
+      ['data', 'id'],
+      ['identifiers', 'charge_id'],
+      ['data', 'identifiers', 'charge_id']
+    ]);
+
+  return {
+    event: req.body?.evento || req.body?.event || req.body?.type || 'payment',
+    method: 'cobranca',
+    lookupType: chargeId ? 'charge_id' : null,
+    lookupId: chargeId || null,
+    charge_id: chargeId || null
+  };
+}
+
+async function consultarPagamentoPorWebhook(info) {
+  if (info.lookupType === 'notification') return efiBankService.consultarNotificacao(info.lookupId);
+  return efiBankService.consultarPagamento(info.lookupId);
 }
 
 export async function webhookEfi(req, res) {
   validateEfiWebhook(req);
 
-  const paymentId = getEfiWebhookPaymentId(req);
-  const event = req.body?.evento || req.body?.event || req.body?.type || (req.body?.pix ? 'pix' : 'payment');
-  console.info('[webhook:efi]', { event, payment_id: paymentId || null, outcome: paymentId ? 'received' : 'ignored_no_payment_id' });
+  const info = getEfiWebhookInfo(req);
+  console.info('[webhook:efi]', {
+    event: info.event,
+    method: info.method,
+    lookup_type: info.lookupType,
+    payment_id: sanitizeLogId(info.lookupId),
+    txid: sanitizeLogId(info.txid),
+    charge_id: sanitizeLogId(info.charge_id),
+    outcome: info.lookupId ? 'received' : 'ignored_no_payment_id'
+  });
 
-  if (!paymentId) {
-    logWebhookEvent({ provider: 'efi', event, outcome: 'ignored' });
+  if (!info.lookupId) {
+    logWebhookEvent({ provider: 'efi', event: info.event, outcome: 'ignored_no_payment_id' });
     return res.json({ received: true, ignored: true });
   }
 
-  const payment = await efiBankService.consultarPagamento(paymentId);
-  console.info('[webhook:efi]', { event, payment_id: paymentId, status: payment?.status || null, outcome: 'consulted' });
-  logWebhookEvent({ provider: 'efi', event, paymentId, status: payment?.status, outcome: 'processing' });
+  const payment = await consultarPagamentoPorWebhook(info);
+  const consultedPaymentId = getPaymentId(payment) || info.lookupId;
+  console.info('[webhook:efi]', {
+    event: info.event,
+    method: payment?.payment_method_id || payment?.method || info.method,
+    lookup_type: info.lookupType,
+    payment_id: sanitizeLogId(consultedPaymentId),
+    status: payment?.status || null,
+    outcome: 'consulted'
+  });
+  logWebhookEvent({ provider: 'efi', event: info.event, paymentId: consultedPaymentId, status: payment?.status, outcome: 'processing' });
 
-  const currentPaymentId = getPaymentId(payment) || paymentId;
+  const currentPaymentId = getPaymentId(payment) || info.lookupId;
   let assinatura = await findSubscriptionByProviderPayment(currentPaymentId);
   if (!assinatura) {
     assinatura = await findSubscriptionById(getPaymentSubscriptionId(payment));
   }
 
   if (!assinatura) {
-    logWebhookEvent({ provider: 'efi', event, paymentId, status: payment?.status, outcome: 'ignored_no_subscription' });
+    console.info('[webhook:efi]', {
+      event: info.event,
+      payment_id: sanitizeLogId(currentPaymentId),
+      status: payment?.status || null,
+      outcome: 'ignored_no_subscription'
+    });
+    logWebhookEvent({ provider: 'efi', event: info.event, paymentId: currentPaymentId, status: payment?.status, outcome: 'ignored_no_subscription' });
     return res.json({ received: true, ignored: true });
   }
 
   const updatedAssinatura = await aplicarPagamentoEfiNaAssinatura(payment, assinatura);
-  const outcome = updatedAssinatura.outcome || (updatedAssinatura.already_processed ? 'duplicate_ignored' : 'applied');
+  const activated = updatedAssinatura.status === 'ativo' && updatedAssinatura.bloqueado === false;
+  const outcome = updatedAssinatura.outcome
+    || (updatedAssinatura.already_processed ? 'duplicate_ignored' : activated ? 'subscription_activated' : 'not_activated');
+  const reason = updatedAssinatura.outcome || (activated ? null : `payment_status_${String(payment?.status || 'unknown').toLowerCase()}`);
 
   logWebhookEvent({
     provider: 'efi',
-    event,
-    paymentId,
+    event: info.event,
+    paymentId: currentPaymentId,
     status: payment?.status,
     outcome
   });
   console.info('[webhook:efi]', {
-    event,
-    payment_id: paymentId,
+    event: info.event,
+    method: payment?.payment_method_id || payment?.method || info.method,
+    payment_id: sanitizeLogId(currentPaymentId),
+    assinatura_id: assinatura.id,
     status: payment?.status || null,
-    outcome
+    assinatura_status: updatedAssinatura.status || assinatura.status || null,
+    bloqueado: updatedAssinatura.bloqueado ?? assinatura.bloqueado ?? null,
+    outcome,
+    reason
   });
 
-  return res.json({ received: true, event });
+  return res.json({ received: true, event: info.event });
 }

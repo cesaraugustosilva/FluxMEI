@@ -148,6 +148,7 @@ test('pagamento EFI aprovado ativa assinatura com plano e valor validos', () => 
   assert.equal(updates.plano, 'pro_mensal');
   assert.equal(updates.valor, 49.9);
   assert.equal(updates.data_vencimento, todayPlusDays(30, baseDate));
+  assert.equal(updates.paid_at, baseDate.toISOString());
 });
 
 test('pagamento EFI pendente mantem usuario vencido bloqueado', () => {

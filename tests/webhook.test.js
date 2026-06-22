@@ -39,6 +39,18 @@ test('webhook EFI valido passa validacao por bearer token', () => {
   });
 });
 
+test('webhook EFI valido passa validacao por query secret', () => {
+  withEnv({ NODE_ENV: 'production', EFI_WEBHOOK_SECRET: 'expected-secret' }, () => {
+    const result = validateEfiWebhook({
+      headers: {},
+      query: { secret: 'expected-secret' },
+      body: { txid: 'fx123', status: 'CONCLUIDA' }
+    });
+
+    assert.equal(result.validated, true);
+  });
+});
+
 test('webhook EFI sem segredo e recusado em producao', () => {
   withEnv({ NODE_ENV: 'production', EFI_WEBHOOK_SECRET: '' }, () => {
     assert.throws(() => validateEfiWebhook({

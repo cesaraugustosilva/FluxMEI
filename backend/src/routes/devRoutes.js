@@ -3,6 +3,8 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { authMiddleware } from '../middlewares/authMiddleware.js';
 import { AppError, asyncHandler } from '../middlewares/errorMiddleware.js';
 import { assinaturaService } from '../services/assinaturaService.js';
+import { efiBankService } from '../services/efiBankService.js';
+import { buildEfiBankSubscriptionUpdates } from '../services/paymentStatusRules.js';
 
 const router = Router();
 
@@ -98,6 +100,48 @@ router.post('/bloquear-assinatura', authMiddleware, asyncHandler(async (req, res
   });
 
   res.json(data);
+}));
+
+router.get('/efi/status/:paymentId', authMiddleware, asyncHandler(async (req, res) => {
+  assertDevRouteEnabled();
+
+  const payment = await efiBankService.consultarPagamento(req.params.paymentId);
+  res.json({
+    provider: 'efi',
+    payment_id: payment?.id || payment?.txid || payment?.charge_id || req.params.paymentId,
+    status: payment?.status || null,
+    method: payment?.payment_method_id || payment?.method || null,
+    amount: payment?.amount || payment?.valor?.original || (payment?.total ? Number(payment.total) / 100 : null)
+  });
+}));
+
+router.post('/efi/processar/:paymentId', authMiddleware, asyncHandler(async (req, res) => {
+  assertDevRouteEnabled();
+
+  const payment = await efiBankService.consultarPagamento(req.params.paymentId);
+  const paymentId = payment?.id || payment?.txid || payment?.charge_id || req.params.paymentId;
+  const { data: assinatura, error: findError } = await supabaseAdmin
+    .from('assinaturas')
+    .select('*')
+    .eq('user_id', req.user.id)
+    .eq('payment_provider', 'efi')
+    .eq('provider_payment_id', String(paymentId))
+    .maybeSingle();
+
+  if (findError) throw new AppError('Erro ao buscar assinatura EFI.', 500, findError.message);
+  if (!assinatura) throw new AppError('Assinatura EFI nao encontrada para este usuario.', 404);
+
+  const updates = buildEfiBankSubscriptionUpdates(payment, assinatura);
+  const { data, error } = await supabaseAdmin
+    .from('assinaturas')
+    .update(updates)
+    .eq('id', assinatura.id)
+    .eq('user_id', req.user.id)
+    .select()
+    .single();
+
+  if (error) throw new AppError('Erro ao reprocessar assinatura EFI.', 500, error.message);
+  res.json({ provider: 'efi', payment_id: String(paymentId), status: payment?.status || null, assinatura: data });
 }));
 
 export default router;

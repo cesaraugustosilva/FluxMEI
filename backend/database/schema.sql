@@ -96,6 +96,7 @@ create table if not exists public.assinaturas (
   provider_subscription_id text,
   provider_status text,
   provider_raw jsonb,
+  paid_at timestamptz,
   checkout_url text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

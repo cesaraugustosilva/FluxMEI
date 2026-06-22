@@ -58,6 +58,10 @@ function buildAgent(config) {
   });
 }
 
+function isChargesBaseUrl(config, baseUrl) {
+  return baseUrl === config.chargesBaseUrl;
+}
+
 function parseResponseBody(response, body) {
   if (!body) return null;
   const contentType = response.headers['content-type'] || '';
@@ -174,12 +178,13 @@ async function getAccessToken(config = getConfig(), baseUrl = config.pixBaseUrl)
 
   const credentials = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
   const payload = JSON.stringify({ grant_type: 'client_credentials' });
+  const authPath = isChargesBaseUrl(config, baseUrl) ? '/v1/authorize' : '/oauth/token';
   let response;
 
   try {
-    response = await httpsRequest(`${baseUrl}/oauth/token`, {
+    response = await httpsRequest(`${baseUrl}${authPath}`, {
       method: 'POST',
-      agent: buildAgent(config),
+      agent: isChargesBaseUrl(config, baseUrl) ? undefined : buildAgent(config),
       headers: {
         accept: 'application/json',
         authorization: `Basic ${credentials}`,
@@ -503,6 +508,43 @@ async function consultarPagamento(paymentId) {
   };
 }
 
+function normalizeNotificationItems(notification) {
+  if (Array.isArray(notification)) return notification;
+  if (Array.isArray(notification?.data)) return notification.data;
+  if (Array.isArray(notification?.notifications)) return notification.notifications;
+  return notification ? [notification] : [];
+}
+
+function getChargeIdFromNotificationItem(item = {}) {
+  return item?.identifiers?.charge_id
+    || item?.identifiers?.chargeId
+    || item?.charge_id
+    || item?.chargeId
+    || item?.id
+    || item?.data?.charge_id
+    || item?.data?.id
+    || null;
+}
+
+async function consultarNotificacao(notificationToken) {
+  const config = getConfig();
+  const notification = await request(config.chargesBaseUrl, `/v1/notification/${encodeURIComponent(String(notificationToken || ''))}`);
+  const items = normalizeNotificationItems(notification);
+  const item = [...items].reverse().find((entry) => getChargeIdFromNotificationItem(entry));
+  const chargeId = getChargeIdFromNotificationItem(item);
+
+  if (!chargeId) {
+    throw new AppError('Notificacao EFI sem charge_id para conciliacao.', 422, sanitizeForLog(notification));
+  }
+
+  const payment = await consultarPagamento(chargeId);
+  return {
+    ...payment,
+    notification_token: String(notificationToken),
+    notification_event: item?.type || item?.event || item?.status || null
+  };
+}
+
 function getWebhookUrl() {
   if (process.env.EFI_WEBHOOK_URL) return process.env.EFI_WEBHOOK_URL;
   const publicUrl = (process.env.PUBLIC_URL || process.env.APP_PUBLIC_URL || '').replace(/\/$/, '');
@@ -514,6 +556,7 @@ export const efiBankService = {
   criarBoleto,
   criarCartao,
   consultarPagamento,
+  consultarNotificacao,
   onlyDigits,
   __test: {
     buildTxid,

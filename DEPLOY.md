@@ -42,7 +42,7 @@ EFI_CERT_PATH=./certs/efi.p12
 EFI_CERT_BASE64=
 EFI_CERT_PASSPHRASE=
 EFI_WEBHOOK_SECRET=seu_token_webhook_efi
-EFI_WEBHOOK_URL=https://api.seudominio.com/api/webhooks/efi
+EFI_WEBHOOK_URL=https://fluxmei.onrender.com/api/webhooks/efi
 ```
 
 Observacoes:
@@ -121,6 +121,18 @@ No painel da Efí Bank:
 
 ```text
 https://api.seudominio.com/api/webhooks/efi
+```
+
+Para o Render atual do FluxMEI, use:
+
+```text
+https://fluxmei.onrender.com/api/webhooks/efi
+```
+
+Se o painel da Efí nao permitir headers customizados para o segredo, use:
+
+```text
+https://fluxmei.onrender.com/api/webhooks/efi?secret=<EFI_WEBHOOK_SECRET>
 ```
 
 8. Configure o mesmo segredo/token no Render em `EFI_WEBHOOK_SECRET`.
