@@ -268,14 +268,14 @@ function deepCleanObject(value) {
   return value;
 }
 
-function normalizeCustomer({ user, profile }) {
-  const documentNumber = onlyDigits(profile?.cpf || profile?.cnpj);
-  const ownerName = profile?.nome || user.user_metadata?.nome || user.email || 'Cliente FluxMEI';
+function normalizeCustomer({ user, profile, card = null }) {
+  const documentNumber = onlyDigits(card?.document || card?.cpf || card?.cnpj || profile?.cpf || profile?.cnpj);
+  const ownerName = card?.holder_name || card?.nome || profile?.nome || user.user_metadata?.nome || user.email || 'Cliente FluxMEI';
   const { name, surname } = splitName(ownerName);
 
   return cleanObject({
     name: `${name}${surname ? ` ${surname}` : ''}`.trim(),
-    email: user.email,
+    email: card?.email || user.email,
     cpf: documentNumber.length === 11 ? documentNumber : undefined,
     cnpj: documentNumber.length === 14 ? documentNumber : undefined,
     phone_number: onlyDigits(profile?.telefone || profile?.phone)
@@ -364,7 +364,7 @@ function buildCardChargePayload({ plan, user, profile, assinatura, card }) {
       credit_card: {
         installments: positiveInteger(card?.installments, 1),
         payment_token: card?.payment_token || card?.paymentToken || card?.token,
-        customer: normalizeCustomer({ user, profile }),
+        customer: normalizeCustomer({ user, profile, card }),
         billing_address: card?.billing_address || card?.billingAddress || undefined
       }
     }

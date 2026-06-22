@@ -183,9 +183,31 @@ O boleto retorna:
 
 ## Cartao
 
-O backend esta preparado para cartao, mas o checkout do frontend nao deve exibir essa opcao enquanto a tokenizacao segura EFI nao estiver implementada na tela.
+O cartao usa checkout transparente por token seguro EFI. No frontend estatico, o checkout carrega a biblioteca oficial de tokenizacao:
 
-O cartao usa checkout transparente por token seguro EFI.
+```html
+<script src="https://cdn.jsdelivr.net/gh/efipay/js-payment-token-efi/dist/payment-token-efi-umd.min.js"></script>
+```
+
+A opcao Cartao so aparece quando `window.FLUXMEI_CONFIG.EFI_PAYEE_CODE` esta configurado e `EfiPay.CreditCard` esta disponivel no navegador.
+
+Variaveis publicas do frontend:
+
+```env
+FLUXMEI_EFI_PAYEE_CODE=identificador_publico_da_conta_efi
+FLUXMEI_EFI_ENVIRONMENT=production
+```
+
+`FLUXMEI_EFI_PAYEE_CODE` e o Identificador de conta/payee_code exibido na Efí em `API > Introducao > Identificador de conta`. Ele e publico para tokenizacao. Nao confundir com `EFI_CLIENT_SECRET`, certificado, token OAuth ou chave Pix, que nunca devem ir ao frontend.
+
+Campos do formulario:
+
+- nome impresso no cartao
+- numero do cartao
+- validade
+- CVV
+- CPF/CNPJ
+- parcelas
 
 O frontend deve enviar apenas o token:
 

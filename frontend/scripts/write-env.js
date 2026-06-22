@@ -3,6 +3,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const apiUrl = process.env.FLUXMEI_API_URL;
+const efiPayeeCode = process.env.FLUXMEI_EFI_PAYEE_CODE || '';
+const efiEnvironment = process.env.FLUXMEI_EFI_ENVIRONMENT || process.env.EFI_ENVIRONMENT || '';
 
 if (!apiUrl) {
   throw new Error('FLUXMEI_API_URL nao configurada.');
@@ -15,6 +17,8 @@ const envPath = resolve(frontendDir, 'env.js');
 writeFileSync(
   envPath,
   `window.FLUXMEI_CONFIG = ${JSON.stringify({
-    API_URL: apiUrl.replace(/\/$/, '')
+    API_URL: apiUrl.replace(/\/$/, ''),
+    EFI_PAYEE_CODE: efiPayeeCode,
+    EFI_ENVIRONMENT: efiEnvironment
   })};\n`
 );

@@ -459,11 +459,11 @@ test('Pix EFI criado registra tentativa e retorna copia e cola', async () => {
   });
 });
 
-test('Cartao EFI aprovado registra tentativa sem dados sensiveis', async () => {
+test('Cartao EFI aprovado registra tentativa, sanitiza dados e ativa assinatura', async () => {
   await withMockedEfiEnvironment(assinaturaBase(), async ({ criarCartaoEfi, stats }) => {
     const response = createMockResponse();
     await criarCartaoEfi({
-      body: { plano: 'pro_mensal', payment: { payment_token: 'secure-token' } },
+      body: { plano: 'pro_mensal', payment: { payment_token: 'secure-token', installments: 1, holder_name: 'Cliente FluxMEI', documento: '12345678901' } },
       user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
     }, response);
 
@@ -473,13 +473,56 @@ test('Cartao EFI aprovado registra tentativa sem dados sensiveis', async () => {
     assert.equal(response.payload.payment_status, 'paid');
     assert.equal(response.payload.valor, 49.9);
     assert.equal(response.payload.plano, 'pro_mensal');
+    assert.equal(response.payload.assinatura.status, 'ativo');
     assert.equal(stats.cardCreated, 1);
-    assert.equal(stats.updated, 1);
+    assert.equal(stats.updated, 2);
     assert.equal(stats.lastUpdate.provider_raw.attempt.plano_original, 'pro_mensal');
     assert.equal(stats.lastUpdate.provider_raw.attempt.payment_id, 'card-1');
     assert.equal(stats.lastUpdate.provider_raw.payment.payment_method, 'cartao');
     assert.equal(stats.lastUpdate.provider_raw.payment.status, 'paid');
     assert.doesNotMatch(JSON.stringify(stats.lastUpdate.provider_raw), /secure-token|4111111111111111|Cliente FluxMEI|cvv|number|holder/);
+  });
+});
+
+test('Cartao EFI rejeita payload com dados crus antes de chamar gateway', async () => {
+  await withMockedEfiEnvironment(assinaturaBase(), async ({ criarCartaoEfi, stats }) => {
+    const response = createMockResponse();
+    await assert.rejects(() => criarCartaoEfi({
+      body: {
+        plano: 'pro_mensal',
+        payment: {
+          payment_token: 'secure-token',
+          card_number: '4111111111111111',
+          cvv: '123'
+        }
+      },
+      user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
+    }, response), (error) => {
+      assert.equal(error.statusCode, 400);
+      assert.match(error.message, /Campo de cartao nao permitido/);
+      return true;
+    });
+
+    assert.equal(stats.cardCreated, 0);
+    assert.equal(stats.updated, 0);
+  });
+});
+
+test('Cartao EFI recusado nao ativa assinatura', async () => {
+  await withMockedEfiEnvironment(assinaturaBase(), async ({ criarCartaoEfi, stats }) => {
+    const response = createMockResponse();
+    await criarCartaoEfi({
+      body: { plano: 'pro_mensal', payment: { payment_token: 'secure-token', installments: 1 } },
+      user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
+    }, response);
+
+    assert.equal(response.statusCode, 201);
+    assert.equal(response.payload.status, 'unpaid');
+    assert.notEqual(response.payload.assinatura.status, 'ativo');
+    assert.equal(stats.cardCreated, 1);
+    assert.equal(stats.updated, 1);
+  }, {
+    cardStatus: 'unpaid'
   });
 });
 

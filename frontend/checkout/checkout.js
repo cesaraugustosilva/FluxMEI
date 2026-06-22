@@ -68,9 +68,28 @@ let currentPaymentId = null;
 let currentPaymentMethod = null;
 let currentBoletoPayment = null;
 let selectedPaymentMethod = 'pix';
+let currentUserData = null;
 
 function normalizeApiUrl(url) {
   return String(url || '').replace(/\/$/, '');
+}
+
+function onlyDigits(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function getEfiPayeeCode() {
+  return String(window.FLUXMEI_CONFIG?.EFI_PAYEE_CODE || '').trim();
+}
+
+function getEfiTokenEnvironment() {
+  const configured = String(window.FLUXMEI_CONFIG?.EFI_ENVIRONMENT || '').trim().toLowerCase();
+  if (configured === 'sandbox' || configured === 'homologacao' || configured === 'homologation') return 'sandbox';
+  return 'production';
+}
+
+function isEfiCardTokenizationConfigured() {
+  return Boolean(getEfiPayeeCode() && window.EfiPay?.CreditCard);
 }
 
 function resolveApiUrls() {
@@ -334,6 +353,20 @@ function setBoletoGenerateVisible(isVisible) {
   if (panel) panel.hidden = !isVisible;
 }
 
+function configureCardAvailability() {
+  const enabled = isEfiCardTokenizationConfigured();
+  const button = document.getElementById('cardMethodButton');
+  if (enabled) {
+    ACTIVE_PAYMENT_METHODS.add('cartao');
+    if (button) button.hidden = false;
+  } else {
+    ACTIVE_PAYMENT_METHODS.delete('cartao');
+    if (button) button.hidden = true;
+    if (selectedPaymentMethod === 'cartao') selectedPaymentMethod = 'pix';
+  }
+  return enabled;
+}
+
 async function request(path, options = {}, { auth = true } = {}) {
   const headers = {
     'Content-Type': 'application/json',
@@ -398,6 +431,7 @@ function renderPlan(plan) {
 }
 
 function renderUser(data) {
+  currentUserData = data || null;
   const profile = data?.profile || {};
   const user = data?.user || {};
   const name = profile.nome || user.user_metadata?.nome || 'Usuario FluxMEI';
@@ -535,6 +569,172 @@ function getStatusKeyFromPayment(payment) {
   return 'pending';
 }
 
+function setCardLoading(isLoading) {
+  const button = document.getElementById('payCardButton');
+  if (!button) return;
+  button.disabled = isLoading;
+  button.textContent = isLoading ? 'Tokenizando...' : 'Pagar com cartao';
+}
+
+function setEfiCardVisible(isVisible) {
+  const panel = document.getElementById('efiCardPanel');
+  if (panel) panel.hidden = !isVisible;
+}
+
+function formatCardNumber(value) {
+  return onlyDigits(value).slice(0, 19).replace(/(.{4})/g, '$1 ').trim();
+}
+
+function formatDocument(value) {
+  const digits = onlyDigits(value).slice(0, 14);
+  if (digits.length <= 11) {
+    return digits
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  }
+  return digits
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+}
+
+function formatExpiry(value) {
+  const digits = onlyDigits(value).slice(0, 6);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+}
+
+function getCardFormData() {
+  const holderName = document.getElementById('cardHolderName').value.trim();
+  const holderDocument = onlyDigits(document.getElementById('cardHolderDocument').value);
+  const number = onlyDigits(document.getElementById('cardNumber').value);
+  const expiry = onlyDigits(document.getElementById('cardExpiry').value);
+  const cvv = onlyDigits(document.getElementById('cardCvv').value);
+  const installments = Number(document.getElementById('cardInstallments').value || 1);
+
+  if (!holderName) throw new Error('Informe o nome impresso no cartao.');
+  if (![11, 14].includes(holderDocument.length)) throw new Error('Informe um CPF ou CNPJ valido.');
+  if (number.length < 13 || number.length > 19) throw new Error('Informe um numero de cartao valido.');
+  if (expiry.length !== 6) throw new Error('Informe a validade no formato MM/AAAA.');
+  const expirationMonth = expiry.slice(0, 2);
+  const expirationYear = expiry.slice(2);
+  const month = Number(expirationMonth);
+  if (month < 1 || month > 12) throw new Error('Mes de validade invalido.');
+  if (cvv.length < 3 || cvv.length > 4) throw new Error('Informe um CVV valido.');
+  if (!Number.isInteger(installments) || installments < 1 || installments > 12) throw new Error('Parcelas invalidas.');
+
+  return {
+    holderName,
+    holderDocument,
+    number,
+    cvv,
+    expirationMonth,
+    expirationYear,
+    installments
+  };
+}
+
+async function identifyCardBrand(number) {
+  const brand = await window.EfiPay.CreditCard
+    .setCardNumber(number)
+    .verifyCardBrand();
+
+  if (!brand || brand === 'undefined' || brand === 'unsupported') {
+    throw new Error('Bandeira do cartao nao suportada pela EFI.');
+  }
+  return brand;
+}
+
+async function generateEfiPaymentToken(cardData, brand) {
+  const result = await window.EfiPay.CreditCard
+    .setAccount(getEfiPayeeCode())
+    .setEnvironment(getEfiTokenEnvironment())
+    .setCreditCardData({
+      brand,
+      number: cardData.number,
+      cvv: cardData.cvv,
+      expirationMonth: cardData.expirationMonth,
+      expirationYear: cardData.expirationYear,
+      holderName: cardData.holderName,
+      holderDocument: cardData.holderDocument,
+      reuse: false
+    })
+    .getPaymentToken();
+
+  if (!result?.payment_token) {
+    throw new Error('A EFI nao retornou o token seguro do cartao.');
+  }
+  return result;
+}
+
+function getCurrentUserEmail() {
+  return currentUserData?.user?.email || document.getElementById('userEmail')?.textContent || '';
+}
+
+async function submitEfiCardPayment() {
+  clearAlert();
+
+  if (!isEfiCardTokenizationConfigured()) {
+    showAlert('Pagamento por cartao indisponivel. Tokenizacao EFI nao configurada.');
+    return null;
+  }
+
+  setCardLoading(true);
+  showStatus('pending', 'Tokenizando cartao com seguranca pela EFI.');
+
+  try {
+    const cardData = getCardFormData();
+    const brand = await identifyCardBrand(cardData.number);
+    const tokenized = await generateEfiPaymentToken(cardData, brand);
+    showStatus('pending', 'Enviando pagamento para a EFI.');
+
+    const data = await request('/pagamentos/efi/criar-cartao', {
+      method: 'POST',
+      body: JSON.stringify({
+        plano: selectedPlan.id,
+        valor: selectedPlan.preco,
+        payment: {
+          payment_token: tokenized.payment_token,
+          installments: cardData.installments,
+          holder_name: cardData.holderName,
+          email: getCurrentUserEmail(),
+          documento: cardData.holderDocument
+        }
+      })
+    });
+
+    const statusKey = getStatusKeyFromPayment(data);
+    showStatus(statusKey);
+
+    if (data.assinatura?.status === 'ativo' || data.assinatura?.estado === 'ativo') {
+      clearSubscribeIntent();
+      showStatus('active', 'Pagamento aprovado! Sua assinatura foi ativada.');
+      showAlert('Pagamento aprovado! Redirecionando para o painel...', 'success');
+      window.setTimeout(() => {
+        window.location.href = '/app/';
+      }, 1400);
+    } else if (statusKey === 'approved') {
+      showAlert('Pagamento aprovado pela EFI Bank. Aguardando confirmacao final.', 'success');
+      pollSubscriptionActivation();
+    } else if (statusKey === 'pending' || statusKey === 'in_process') {
+      showAlert('Pagamento recebido pela EFI Bank e aguardando confirmacao.', 'success');
+      pollSubscriptionActivation();
+    } else {
+      const refusal = data?.refusal?.reason || data?.reason || 'O cartao foi recusado. Revise os dados ou use outro meio de pagamento.';
+      showAlert(refusal);
+    }
+
+    return data;
+  } catch (error) {
+    showAlert(error?.error_description || error?.message || 'Nao foi possivel tokenizar ou processar o cartao.');
+    return null;
+  } finally {
+    setCardLoading(false);
+  }
+}
+
 async function generatePixPayment() {
   clearAlert();
   hidePixPanel();
@@ -610,6 +810,7 @@ async function selectPaymentMethod(method) {
     setBrickLoading(false);
     setBrickVisible(false);
     setPixGenerateVisible(true);
+    setEfiCardVisible(false);
     setBoletoGenerateVisible(false);
     hideBoletoPanel();
     return;
@@ -621,6 +822,13 @@ async function selectPaymentMethod(method) {
   setBrickVisible(false);
   setBrickLoading(false);
 
+  if (method === 'cartao') {
+    setEfiCardVisible(true);
+    setBoletoGenerateVisible(false);
+    return;
+  }
+
+  setEfiCardVisible(false);
   setBoletoGenerateVisible(true);
 }
 
@@ -635,8 +843,28 @@ function bindCheckoutEvents() {
     generatePixPayment();
   });
 
+  document.getElementById('payCardButton').addEventListener('click', () => {
+    submitEfiCardPayment();
+  });
+
   document.getElementById('generateBoletoButton').addEventListener('click', () => {
     generateBoletoPayment();
+  });
+
+  document.getElementById('cardNumber').addEventListener('input', (event) => {
+    event.target.value = formatCardNumber(event.target.value);
+  });
+
+  document.getElementById('cardHolderDocument').addEventListener('input', (event) => {
+    event.target.value = formatDocument(event.target.value);
+  });
+
+  document.getElementById('cardExpiry').addEventListener('input', (event) => {
+    event.target.value = formatExpiry(event.target.value);
+  });
+
+  document.getElementById('cardCvv').addEventListener('input', (event) => {
+    event.target.value = onlyDigits(event.target.value).slice(0, 4);
   });
 
   document.getElementById('copyPixButton').addEventListener('click', async () => {
@@ -676,9 +904,11 @@ function bindCheckoutEvents() {
 
 async function initCheckout() {
   bindCheckoutEvents();
+  configureCardAvailability();
   setBrickVisible(false);
   setBrickLoading(false);
   setPixGenerateVisible(true);
+  setEfiCardVisible(false);
   setBoletoGenerateVisible(false);
 
   const planId = getSelectedPlanId();
@@ -703,6 +933,7 @@ async function initCheckout() {
       setBrickVisible(false);
       setBrickLoading(false);
       setPixGenerateVisible(false);
+      setEfiCardVisible(false);
       setBoletoGenerateVisible(false);
       showStatus('active', 'Sua assinatura ja esta ativa. Voce pode voltar ao app.');
       return;

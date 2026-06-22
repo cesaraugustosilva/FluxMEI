@@ -4,6 +4,7 @@ import { AppError } from '../middlewares/errorMiddleware.js';
 import { PLANOS, assinaturaService } from '../services/assinaturaService.js';
 import { efiBankService } from '../services/efiBankService.js';
 import {
+  EFI_BANK_PAID_STATUSES,
   PAYMENT_PLANS,
   buildEfiBankPaymentAttempt,
   buildEfiBankProviderRaw,
@@ -17,6 +18,27 @@ import { sanitizeText } from '../utils/validation.js';
 const PENDING_PAYMENT_MESSAGE = 'Voce ja possui um pagamento pendente. Conclua ou aguarde a expiracao antes de gerar outro.';
 const PROCESSING_PAYMENT_MESSAGE = 'Ja existe uma tentativa de pagamento em processamento. Aguarde alguns instantes e tente novamente.';
 const EFI_BANK_LOCK_TTL_SECONDS = 120;
+const FORBIDDEN_CARD_FIELDS = new Set([
+  'card_number',
+  'cardnumber',
+  'number',
+  'numero',
+  'cvv',
+  'cvc',
+  'expiration',
+  'expiration_month',
+  'expiration_year',
+  'expirationmonth',
+  'expirationyear',
+  'validade',
+  'security_code',
+  'securitycode',
+  'codigo_seguranca',
+  'raw_card',
+  'rawcard'
+]);
+const CARD_TOP_LEVEL_FIELDS = ['plano', 'payment', 'card', 'valor', 'parcelas', 'installments', 'nome', 'email', 'cpf', 'cnpj', 'documento'];
+const CARD_PAYMENT_FIELDS = ['payment_token', 'paymentToken', 'token', 'installments', 'parcelas', 'nome', 'holder_name', 'holderName', 'email', 'cpf', 'cnpj', 'documento'];
 
 function validatePlanId(value, fallback = null) {
   const plano = sanitizeText(value || fallback, { field: 'Plano', required: true, max: 80 });
@@ -27,6 +49,87 @@ function validatePlanId(value, fallback = null) {
 
 function validatePaymentId(value) {
   return sanitizeText(value, { field: 'payment_id', required: true, max: 120, rejectDangerous: true });
+}
+
+function normalizeFieldName(field) {
+  return String(field || '').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+}
+
+function assertNoRawCardData(value, path = 'body') {
+  if (!value || typeof value !== 'object') return;
+
+  for (const [key, item] of Object.entries(value)) {
+    const normalizedKey = normalizeFieldName(key);
+    if (FORBIDDEN_CARD_FIELDS.has(normalizedKey)) {
+      throw new AppError(`Campo de cartao nao permitido: ${path}.${key}. Envie apenas payment_token.`, 400);
+    }
+    assertNoRawCardData(item, `${path}.${key}`);
+  }
+}
+
+function assertAllowedFields(value, allowed, path) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new AppError(`${path} deve ser um objeto valido.`, 400);
+  }
+
+  const allowedSet = new Set(allowed);
+  const unexpected = Object.keys(value).filter((key) => !allowedSet.has(key));
+  if (unexpected.length) {
+    throw new AppError(`Campos inesperados em ${path}: ${unexpected.join(', ')}.`, 400);
+  }
+}
+
+function sanitizeDocument(value, field = 'CPF/CNPJ') {
+  const text = sanitizeText(value, { field, required: false, max: 24, rejectDangerous: true });
+  if (!text) return null;
+  const digits = text.replace(/\D/g, '');
+  if (![11, 14].includes(digits.length)) throw new AppError(`${field} invalido.`);
+  return digits;
+}
+
+function sanitizeInstallments(value) {
+  const number = Number(value ?? 1);
+  if (!Number.isInteger(number) || number < 1 || number > 12) {
+    throw new AppError('Parcelas invalidas.');
+  }
+  return number;
+}
+
+function validateEfiCardPayload(body = {}, plan) {
+  assertNoRawCardData(body);
+  assertAllowedFields(body, CARD_TOP_LEVEL_FIELDS, 'body');
+
+  const payment = body.payment || body.card || body;
+  assertAllowedFields(payment, CARD_PAYMENT_FIELDS, body.payment ? 'payment' : body.card ? 'card' : 'body');
+
+  if (body.valor !== undefined && Math.round(Number(body.valor) * 100) !== Math.round(Number(plan.value) * 100)) {
+    throw new AppError('Valor informado nao corresponde ao plano selecionado.');
+  }
+
+  const paymentToken = sanitizeText(payment.payment_token || payment.paymentToken || payment.token, {
+    field: 'payment_token',
+    required: true,
+    max: 180,
+    rejectDangerous: true
+  });
+
+  return {
+    payment_token: paymentToken,
+    installments: sanitizeInstallments(payment.installments || payment.parcelas || body.installments || body.parcelas),
+    holder_name: sanitizeText(payment.holder_name || payment.holderName || payment.nome || body.nome, {
+      field: 'Nome do titular',
+      required: false,
+      max: 120,
+      rejectDangerous: true
+    }),
+    email: sanitizeText(payment.email || body.email, {
+      field: 'E-mail do titular',
+      required: false,
+      max: 254,
+      rejectDangerous: true
+    }),
+    document: sanitizeDocument(payment.cpf || payment.cnpj || payment.documento || body.cpf || body.cnpj || body.documento)
+  };
 }
 
 async function getProfile(userId) {
@@ -279,9 +382,14 @@ async function registerEfiPaymentAttempt(assinatura, plan, payment, { idempotenc
   return updateAssinaturaById(assinatura.id, updates);
 }
 
+function isEfiPaidStatus(status) {
+  return EFI_BANK_PAID_STATUSES.includes(String(status || '').trim().toLowerCase());
+}
+
 async function criarPagamentoEfi(req, res, method) {
   const { plano, plan } = validatePlanId(req.body?.plano);
   if (!req.user?.email) throw new AppError('Usuario autenticado sem e-mail cadastrado.', 400);
+  const cardPayload = method === 'cartao' ? validateEfiCardPayload(req.body || {}, plan) : null;
 
   const profile = await getProfile(req.user.id);
   const assinatura = await ensureUserSubscription(req.user.id, plano);
@@ -321,7 +429,7 @@ async function criarPagamentoEfi(req, res, method) {
         user: req.user,
         profile,
         assinatura: lockedAssinatura,
-        card: req.body?.payment || req.body?.card || {},
+        card: cardPayload,
         idempotencyKey
       });
     }
@@ -329,11 +437,15 @@ async function criarPagamentoEfi(req, res, method) {
     paymentCreated = true;
     shouldReleaseLock = false;
 
-    await registerEfiPaymentAttempt(lockedAssinatura, plan, payment, {
+    let updatedAssinatura = await registerEfiPaymentAttempt(lockedAssinatura, plan, payment, {
       idempotencyKey,
       method,
       qrcode
     });
+
+    if (method === 'cartao' && isEfiPaidStatus(payment?.status)) {
+      updatedAssinatura = await aplicarPagamentoEfiNaAssinatura(payment, updatedAssinatura);
+    }
     shouldReleaseLock = true;
 
     const messages = {
@@ -346,6 +458,7 @@ async function criarPagamentoEfi(req, res, method) {
       success: true,
       provider: 'efi',
       ...efiPaymentResponsePayload(payment, method, qrcode),
+      assinatura: updatedAssinatura,
       message: messages[method]
     });
   } catch (error) {

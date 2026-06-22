@@ -80,12 +80,12 @@
             <span>Pagamento</span>
             <strong id="providerTitle">EFI Bank</strong>
           </div>
-          <span class="payment-badge">Pix e boleto</span>
+          <span class="payment-badge">Pix, boleto e cartao</span>
         </div>
 
         <section class="provider-panel" aria-label="Processador de pagamento">
           <strong>Pagamento seguro processado pela EFI Bank.</strong>
-          <small>Pix e boleto estao ativos. Cartao depende de tokenizacao segura EFI no frontend antes de ser liberado no checkout.</small>
+          <small>Pix e boleto estao ativos. Cartao aparece apenas com tokenizacao segura EFI configurada no frontend.</small>
         </section>
 
         <section class="payment-methods" aria-label="Forma de pagamento">
@@ -93,6 +93,11 @@
             <span>Pix</span>
             <strong>QR Code na tela</strong>
             <small>Sem pedir e-mail</small>
+          </button>
+          <button class="method-card" id="cardMethodButton" type="button" data-payment-method="cartao" aria-pressed="false" hidden>
+            <span>Cartao</span>
+            <strong>Credito seguro</strong>
+            <small>Tokenizado pela EFI</small>
           </button>
           <button class="method-card" type="button" data-payment-method="boleto" aria-pressed="false">
             <span>Boleto</span>
@@ -124,6 +129,40 @@
         <div class="brick-shell">
           <div class="brick-container" id="paymentBrick_container"></div>
         </div>
+
+        <section class="efi-card-panel" id="efiCardPanel" hidden aria-label="Pagamento via cartao">
+          <strong>Pagamento com cartao</strong>
+          <p>Os dados do cartao sao tokenizados pela EFI no navegador. O FluxMEI envia ao backend apenas o payment_token.</p>
+          <div class="card-form-grid">
+            <label>
+              <span>Nome no cartao</span>
+              <input id="cardHolderName" type="text" autocomplete="cc-name" maxlength="120" />
+            </label>
+            <label>
+              <span>CPF/CNPJ</span>
+              <input id="cardHolderDocument" type="text" autocomplete="off" inputmode="numeric" maxlength="18" />
+            </label>
+            <label class="card-number-field">
+              <span>Numero do cartao</span>
+              <input id="cardNumber" type="text" autocomplete="cc-number" inputmode="numeric" maxlength="23" />
+            </label>
+            <label>
+              <span>Validade</span>
+              <input id="cardExpiry" type="text" autocomplete="cc-exp" inputmode="numeric" maxlength="7" placeholder="MM/AAAA" />
+            </label>
+            <label>
+              <span>CVV</span>
+              <input id="cardCvv" type="password" autocomplete="cc-csc" inputmode="numeric" maxlength="4" />
+            </label>
+            <label>
+              <span>Parcelas</span>
+              <select id="cardInstallments">
+                <option value="1">1x</option>
+              </select>
+            </label>
+          </div>
+          <button class="pix-button" type="button" id="payCardButton">Pagar com cartao</button>
+        </section>
 
         <section class="boleto-generate-panel" id="boletoGeneratePanel" hidden aria-label="Gerar boleto">
           <strong>Gerar boleto para o plano escolhido</strong>
@@ -176,6 +215,7 @@
   </main>
 
   <script src="/env.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/efipay/js-payment-token-efi/dist/payment-token-efi-umd.min.js"></script>
   <script src="checkout.js"></script>
 </body>
 </html>

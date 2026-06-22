@@ -65,7 +65,11 @@ Variavel de ambiente:
 
 ```env
 FLUXMEI_API_URL=https://api.seudominio.com/api
+FLUXMEI_EFI_PAYEE_CODE=identificador_publico_da_conta_efi
+FLUXMEI_EFI_ENVIRONMENT=production
 ```
+
+`FLUXMEI_EFI_PAYEE_CODE` e `FLUXMEI_EFI_ENVIRONMENT` sao publicos e usados apenas para tokenizar cartao no navegador. Nunca coloque `EFI_CLIENT_SECRET`, certificado ou chave Pix na Vercel.
 
 ## Supabase
 
@@ -112,13 +116,14 @@ No painel da Efí Bank:
 3. No Render, prefira `EFI_CERT_BASE64`; localmente, use `EFI_CERT_PATH`.
 4. Configure `EFI_ENVIRONMENT=sandbox` para homologacao e `EFI_ENVIRONMENT=production` para producao.
 5. Configure a chave Pix em `EFI_PIX_KEY`.
-6. Configure o webhook para:
+6. Para cartao no checkout, copie o `Identificador de conta` da Efí e configure na Vercel como `FLUXMEI_EFI_PAYEE_CODE`.
+7. Configure o webhook para:
 
 ```text
 https://api.seudominio.com/api/webhooks/efi
 ```
 
-7. Configure o mesmo segredo/token no Render em `EFI_WEBHOOK_SECRET`.
+8. Configure o mesmo segredo/token no Render em `EFI_WEBHOOK_SECRET`.
 
 O backend aceita o segredo via:
 

@@ -341,7 +341,8 @@ export function buildEfiBankSubscriptionUpdates(payment, assinatura, baseDate = 
   const normalizedStatus = normalizeEfiBankStatus(status);
   const paymentId = getEfiBankPaymentId(payment);
   const sameProviderPayment = paymentId && assinatura.provider_payment_id === String(paymentId);
-  const alreadyApproved = EFI_BANK_PAID_STATUSES.includes(normalizeEfiBankStatus(assinatura.provider_status));
+  const alreadyApproved = assinatura.status === 'ativo'
+    && EFI_BANK_PAID_STATUSES.includes(normalizeEfiBankStatus(assinatura.provider_status));
   const attempt = getEfiBankAttempt(assinatura);
 
   if (EFI_BANK_PAID_STATUSES.includes(normalizedStatus) && sameProviderPayment && alreadyApproved) {
