@@ -183,6 +183,8 @@ O boleto retorna:
 
 ## Cartao
 
+O backend esta preparado para cartao, mas o checkout do frontend nao deve exibir essa opcao enquanto a tokenizacao segura EFI nao estiver implementada na tela.
+
 O cartao usa checkout transparente por token seguro EFI.
 
 O frontend deve enviar apenas o token:

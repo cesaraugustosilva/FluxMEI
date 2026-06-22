@@ -6,6 +6,7 @@ const PLAN_KEY = 'fluxmei_subscribe_plan';
 const INTENT_CREATED_AT_KEY = 'fluxmei_intent_created_at';
 const SUBSCRIBE_INTENT = 'subscribe';
 const DEFAULT_PLAN = 'pro_mensal';
+const ACTIVE_PAYMENT_METHODS = new Set(['pix', 'boleto']);
 
 const FALLBACK_PLANS = {
   pro_mensal: {
@@ -328,11 +329,6 @@ function setPixGenerateVisible(isVisible) {
   if (panel) panel.hidden = !isVisible;
 }
 
-function setEfiCardVisible(isVisible) {
-  const panel = document.getElementById('efiCardPanel');
-  if (panel) panel.hidden = !isVisible;
-}
-
 function setBoletoGenerateVisible(isVisible) {
   const panel = document.getElementById('boletoGeneratePanel');
   if (panel) panel.hidden = !isVisible;
@@ -539,44 +535,6 @@ function getStatusKeyFromPayment(payment) {
   return 'pending';
 }
 
-async function submitEfiCardPayment() {
-  clearAlert();
-  setBrickLoading(true, 'Enviando pagamento...');
-  const token = document.getElementById('efiCardToken').value.trim();
-  if (!token) {
-    setBrickLoading(false);
-    showAlert('Informe o token seguro do cartao para continuar.');
-    return null;
-  }
-
-  const data = await request('/pagamentos/efi/criar-cartao', {
-    method: 'POST',
-    body: JSON.stringify({
-      plano: selectedPlan.id,
-      payment: {
-        payment_token: token,
-        installments: 1
-      }
-    })
-  });
-
-  const statusKey = getStatusKeyFromPayment(data);
-  showStatus(statusKey);
-
-  if (statusKey === 'approved') {
-    showAlert('Pagamento aprovado pela EFI Bank. Aguardando confirmacao do webhook para liberar a assinatura.', 'success');
-    pollSubscriptionActivation();
-  } else if (statusKey === 'pending' || statusKey === 'in_process') {
-    showAlert('Pagamento recebido pela EFI Bank e aguardando confirmacao.', 'success');
-    pollSubscriptionActivation();
-  } else {
-    showAlert('O pagamento nao foi aprovado. Voce pode tentar novamente.');
-  }
-
-  setBrickLoading(false);
-  return data;
-}
-
 async function generatePixPayment() {
   clearAlert();
   hidePixPanel();
@@ -635,6 +593,11 @@ async function generateBoletoPayment() {
 }
 
 async function selectPaymentMethod(method) {
+  if (!ACTIVE_PAYMENT_METHODS.has(method)) {
+    selectedPaymentMethod = 'pix';
+    method = 'pix';
+  }
+
   selectedPaymentMethod = method;
 
   document.querySelectorAll('[data-payment-method]').forEach((button) => {
@@ -647,7 +610,6 @@ async function selectPaymentMethod(method) {
     setBrickLoading(false);
     setBrickVisible(false);
     setPixGenerateVisible(true);
-    setEfiCardVisible(false);
     setBoletoGenerateVisible(false);
     hideBoletoPanel();
     return;
@@ -659,13 +621,6 @@ async function selectPaymentMethod(method) {
   setBrickVisible(false);
   setBrickLoading(false);
 
-  if (method === 'cartao') {
-    setEfiCardVisible(true);
-    setBoletoGenerateVisible(false);
-    return;
-  }
-
-  setEfiCardVisible(false);
   setBoletoGenerateVisible(true);
 }
 
@@ -678,13 +633,6 @@ function bindCheckoutEvents() {
 
   document.getElementById('generatePixButton').addEventListener('click', () => {
     generatePixPayment();
-  });
-
-  document.getElementById('payCardButton').addEventListener('click', () => {
-    submitEfiCardPayment().catch((error) => {
-      setBrickLoading(false);
-      showAlert(error.message || 'Nao foi possivel processar o pagamento.');
-    });
   });
 
   document.getElementById('generateBoletoButton').addEventListener('click', () => {
@@ -731,7 +679,6 @@ async function initCheckout() {
   setBrickVisible(false);
   setBrickLoading(false);
   setPixGenerateVisible(true);
-  setEfiCardVisible(false);
   setBoletoGenerateVisible(false);
 
   const planId = getSelectedPlanId();
@@ -756,7 +703,6 @@ async function initCheckout() {
       setBrickVisible(false);
       setBrickLoading(false);
       setPixGenerateVisible(false);
-      setEfiCardVisible(false);
       setBoletoGenerateVisible(false);
       showStatus('active', 'Sua assinatura ja esta ativa. Voce pode voltar ao app.');
       return;

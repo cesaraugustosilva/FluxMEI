@@ -80,12 +80,12 @@
             <span>Pagamento</span>
             <strong id="providerTitle">EFI Bank</strong>
           </div>
-          <span class="payment-badge">Pix, cartao e boleto</span>
+          <span class="payment-badge">Pix e boleto</span>
         </div>
 
         <section class="provider-panel" aria-label="Processador de pagamento">
           <strong>Pagamento seguro processado pela EFI Bank.</strong>
-          <small>Pix, cartao e boleto sao criados pelo backend do FluxMEI. Dados sensiveis de cartao devem ser tokenizados antes do envio.</small>
+          <small>Pix e boleto estao ativos. Cartao depende de tokenizacao segura EFI no frontend antes de ser liberado no checkout.</small>
         </section>
 
         <section class="payment-methods" aria-label="Forma de pagamento">
@@ -93,11 +93,6 @@
             <span>Pix</span>
             <strong>QR Code na tela</strong>
             <small>Sem pedir e-mail</small>
-          </button>
-          <button class="method-card" type="button" data-payment-method="cartao" aria-pressed="false">
-            <span>Cartao</span>
-            <strong>Token seguro</strong>
-            <small>Dados protegidos</small>
           </button>
           <button class="method-card" type="button" data-payment-method="boleto" aria-pressed="false">
             <span>Boleto</span>
@@ -129,14 +124,6 @@
         <div class="brick-shell">
           <div class="brick-container" id="paymentBrick_container"></div>
         </div>
-
-        <section class="efi-card-panel" id="efiCardPanel" hidden aria-label="Pagamento via cartao">
-          <strong>Pagamento com cartao</strong>
-          <p>Informe apenas o token seguro gerado pelo fluxo de tokenizacao da EFI. O FluxMEI nao recebe nem armazena numero, CVV ou validade do cartao.</p>
-          <label class="pix-code-label" for="efiCardToken">Token seguro EFI</label>
-          <input id="efiCardToken" type="text" autocomplete="off" inputmode="text" />
-          <button class="pix-button" type="button" id="payCardButton">Pagar com cartao</button>
-        </section>
 
         <section class="boleto-generate-panel" id="boletoGeneratePanel" hidden aria-label="Gerar boleto">
           <strong>Gerar boleto para o plano escolhido</strong>

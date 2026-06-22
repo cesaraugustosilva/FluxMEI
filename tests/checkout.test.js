@@ -9,6 +9,7 @@ const checkoutJs = readFileSync(new URL('../frontend/checkout/checkout.js', impo
 function createCheckoutHarness() {
   const elements = new Map();
   let fetchData = {};
+  const fetchCalls = [];
 
   function element(id) {
     if (!elements.has(id)) {
@@ -58,13 +59,16 @@ function createCheckoutHarness() {
     localStorage: { getItem() { return 'test-token'; }, setItem() {}, removeItem() {} },
     sessionStorage: { getItem() { return null; }, setItem() {}, removeItem() {} },
     navigator: { clipboard: { writeText() {} } },
-    fetch: async () => ({
+    fetch: async (url, options) => {
+      fetchCalls.push({ url, options });
+      return {
       ok: true,
       status: 200,
       headers: { get(header) { return header === 'content-type' ? 'application/json' : ''; } },
       json: async () => ({ ...fetchData }),
       text: async () => ''
-    }),
+      };
+    },
     document: {
       getElementById: element,
       querySelectorAll() { return []; },
@@ -82,38 +86,83 @@ function createCheckoutHarness() {
   };
   context.globalThis = context;
   vm.createContext(context);
-  vm.runInContext(`${checkoutJs}\nglobalThis.__checkoutTest = { renderPixPanel, renderBoletoPanel, checkPaymentStatus, getStatusKeyFromPayment };`, context);
+  vm.runInContext(`${checkoutJs}\nglobalThis.__checkoutTest = { renderPixPanel, renderBoletoPanel, checkPaymentStatus, getStatusKeyFromPayment, generatePixPayment, generateBoletoPayment };`, context);
 
   return {
     elements,
     api: context.__checkoutTest,
+    fetchCalls,
     setFetchData(data) {
       fetchData = data;
     }
   };
 }
 
-test('checkout principal usa EFI Bank para Pix, cartao e boleto', () => {
+test('checkout principal usa EFI Bank para Pix e boleto ativos', () => {
   assert.match(checkoutHtml, /Pagamento seguro processado pela EFI Bank\./);
-  assert.match(checkoutHtml, /Token seguro EFI/);
+  assert.match(checkoutHtml, /Pix e boleto estao ativos/);
   assert.match(checkoutHtml, /id="boletoPanel"/);
   assert.match(checkoutHtml, /data-payment-method="pix"/);
+  assert.match(checkoutHtml, /data-payment-method="boleto"/);
   assert.match(checkoutHtml, /id="generatePixButton"/);
+  assert.match(checkoutHtml, /id="generateBoletoButton"/);
   assert.match(checkoutHtml, /Gerar Pix/);
   assert.match(checkoutHtml, /id="pixPanel"/);
   assert.match(checkoutHtml, /id="pixCode"/);
+  assert.doesNotMatch(checkoutHtml, /data-payment-method="cartao"/);
+  assert.doesNotMatch(checkoutHtml, /id="efiCardToken"/);
+  assert.doesNotMatch(checkoutHtml, /id="payCardButton"/);
   assert.doesNotMatch(checkoutHtml, /name="paymentProvider"/);
 });
 
-test('checkout principal chama somente rotas EFI', () => {
+test('checkout principal chama somente rotas EFI ativas no frontend', () => {
   assert.match(checkoutJs, /\/pagamentos\/efi\/criar-pix/);
-  assert.match(checkoutJs, /\/pagamentos\/efi\/criar-cartao/);
   assert.match(checkoutJs, /\/pagamentos\/efi\/criar-boleto/);
   assert.match(checkoutJs, /\/pagamentos\/efi\/status\/\$\{encodeURIComponent\(paymentId\)\}/);
   assert.match(checkoutJs, /generatePixPayment/);
   assert.match(checkoutJs, /generateBoletoPayment/);
-  assert.match(checkoutJs, /submitEfiCardPayment/);
+  assert.match(checkoutJs, /ACTIVE_PAYMENT_METHODS = new Set\(\['pix', 'boleto'\]\)/);
+  assert.doesNotMatch(checkoutJs, /\/pagamentos\/efi\/criar-cartao/);
+  assert.doesNotMatch(checkoutJs, /submitEfiCardPayment/);
+  assert.doesNotMatch(checkoutJs, /payment_token/);
   assert.match(checkoutJs, /copyPixButton/);
+});
+
+test('gerar Pix chama a rota EFI de Pix', async () => {
+  const { api, fetchCalls, setFetchData } = createCheckoutHarness();
+  setFetchData({
+    success: true,
+    provider: 'efi',
+    payment_id: 'pix-1',
+    payment_status: 'ATIVA',
+    payment_method_id: 'pix',
+    qr_code: '000201-pix'
+  });
+
+  await api.generatePixPayment();
+
+  assert.equal(fetchCalls.at(-1).url, 'http://127.0.0.1/api/pagamentos/efi/criar-pix');
+  assert.equal(fetchCalls.at(-1).options.method, 'POST');
+  assert.doesNotMatch(JSON.stringify(fetchCalls), /criar-cartao|payment_token|card_number|cvv/);
+});
+
+test('gerar boleto chama a rota EFI de boleto', async () => {
+  const { api, fetchCalls, setFetchData } = createCheckoutHarness();
+  setFetchData({
+    success: true,
+    provider: 'efi',
+    payment_id: 'boleto-1',
+    payment_status: 'waiting',
+    payment_method_id: 'boleto',
+    invoice_url: 'https://boleto.example/1',
+    digitable_line: '00190.00009'
+  });
+
+  await api.generateBoletoPayment();
+
+  assert.equal(fetchCalls.at(-1).url, 'http://127.0.0.1/api/pagamentos/efi/criar-boleto');
+  assert.equal(fetchCalls.at(-1).options.method, 'POST');
+  assert.doesNotMatch(JSON.stringify(fetchCalls), /criar-cartao|payment_token|card_number|cvv/);
 });
 
 test('Pix EFI com status ATIVA renderiza painel', () => {
