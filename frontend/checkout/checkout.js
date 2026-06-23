@@ -168,7 +168,8 @@ function isSubscribeIntentUrl() {
 }
 
 function getLoginUrl(planId = getSelectedPlanId()) {
-  const url = new URL('/auth/login/index.html', window.location.origin);
+  const url = new URL('/auth/login.html', window.location.origin);
+  url.searchParams.set('redirect', '/checkout/');
   url.searchParams.set('intent', SUBSCRIBE_INTENT);
   url.searchParams.set('plan', planId);
   return url.href;

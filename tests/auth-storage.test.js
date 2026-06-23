@@ -58,7 +58,7 @@ test('intent de assinatura usa timestamp e expira em 15 minutos', () => {
 
 test('login normal sem intent na URL limpa intent antiga e vai para app', () => {
   assert.match(authJs, /if \(query\.get\('intent'\) !== SUBSCRIBE_INTENT\) \{\s*clearSubscribeIntent\(\);\s*return;\s*\}/);
-  assert.match(authJs, /function redirectAfterAuth\(defaultUrl\) \{\s*if \(!hasValidSubscribeIntent\(\)\) \{\s*window\.location\.href = defaultUrl;/);
+  assert.match(authJs, /function redirectAfterAuth\(defaultUrl\) \{\s*if \(!hasValidSubscribeIntent\(\)\) \{\s*window\.location\.href = getSafeRedirectUrl\(\) \|\| defaultUrl;/);
   assert.match(authJs, /redirectAfterAuth\('\.\.\/\.\.\/app\/index\.html'\)/);
 });
 
@@ -66,6 +66,13 @@ test('login com intent recente vai para checkout e consome intent', () => {
   assert.match(authJs, /function getPaymentIntentUrl\(\)/);
   assert.match(authJs, /url\.searchParams\.set\('intent', SUBSCRIBE_INTENT\)/);
   assert.match(authJs, /const paymentUrl = getPaymentIntentUrl\(\);\s*clearSubscribeIntent\(\);\s*window\.location\.href = paymentUrl;/);
+});
+
+test('login respeita redirect interno seguro quando nao ha intent de assinatura', () => {
+  assert.match(authJs, /function getSafeRedirectUrl\(\)/);
+  assert.match(authJs, /const redirect = query\.get\('redirect'\)/);
+  assert.match(authJs, /if \(url\.origin !== window\.location\.origin\) return null/);
+  assert.match(authJs, /window\.location\.href = getSafeRedirectUrl\(\) \|\| defaultUrl/);
 });
 
 test('fluxo de teste gratis remove intent com timestamp', () => {

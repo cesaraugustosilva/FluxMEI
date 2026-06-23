@@ -409,6 +409,20 @@ function getPaymentIntentUrl() {
   return url.href;
 }
 
+function getSafeRedirectUrl() {
+  const query = new URLSearchParams(window.location.search);
+  const redirect = query.get('redirect');
+  if (!redirect) return null;
+
+  try {
+    const url = new URL(redirect, window.location.origin);
+    if (url.origin !== window.location.origin) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
 function getLoginIntentUrl() {
   const url = new URL('../login/index.html', window.location.href);
   url.searchParams.set('intent', SUBSCRIBE_INTENT);
@@ -418,7 +432,7 @@ function getLoginIntentUrl() {
 
 function redirectAfterAuth(defaultUrl) {
   if (!hasValidSubscribeIntent()) {
-    window.location.href = defaultUrl;
+    window.location.href = getSafeRedirectUrl() || defaultUrl;
     return;
   }
 

@@ -69,8 +69,22 @@ function createCheckoutHarness(options = {}) {
     console,
     URL,
     URLSearchParams,
-    localStorage: { getItem() { return 'test-token'; }, setItem() {}, removeItem() {} },
-    sessionStorage: { getItem() { return null; }, setItem() {}, removeItem() {} },
+    localStorage: {
+      getItem(key) {
+        if (key === 'fluxmei_access_token') return options.localToken ?? 'test-token';
+        return null;
+      },
+      setItem() {},
+      removeItem() {}
+    },
+    sessionStorage: {
+      getItem(key) {
+        if (key === 'fluxmei_access_token') return options.sessionToken ?? null;
+        return null;
+      },
+      setItem() {},
+      removeItem() {}
+    },
     navigator: { clipboard: { writeText() {} } },
     fetch: async (url, options) => {
       fetchCalls.push({ url, options });
@@ -105,7 +119,7 @@ function createCheckoutHarness(options = {}) {
   };
   context.globalThis = context;
   vm.createContext(context);
-  vm.runInContext(`${checkoutJs}\nglobalThis.__checkoutTest = { renderPixPanel, renderBoletoPanel, checkPaymentStatus, getStatusKeyFromPayment, generatePixPayment, generateBoletoPayment, configureCardAvailability, submitEfiCardPayment };`, context);
+  vm.runInContext(`${checkoutJs}\nglobalThis.__checkoutTest = { renderPixPanel, renderBoletoPanel, checkPaymentStatus, getStatusKeyFromPayment, generatePixPayment, generateBoletoPayment, configureCardAvailability, submitEfiCardPayment, getLoginUrl };`, context);
 
   return {
     elements,
@@ -196,7 +210,27 @@ test('gerar Pix chama a rota Asaas de Pix', async () => {
 
   assert.equal(fetchCalls.at(-1).url, 'http://127.0.0.1/api/pagamentos/asaas/criar-pix');
   assert.equal(fetchCalls.at(-1).options.method, 'POST');
+  assert.equal(fetchCalls.at(-1).options.headers.Authorization, 'Bearer test-token');
   assert.doesNotMatch(JSON.stringify(fetchCalls), /criar-cartao|payment_token|card_number|cvv/);
+});
+
+test('gerar Pix usa token da sessionStorage antes do localStorage', async () => {
+  const { api, fetchCalls, setFetchData } = createCheckoutHarness({
+    sessionToken: 'session-token',
+    localToken: 'local-token'
+  });
+  setFetchData({
+    success: true,
+    provider: 'asaas',
+    payment_id: 'pix-1',
+    payment_status: 'ATIVA',
+    payment_method_id: 'pix',
+    qr_code: '000201-pix'
+  });
+
+  await api.generatePixPayment();
+
+  assert.equal(fetchCalls.at(-1).options.headers.Authorization, 'Bearer session-token');
 });
 
 test('gerar boleto chama a rota Asaas de boleto', async () => {
@@ -215,7 +249,17 @@ test('gerar boleto chama a rota Asaas de boleto', async () => {
 
   assert.equal(fetchCalls.at(-1).url, 'http://127.0.0.1/api/pagamentos/asaas/criar-boleto');
   assert.equal(fetchCalls.at(-1).options.method, 'POST');
+  assert.equal(fetchCalls.at(-1).options.headers.Authorization, 'Bearer test-token');
   assert.doesNotMatch(JSON.stringify(fetchCalls), /criar-cartao|payment_token|card_number|cvv/);
+});
+
+test('checkout sem token aponta para login com redirect para checkout', () => {
+  const { api } = createCheckoutHarness({ localToken: null, sessionToken: null });
+
+  assert.equal(
+    api.getLoginUrl('pro_mensal'),
+    'http://127.0.0.1/auth/login.html?redirect=%2Fcheckout%2F&intent=subscribe&plan=pro_mensal'
+  );
 });
 
 test('Pix EFI com status ATIVA renderiza painel', () => {
