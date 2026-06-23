@@ -628,6 +628,14 @@ function formatDocument(value) {
     .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
 }
 
+function getBillingDocument() {
+  const documentInput = document.getElementById('billingDocument');
+  const cpfCnpj = onlyDigits(documentInput?.value);
+  if (!cpfCnpj) throw new Error('Informe seu CPF ou CNPJ para gerar a cobrança.');
+  if (![11, 14].includes(cpfCnpj.length)) throw new Error('CPF/CNPJ invalido.');
+  return cpfCnpj;
+}
+
 function formatExpiry(value) {
   const digits = onlyDigits(value).slice(0, 6);
   if (digits.length <= 2) return digits;
@@ -771,7 +779,8 @@ async function generatePixPayment() {
     const data = await request(getPaymentGateway().pixPath, {
       method: 'POST',
       body: JSON.stringify({
-        plano: selectedPlan.id
+        plano: selectedPlan.id,
+        cpfCnpj: getBillingDocument()
       })
     });
 
@@ -801,7 +810,8 @@ async function generateBoletoPayment() {
     const data = await request(getPaymentGateway().boletoPath, {
       method: 'POST',
       body: JSON.stringify({
-        plano: selectedPlan.id
+        plano: selectedPlan.id,
+        cpfCnpj: getBillingDocument()
       })
     });
 
@@ -882,6 +892,10 @@ function bindCheckoutEvents() {
   });
 
   document.getElementById('cardHolderDocument').addEventListener('input', (event) => {
+    event.target.value = formatDocument(event.target.value);
+  });
+
+  document.getElementById('billingDocument').addEventListener('input', (event) => {
     event.target.value = formatDocument(event.target.value);
   });
 

@@ -37,6 +37,7 @@ function createCheckoutHarness(options = {}) {
 
   [
     'checkoutAlert',
+    'billingDocument',
     'pixPanel',
     'pixQrImage',
     'pixCode',
@@ -63,6 +64,7 @@ function createCheckoutHarness(options = {}) {
   elements.get('boletoPanel').hidden = true;
   elements.get('efiCardPanel').hidden = true;
   elements.get('cardMethodButton').hidden = true;
+  elements.get('billingDocument').value = options.billingDocument ?? '123.456.789-01';
   elements.get('cardInstallments').value = '1';
 
   const context = {
@@ -141,6 +143,7 @@ test('checkout principal usa Asaas para Pix e boleto ativos', () => {
   assert.match(checkoutHtml, /id="cardMethodButton"[^>]*hidden/);
   assert.match(checkoutHtml, /id="generatePixButton"/);
   assert.match(checkoutHtml, /id="generateBoletoButton"/);
+  assert.match(checkoutHtml, /id="billingDocument"/);
   assert.match(checkoutHtml, /id="payCardButton"/);
   assert.match(checkoutHtml, /Gerar Pix/);
   assert.match(checkoutHtml, /id="pixPanel"/);
@@ -211,6 +214,7 @@ test('gerar Pix chama a rota Asaas de Pix', async () => {
   assert.equal(fetchCalls.at(-1).url, 'http://127.0.0.1/api/pagamentos/asaas/criar-pix');
   assert.equal(fetchCalls.at(-1).options.method, 'POST');
   assert.equal(fetchCalls.at(-1).options.headers.Authorization, 'Bearer test-token');
+  assert.equal(JSON.parse(fetchCalls.at(-1).options.body).cpfCnpj, '12345678901');
   assert.doesNotMatch(JSON.stringify(fetchCalls), /criar-cartao|payment_token|card_number|cvv/);
 });
 
@@ -233,6 +237,15 @@ test('gerar Pix usa token da sessionStorage antes do localStorage', async () => 
   assert.equal(fetchCalls.at(-1).options.headers.Authorization, 'Bearer session-token');
 });
 
+test('gerar Pix exige CPF ou CNPJ antes de chamar backend', async () => {
+  const { api, elements, fetchCalls } = createCheckoutHarness({ billingDocument: '' });
+
+  await api.generatePixPayment();
+
+  assert.equal(fetchCalls.length, 0);
+  assert.match(elements.get('checkoutAlert').textContent, /Informe seu CPF ou CNPJ para gerar a cobran/);
+});
+
 test('gerar boleto chama a rota Asaas de boleto', async () => {
   const { api, fetchCalls, setFetchData } = createCheckoutHarness();
   setFetchData({
@@ -250,6 +263,7 @@ test('gerar boleto chama a rota Asaas de boleto', async () => {
   assert.equal(fetchCalls.at(-1).url, 'http://127.0.0.1/api/pagamentos/asaas/criar-boleto');
   assert.equal(fetchCalls.at(-1).options.method, 'POST');
   assert.equal(fetchCalls.at(-1).options.headers.Authorization, 'Bearer test-token');
+  assert.equal(JSON.parse(fetchCalls.at(-1).options.body).cpfCnpj, '12345678901');
   assert.doesNotMatch(JSON.stringify(fetchCalls), /criar-cartao|payment_token|card_number|cvv/);
 });
 

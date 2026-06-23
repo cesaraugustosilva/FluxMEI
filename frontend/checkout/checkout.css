@@ -157,6 +157,7 @@ h1 {
 .user-box,
 .benefits-panel,
 .provider-panel,
+.billing-document-panel,
 .security-box,
 .status-panel,
 .pix-generate-panel,
@@ -348,6 +349,35 @@ h1 {
   gap: 7px;
   margin: 16px 0;
   padding: 14px;
+}
+
+.billing-document-panel {
+  margin: 16px 0;
+  padding: 14px;
+}
+
+.billing-document-panel label {
+  display: grid;
+  gap: 7px;
+}
+
+.billing-document-panel label > span {
+  color: #d7f7dc;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.06rem;
+  text-transform: uppercase;
+}
+
+.billing-document-panel input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--ink);
+  font: 500 0.92rem/1.4 "Inter", system-ui, sans-serif;
 }
 
 .provider-panel strong {

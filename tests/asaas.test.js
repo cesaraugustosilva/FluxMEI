@@ -58,7 +58,10 @@ test('asaasService cria cliente e cobranca com access_token sem expor chave', as
     return {
       ok: true,
       headers: { get: () => 'application/json' },
-      json: async () => ({ id: url.endsWith('/customers') ? 'cus_1' : 'pay_1', status: 'PENDING' })
+      json: async () => {
+        if (String(url).includes('/customers?')) return { data: [] };
+        return { id: url.endsWith('/customers') ? 'cus_1' : 'pay_1', status: 'PENDING' };
+      }
     };
   };
 
@@ -69,7 +72,8 @@ test('asaasService cria cliente e cobranca com access_token sem expor chave', as
     try {
       await asaasService.criarOuBuscarCliente({
         user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} },
-        profile: { nome: 'Cliente FluxMEI', cpf: '' }
+        profile: { nome: 'Cliente FluxMEI', cpf: '' },
+        cpfCnpj: '123.456.789-01'
       });
       await asaasService.criarCobranca({
         customerId: 'cus_1',
@@ -79,10 +83,46 @@ test('asaasService cria cliente e cobranca com access_token sem expor chave', as
         dueDate: '2026-06-23'
       });
 
-      assert.equal(calls[0].url, 'https://api-sandbox.asaas.com/v3/customers');
+      assert.equal(calls[0].url, 'https://api-sandbox.asaas.com/v3/customers?cpfCnpj=12345678901');
       assert.equal(calls[0].options.headers.access_token, 'asaas-secret');
-      assert.equal(calls[1].url, 'https://api-sandbox.asaas.com/v3/payments');
-      assert.equal(JSON.parse(calls[1].options.body).billingType, 'PIX');
+      assert.equal(calls[1].url, 'https://api-sandbox.asaas.com/v3/customers');
+      assert.equal(JSON.parse(calls[1].options.body).cpfCnpj, '12345678901');
+      assert.equal(calls[2].url, 'https://api-sandbox.asaas.com/v3/payments');
+      assert.equal(JSON.parse(calls[2].options.body).billingType, 'PIX');
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+});
+
+test('asaasService atualiza cliente existente com CPF/CNPJ', async () => {
+  const previousFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options });
+    return {
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () => ({ id: 'cus_1', cpfCnpj: '12345678901' })
+    };
+  };
+
+  await withEnv({
+    ASAAS_API_KEY: 'asaas-secret',
+    ASAAS_BASE_URL: 'https://api-sandbox.asaas.com/v3'
+  }, async () => {
+    try {
+      await asaasService.criarOuBuscarCliente({
+        user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} },
+        profile: { nome: 'Cliente FluxMEI', cpf: '' },
+        existingCustomerId: 'cus_1',
+        cpfCnpj: '123.456.789-01'
+      });
+
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0].url, 'https://api-sandbox.asaas.com/v3/customers/cus_1');
+      assert.equal(calls[0].options.method, 'PUT');
+      assert.equal(JSON.parse(calls[0].options.body).cpfCnpj, '12345678901');
     } finally {
       globalThis.fetch = previousFetch;
     }
@@ -102,8 +142,8 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
   const originalCriarCobranca = asaasService.criarCobranca;
   const originalObterPixQrCode = asaasService.obterPixQrCode;
   const originalConsultarPagamento = asaasService.consultarPagamento;
-  const stats = { pixCreated: 0, boletoCreated: 0, updated: 0, locksAcquired: 0, locksReleased: 0, lastUpdate: null };
-  const profile = { nome: 'Cliente FluxMEI', cpf: '12345678901' };
+  const stats = { pixCreated: 0, boletoCreated: 0, updated: 0, locksAcquired: 0, locksReleased: 0, lastUpdate: null, customerCpfCnpj: null };
+  const profile = options.profile ?? { nome: 'Cliente FluxMEI', cpf: '12345678901' };
 
   supabaseAdmin.from = (table) => {
     const query = {
@@ -143,7 +183,10 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
     return { data: null, error: null };
   };
 
-  asaasService.criarOuBuscarCliente = async () => ({ id: 'cus_1' });
+  asaasService.criarOuBuscarCliente = async ({ cpfCnpj }) => {
+    stats.customerCpfCnpj = cpfCnpj;
+    return { id: 'cus_1' };
+  };
   asaasService.criarCobranca = async ({ method }) => {
     if (method === 'boleto') stats.boletoCreated += 1;
     else stats.pixCreated += 1;
@@ -186,7 +229,7 @@ test('Pix Asaas criado registra tentativa e retorna copia e cola', async () => {
   await withMockedAsaasEnvironment(assinaturaBase(), async ({ criarPixAsaas, stats }) => {
     const response = createMockResponse();
     await criarPixAsaas({
-      body: { plano: 'pro_mensal' },
+      body: { plano: 'pro_mensal', cpfCnpj: '123.456.789-01' },
       user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
     }, response);
 
@@ -198,6 +241,7 @@ test('Pix Asaas criado registra tentativa e retorna copia e cola', async () => {
     assert.equal(stats.updated, 1);
     assert.equal(stats.lastUpdate.payment_provider, 'asaas');
     assert.equal(stats.lastUpdate.provider_customer_id, 'cus_1');
+    assert.equal(stats.customerCpfCnpj, '12345678901');
   });
 });
 
@@ -205,7 +249,7 @@ test('Boleto Asaas criado retorna link linha e vencimento', async () => {
   await withMockedAsaasEnvironment(assinaturaBase(), async ({ criarBoletoAsaas, stats }) => {
     const response = createMockResponse();
     await criarBoletoAsaas({
-      body: { plano: 'pro_mensal' },
+      body: { plano: 'pro_mensal', cpfCnpj: '12.345.678/0001-90' },
       user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
     }, response);
 
@@ -216,7 +260,25 @@ test('Boleto Asaas criado retorna link linha e vencimento', async () => {
     assert.equal(response.payload.digitable_line, '00190.00009');
     assert.equal(response.payload.due_date, '2026-06-26');
     assert.equal(stats.boletoCreated, 1);
+    assert.equal(stats.customerCpfCnpj, '12345678000190');
   });
+});
+
+test('Pix Asaas sem CPF/CNPJ retorna erro claro antes de chamar gateway', async () => {
+  await withMockedAsaasEnvironment(assinaturaBase(), async ({ criarPixAsaas, stats }) => {
+    const response = createMockResponse();
+
+    await assert.rejects(
+      () => criarPixAsaas({
+        body: { plano: 'pro_mensal' },
+        user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
+      }, response),
+      /Informe seu CPF ou CNPJ para gerar a cobrança/
+    );
+
+    assert.equal(stats.customerCpfCnpj, null);
+    assert.equal(stats.pixCreated, 0);
+  }, { profile: { nome: 'Cliente FluxMEI', cpf: '', cnpj: '' } });
 });
 
 test('Status Asaas consulta pagamento e preserva assinatura do usuario', async () => {

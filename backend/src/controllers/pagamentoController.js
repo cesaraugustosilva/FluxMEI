@@ -101,6 +101,14 @@ function sanitizeDocument(value, field = 'CPF/CNPJ') {
   return digits;
 }
 
+function validateAsaasCustomerDocument(body = {}, profile = null) {
+  const document = sanitizeDocument(
+    body.cpfCnpj || body.cpf_cnpj || body.documento || body.cpf || body.cnpj || profile?.cpf || profile?.cnpj
+  );
+  if (!document) throw new AppError('Informe seu CPF ou CNPJ para gerar a cobrança.', 400);
+  return document;
+}
+
 function sanitizeInstallments(value) {
   const number = Number(value ?? 1);
   if (!Number.isInteger(number) || number < 1 || number > 12) {
@@ -686,6 +694,7 @@ async function criarPagamentoAsaas(req, res, method) {
   if (!req.user?.email) throw new AppError('Usuario autenticado sem e-mail cadastrado.', 400);
 
   const profile = await getProfile(req.user.id);
+  const cpfCnpj = validateAsaasCustomerDocument(req.body, profile);
   const assinatura = await ensureUserSubscription(req.user.id, plano);
   const reusable = assertNoRecentPendingAsaasAttempt(assinatura, plan, { allowReusablePix: method === 'pix' });
   if (reusable) return res.status(200).json(reusable);
@@ -710,6 +719,7 @@ async function criarPagamentoAsaas(req, res, method) {
     const customer = await asaasService.criarOuBuscarCliente({
       user: req.user,
       profile,
+      cpfCnpj,
       existingCustomerId: lockedAssinatura.payment_provider === 'asaas' ? lockedAssinatura.provider_customer_id : null
     });
     const payment = await asaasService.criarCobranca({

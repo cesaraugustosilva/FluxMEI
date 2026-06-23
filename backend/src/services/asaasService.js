@@ -104,26 +104,39 @@ async function criarCliente(payload) {
   });
 }
 
-async function criarOuBuscarCliente({ user, profile, existingCustomerId }) {
-  if (existingCustomerId) return { id: existingCustomerId, reused: true };
+async function atualizarCliente(customerId, payload) {
+  return request(`/customers/${encodeURIComponent(customerId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(cleanObject(payload))
+  });
+}
 
+async function criarOuBuscarCliente({ user, profile, existingCustomerId, cpfCnpj }) {
   const name = profile?.nome || user.user_metadata?.nome || user.email;
-  const cpfCnpj = onlyDigits(profile?.cpf || profile?.cnpj);
+  const documentNumber = onlyDigits(cpfCnpj || profile?.cpf || profile?.cnpj);
   const mobilePhone = onlyDigits(profile?.whatsapp || profile?.telefone || user.user_metadata?.whatsapp);
 
-  if (cpfCnpj) {
-    const foundByDocument = await buscarClientes({ cpfCnpj });
-    const first = foundByDocument?.data?.[0];
-    if (first?.id) return first;
+  if (![11, 14].includes(documentNumber.length)) {
+    throw new AppError('Informe seu CPF ou CNPJ para gerar a cobrança.', 400);
   }
 
-  return criarCliente({
+  const payload = {
     name,
     email: user.email,
-    cpfCnpj: cpfCnpj || undefined,
+    cpfCnpj: documentNumber,
     mobilePhone: mobilePhone || undefined,
     externalReference: user.id
-  });
+  };
+
+  if (existingCustomerId) {
+    return atualizarCliente(existingCustomerId, payload);
+  }
+
+  const foundByDocument = await buscarClientes({ cpfCnpj: documentNumber });
+  const first = foundByDocument?.data?.[0];
+  if (first?.id) return first;
+
+  return criarCliente(payload);
 }
 
 async function criarCobranca({ customerId, plan, method, externalReference, dueDate }) {
