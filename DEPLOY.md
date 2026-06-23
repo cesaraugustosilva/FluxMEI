@@ -30,6 +30,7 @@ APP_PUBLIC_URL=https://api.seudominio.com
 SUPABASE_URL=https://seu-projeto.supabase.co
 SUPABASE_ANON_KEY=sua_chave_anon_do_supabase
 SUPABASE_SERVICE_ROLE_KEY=sua_chave_service_role_do_supabase
+SUPABASE_JWT_SECRET=
 GEMINI_API_KEY=sua_chave_gemini
 JWT_SECRET=opcional_para_integracoes_futuras
 AUTH_AUTO_CONFIRM_EMAIL=false
@@ -55,6 +56,9 @@ Observacoes:
 
 - O Render define `PORT` automaticamente.
 - Nunca coloque `SUPABASE_SERVICE_ROLE_KEY`, `ASAAS_API_KEY`, `EFI_CLIENT_SECRET`, certificado Efí ou `GEMINI_API_KEY` na Vercel.
+- O checkout envia token do Supabase Auth. O backend valida esse token com `supabaseAdmin.auth.getUser(token)`, usando `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` do mesmo projeto Supabase.
+- `SUPABASE_JWT_SECRET` e opcional e nao e usado pelo middleware atual. Configure apenas se uma validacao local de JWT Supabase for implementada no futuro.
+- `JWT_SECRET` e reservado para tokens proprios do FluxMEI, se existirem no futuro. Nao use `JWT_SECRET` para validar Supabase Auth JWT.
 - Em producao, `ASAAS_WEBHOOK_TOKEN` e obrigatorio para validar eventos do Asaas.
 - Se usar Efí como fallback, `EFI_WEBHOOK_SECRET` tambem deve ser configurado.
 - Em producao, `/api/dev/*` nao e registrado.
