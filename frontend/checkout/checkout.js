@@ -7,6 +7,28 @@ const INTENT_CREATED_AT_KEY = 'fluxmei_intent_created_at';
 const SUBSCRIBE_INTENT = 'subscribe';
 const DEFAULT_PLAN = 'pro_mensal';
 const ACTIVE_PAYMENT_METHODS = new Set(['pix', 'boleto']);
+const PAYMENT_GATEWAYS = {
+  asaas: {
+    provider: 'asaas',
+    title: 'Asaas',
+    secureText: 'Pagamento seguro processado pelo Asaas.',
+    helperText: 'Pix e boleto estao ativos. Cartao sera liberado em uma etapa futura.',
+    loadingText: 'Estamos preparando o pagamento no ambiente seguro do Asaas.',
+    pixPath: '/pagamentos/asaas/criar-pix',
+    boletoPath: '/pagamentos/asaas/criar-boleto',
+    statusPath: (paymentId) => `/pagamentos/asaas/status/${encodeURIComponent(paymentId)}`
+  },
+  efi: {
+    provider: 'efi',
+    title: 'EFI Bank',
+    secureText: 'Pagamento seguro processado pela EFI Bank.',
+    helperText: 'Pix e boleto estao ativos. Cartao sera liberado em uma etapa futura.',
+    loadingText: 'Estamos preparando o pagamento no ambiente seguro da EFI Bank.',
+    pixPath: '/pagamentos/efi/criar-pix',
+    boletoPath: '/pagamentos/efi/criar-boleto',
+    statusPath: (paymentId) => `/pagamentos/efi/status/${encodeURIComponent(paymentId)}`
+  }
+};
 
 const FALLBACK_PLANS = {
   pro_mensal: {
@@ -80,6 +102,11 @@ function onlyDigits(value) {
 
 function getEfiPayeeCode() {
   return String(window.FLUXMEI_CONFIG?.EFI_PAYEE_CODE || '').trim();
+}
+
+function getPaymentGateway() {
+  const configured = String(window.FLUXMEI_CONFIG?.PAYMENT_GATEWAY || 'asaas').trim().toLowerCase();
+  return PAYMENT_GATEWAYS[configured] || PAYMENT_GATEWAYS.asaas;
 }
 
 function getEfiTokenEnvironment() {
@@ -354,7 +381,7 @@ function setBoletoGenerateVisible(isVisible) {
 }
 
 function configureCardAvailability() {
-  const enabled = isEfiCardTokenizationConfigured();
+  const enabled = false;
   const button = document.getElementById('cardMethodButton');
   if (enabled) {
     ACTIVE_PAYMENT_METHODS.add('cartao');
@@ -499,7 +526,7 @@ async function checkPaymentStatus(paymentId = currentPaymentId, { silent = false
   }
 
   try {
-    const statusPath = `/pagamentos/efi/status/${encodeURIComponent(paymentId)}`;
+    const statusPath = getPaymentGateway().statusPath(paymentId);
     const data = await request(statusPath);
     const statusKey = getStatusKeyFromPayment(data);
     const paymentMethod = isBoletoPayment(data) || method === 'boleto' ? 'boleto' : 'pix';
@@ -676,10 +703,8 @@ function getCurrentUserEmail() {
 async function submitEfiCardPayment() {
   clearAlert();
 
-  if (!isEfiCardTokenizationConfigured()) {
-    showAlert('Pagamento por cartao indisponivel. Tokenizacao EFI nao configurada.');
-    return null;
-  }
+  showAlert('Pagamento por cartao ainda nao esta disponivel.');
+  return null;
 
   setCardLoading(true);
   showStatus('pending', 'Tokenizando cartao com seguranca pela EFI.');
@@ -742,7 +767,7 @@ async function generatePixPayment() {
   showStatus('pending', 'Aguardando pagamento');
 
   try {
-    const data = await request('/pagamentos/efi/criar-pix', {
+    const data = await request(getPaymentGateway().pixPath, {
       method: 'POST',
       body: JSON.stringify({
         plano: selectedPlan.id
@@ -772,7 +797,7 @@ async function generateBoletoPayment() {
   showStatus('pending', 'Aguardando pagamento');
 
   try {
-    const data = await request('/pagamentos/efi/criar-boleto', {
+    const data = await request(getPaymentGateway().boletoPath, {
       method: 'POST',
       body: JSON.stringify({
         plano: selectedPlan.id
@@ -905,6 +930,17 @@ function bindCheckoutEvents() {
 async function initCheckout() {
   bindCheckoutEvents();
   configureCardAvailability();
+  const gateway = getPaymentGateway();
+  const providerTitle = document.getElementById('providerTitle');
+  const providerSecureText = document.getElementById('providerSecureText');
+  const providerHelperText = document.getElementById('providerHelperText');
+  const securityProviderText = document.getElementById('securityProviderText');
+  const brickLoadingText = document.getElementById('brickLoadingText');
+  if (providerTitle) providerTitle.textContent = gateway.title;
+  if (providerSecureText) providerSecureText.textContent = gateway.secureText;
+  if (providerHelperText) providerHelperText.textContent = gateway.helperText;
+  if (securityProviderText) securityProviderText.textContent = gateway.secureText;
+  if (brickLoadingText) brickLoadingText.textContent = gateway.loadingText;
   setBrickVisible(false);
   setBrickLoading(false);
   setPixGenerateVisible(true);

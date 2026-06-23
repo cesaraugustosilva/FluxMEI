@@ -18,6 +18,19 @@ export const PAYMENT_PLANS = {
 };
 
 export const DEFAULT_PENDING_ATTEMPT_TTL_MS = 60 * 60 * 1000;
+export const ASAAS_PENDING_STATUSES = ['pending', 'awaiting_risk_analysis'];
+export const ASAAS_PAID_STATUSES = ['received', 'confirmed', 'received_in_cash'];
+export const ASAAS_CANCELLED_STATUSES = [
+  'cancelled',
+  'refunded',
+  'refund_requested',
+  'chargeback_requested',
+  'chargeback_dispute',
+  'awaiting_chargeback_reversal',
+  'deleted',
+  'payment_deleted'
+];
+export const ASAAS_OVERDUE_STATUSES = ['overdue'];
 export const EFI_BANK_PENDING_STATUSES = ['ativa', 'active', 'aguardando', 'waiting', 'new', 'pending', 'processing', 'em_processamento'];
 export const EFI_BANK_PAID_STATUSES = ['concluida', 'paid', 'settled', 'received', 'confirmed', 'approved'];
 export const EFI_BANK_CANCELLED_STATUSES = [
@@ -133,6 +146,184 @@ function cleanObject(value = {}) {
   return Object.fromEntries(
     Object.entries(value).filter(([, item]) => item !== undefined && item !== null && item !== '')
   );
+}
+
+function normalizeAsaasStatus(status) {
+  return String(status || '').trim().toLowerCase();
+}
+
+function normalizeAsaasAmount(payment = {}) {
+  if (payment?.value !== undefined) return payment.value;
+  if (payment?.amount !== undefined) return payment.amount;
+  if (payment?.netValue !== undefined) return payment.netValue;
+  return null;
+}
+
+function getAsaasPaymentId(payment = {}) {
+  return payment?.id || payment?.payment_id || null;
+}
+
+function getAsaasPaymentPlanId(payment = {}) {
+  const reference = String(payment?.externalReference || '');
+  if (reference.includes(':')) return reference.split(':')[2] || null;
+  return payment?.metadata?.plano || null;
+}
+
+function getAsaasPaymentSubscriptionId(payment = {}) {
+  const reference = String(payment?.externalReference || '');
+  if (reference.includes(':')) return reference.split(':')[1] || null;
+  return reference || null;
+}
+
+function sanitizeAsaasPaymentAttempt(attempt = null) {
+  if (!attempt) return null;
+
+  return cleanObject({
+    plano_original: attempt.plano_original || null,
+    valor_original: attempt.valor_original ?? null,
+    tipo_cobranca_original: attempt.tipo_cobranca_original || null,
+    payment_id: attempt.payment_id ? String(attempt.payment_id) : null,
+    payment_method_id: attempt.payment_method_id || null,
+    created_at: attempt.created_at || null,
+    metadata: cleanObject(attempt.metadata || {})
+  });
+}
+
+function sanitizeAsaasPaymentPayload(payment = null) {
+  if (!payment) return null;
+
+  const paymentId = getAsaasPaymentId(payment);
+  return cleanObject({
+    provider: 'asaas',
+    payment_id: paymentId ? String(paymentId) : null,
+    customer_id: payment?.customer || null,
+    subscription_id: payment?.subscription || null,
+    status: payment?.status || null,
+    billing_type: payment?.billingType || payment?.payment_method_id || null,
+    value: normalizeAsaasAmount(payment),
+    due_date: payment?.dueDate || null,
+    payment_date: payment?.paymentDate || null,
+    confirmed_date: payment?.confirmedDate || null,
+    invoice_url: payment?.invoiceUrl || null,
+    bank_slip_url: payment?.bankSlipUrl || null,
+    digitable_line: payment?.identificationField || payment?.digitableLine || null,
+    external_reference: payment?.externalReference || null
+  });
+}
+
+function sanitizeAsaasPixQrCode(qrcode = null) {
+  if (!qrcode) return null;
+
+  return cleanObject({
+    has_qrcode: Boolean(qrcode?.payload || qrcode?.qr_code),
+    has_image: Boolean(qrcode?.encodedImage || qrcode?.encoded_image || qrcode?.qr_code_base64),
+    expiration_date: qrcode?.expirationDate || qrcode?.expiration_date || null
+  });
+}
+
+export function sanitizeAsaasProviderRaw(payload = {}) {
+  return cleanObject({
+    provider: 'asaas',
+    attempt: sanitizeAsaasPaymentAttempt(payload.attempt || null),
+    payment: sanitizeAsaasPaymentPayload(payload.payment || null),
+    pixQrCode: sanitizeAsaasPixQrCode(payload.pixQrCode || null),
+    outcome: payload.outcome || null,
+    timestamp: payload.timestamp || payload.created_at || null
+  });
+}
+
+export function buildAsaasPaymentAttempt({ plan, payment = null, method = null }) {
+  return {
+    plano_original: plan.id,
+    valor_original: plan.value,
+    tipo_cobranca_original: plan.tipo_cobranca,
+    payment_id: getAsaasPaymentId(payment) ? String(getAsaasPaymentId(payment)) : null,
+    payment_method_id: payment?.billingType || method || null,
+    created_at: new Date().toISOString(),
+    metadata: {
+      user_id: payment?.metadata?.user_id || null,
+      assinatura_id: getAsaasPaymentSubscriptionId(payment),
+      plano: plan.id
+    }
+  };
+}
+
+export function buildAsaasProviderRaw({ payment, attempt, pixQrCode = null }) {
+  return sanitizeAsaasProviderRaw({ payment, attempt, pixQrCode });
+}
+
+function getAsaasAttempt(assinatura = {}) {
+  const raw = assinatura.provider_raw || {};
+  if (raw.attempt) return raw.attempt;
+
+  const rawPayment = raw.payment || raw;
+  const rawPlanId = getAsaasPaymentPlanId(rawPayment);
+  const rawAmount = rawPayment?.value || rawPayment?.valor || rawPayment?.amount;
+  if (rawPlanId || rawAmount !== undefined) {
+    return {
+      plano_original: rawPlanId,
+      valor_original: rawAmount,
+      payment_id: rawPayment?.payment_id || rawPayment?.id || assinatura.provider_payment_id || null,
+      payment_method_id: rawPayment?.billing_type || rawPayment?.billingType || null
+    };
+  }
+
+  return null;
+}
+
+function buildIgnoredAsaasUpdate(payment, outcome, attempt = null) {
+  const paymentId = getAsaasPaymentId(payment);
+  return {
+    payment_provider: 'asaas',
+    provider_payment_id: paymentId ? String(paymentId) : null,
+    provider_customer_id: payment?.customer || null,
+    provider_subscription_id: payment?.subscription || null,
+    provider_status: payment?.status,
+    provider_raw: sanitizeAsaasProviderRaw({ payment, attempt, outcome }),
+    ignored: true,
+    outcome
+  };
+}
+
+function getAsaasAttemptCreatedAt(assinatura = {}) {
+  const raw = assinatura.provider_raw || {};
+  const attempt = raw.attempt || {};
+  return parseDate(attempt.created_at)
+    || parseDate(raw.payment?.created_at)
+    || parseDate(raw.payment?.dateCreated)
+    || parseDate(assinatura.updated_at)
+    || parseDate(assinatura.created_at);
+}
+
+export function getRecentAsaasPendingAttempt(assinatura = {}, plan = {}, options = {}) {
+  const baseDate = options.baseDate || new Date();
+  const ttlMs = options.ttlMs || DEFAULT_PENDING_ATTEMPT_TTL_MS;
+  const providerStatus = assinatura.provider_status;
+  const raw = assinatura.provider_raw || {};
+  const attempt = raw.attempt || null;
+  const payment = raw.payment || null;
+  const attemptPlanId = attempt?.plano_original || attempt?.metadata?.plano || getAsaasPaymentPlanId(payment);
+
+  if (assinatura.payment_provider !== 'asaas') return null;
+  if (!ASAAS_PENDING_STATUSES.includes(normalizeAsaasStatus(providerStatus))) return null;
+  if (!assinatura.provider_payment_id && !attempt?.payment_id) return null;
+  if (!plan?.id || attemptPlanId !== plan.id) return null;
+
+  const createdAt = getAsaasAttemptCreatedAt(assinatura);
+  const expiresAt = createdAt ? addMilliseconds(createdAt, ttlMs) : null;
+  if (!expiresAt || expiresAt <= baseDate) return null;
+
+  return {
+    provider: 'asaas',
+    status: normalizeAsaasStatus(providerStatus),
+    payment_id: String(assinatura.provider_payment_id || attempt?.payment_id),
+    plan_id: attemptPlanId,
+    method: String(attempt?.payment_method_id || payment?.billing_type || payment?.billingType || '').toLowerCase(),
+    expires_at: expiresAt.toISOString(),
+    attempt,
+    payment,
+    pixQrCode: raw.pixQrCode || null
+  };
 }
 
 function normalizeEfiBankStatus(status) {
@@ -334,6 +525,92 @@ export function getRecentEfiBankPendingAttempt(assinatura = {}, plan = {}, optio
     payment,
     qrcode: raw.qrcode || null
   };
+}
+
+export function buildAsaasSubscriptionUpdates(payment, assinatura, baseDate = new Date(), event = null) {
+  const status = payment?.status;
+  const normalizedStatus = normalizeAsaasStatus(status);
+  const normalizedEvent = normalizeAsaasStatus(event).replace(/^payment_/, '');
+  const paymentId = getAsaasPaymentId(payment);
+  const sameProviderPayment = paymentId && assinatura.provider_payment_id === String(paymentId);
+  const alreadyApproved = assinatura.status === 'ativo'
+    && ASAAS_PAID_STATUSES.includes(normalizeAsaasStatus(assinatura.provider_status));
+  const attempt = getAsaasAttempt(assinatura);
+
+  if (ASAAS_PAID_STATUSES.includes(normalizedStatus) && sameProviderPayment && alreadyApproved) {
+    return {
+      payment_provider: 'asaas',
+      provider_payment_id: String(paymentId),
+      provider_customer_id: payment?.customer || assinatura.provider_customer_id || null,
+      provider_subscription_id: payment?.subscription || assinatura.provider_subscription_id || null,
+      provider_status: status,
+      provider_raw: sanitizeAsaasProviderRaw({ payment, attempt, outcome: 'duplicate_ignored' }),
+      already_processed: true,
+      outcome: 'duplicate_ignored'
+    };
+  }
+
+  const attemptPaymentId = attempt?.payment_id ? String(attempt.payment_id) : null;
+  const originalPlanId = attempt?.plano_original || attempt?.metadata?.plano || null;
+  const planConfig = PAYMENT_PLANS[originalPlanId];
+  const paidPlanId = getAsaasPaymentPlanId(payment) || originalPlanId;
+  const expectedAmountCents = moneyToCents(attempt?.valor_original);
+  const paidAmountCents = moneyToCents(normalizeAsaasAmount(payment));
+
+  if (!ASAAS_PAID_STATUSES.includes(normalizedStatus) && attemptPaymentId && paymentId && attemptPaymentId !== String(paymentId)) {
+    return buildIgnoredAsaasUpdate(payment, 'ignored_not_current_attempt', attempt);
+  }
+
+  if (ASAAS_PAID_STATUSES.includes(normalizedStatus)) {
+    if (!attempt || !attemptPaymentId || attemptPaymentId !== String(paymentId) || !sameProviderPayment) {
+      return buildIgnoredAsaasUpdate(payment, 'ignored_not_current_attempt', attempt);
+    }
+
+    if (!planConfig || paidPlanId !== originalPlanId) {
+      return buildIgnoredAsaasUpdate(payment, 'ignored_plan_mismatch', attempt);
+    }
+
+    if (expectedAmountCents === null || paidAmountCents === null || paidAmountCents !== expectedAmountCents) {
+      return buildIgnoredAsaasUpdate(payment, 'ignored_amount_mismatch', attempt);
+    }
+  }
+
+  const updates = {
+    payment_provider: 'asaas',
+    provider_payment_id: paymentId ? String(paymentId) : assinatura.provider_payment_id,
+    provider_customer_id: payment?.customer || assinatura.provider_customer_id || null,
+    provider_subscription_id: payment?.subscription || assinatura.provider_subscription_id || null,
+    provider_status: status || assinatura.provider_status,
+    provider_raw: buildAsaasProviderRaw({
+      payment,
+      attempt: attempt || {
+        plano_original: originalPlanId,
+        valor_original: normalizeAsaasAmount(payment),
+        payment_id: paymentId ? String(paymentId) : null,
+        metadata: { assinatura_id: getAsaasPaymentSubscriptionId(payment), plano: paidPlanId }
+      }
+    })
+  };
+
+  if (ASAAS_PAID_STATUSES.includes(normalizedStatus)) {
+    updates.plano = originalPlanId;
+    updates.valor = planConfig.value;
+    updates.tipo_cobranca = planConfig.tipo_cobranca;
+    updates.status = 'ativo';
+    updates.bloqueado = false;
+    updates.data_inicio = baseDate.toISOString().slice(0, 10);
+    updates.data_vencimento = todayPlusDays(planConfig.dias, baseDate);
+    updates.paid_at = baseDate.toISOString();
+    updates.renovacao_automatica = Boolean(payment?.subscription);
+  } else if (ASAAS_PENDING_STATUSES.includes(normalizedStatus)) {
+    Object.assign(updates, buildPendingPaymentAttemptUpdates({ assinatura, baseDate }));
+  } else if (ASAAS_OVERDUE_STATUSES.includes(normalizedStatus) || normalizedEvent === 'overdue') {
+    applyBlockedOrPreservedCancellation(updates, assinatura, baseDate, 'vencido');
+  } else if (ASAAS_CANCELLED_STATUSES.includes(normalizedStatus) || ASAAS_CANCELLED_STATUSES.includes(normalizedEvent)) {
+    applyBlockedOrPreservedCancellation(updates, assinatura, baseDate, 'cancelado');
+  }
+
+  return updates;
 }
 
 export function buildEfiBankSubscriptionUpdates(payment, assinatura, baseDate = new Date()) {

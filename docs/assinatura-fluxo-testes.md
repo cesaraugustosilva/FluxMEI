@@ -17,14 +17,15 @@ Este roteiro valida o fluxo atual de assinatura sem ativar assinatura pelo front
    - Checkout le o token e envia `Authorization: Bearer <token>`.
 
 4. Checkout e pagamento
-   - Pix: `POST /api/pagamentos/efi/pix`.
-   - Boleto: `POST /api/pagamentos/efi/boleto`.
-   - Cartao: `POST /api/pagamentos/efi/cartao`.
-   - Consulta de status nao ativa assinatura; ativacao depende do webhook Efí validado.
+   - Gateway principal: `PAYMENT_GATEWAY=asaas`.
+   - Pix: `POST /api/pagamentos/asaas/criar-pix`.
+   - Boleto: `POST /api/pagamentos/asaas/criar-boleto`.
+   - Cartao: indisponivel nesta etapa.
+   - Consulta de status nao ativa assinatura; ativacao depende do webhook Asaas validado.
 
 5. Webhook e ativacao
-   - Webhook: `POST /api/webhooks/efi`.
-   - Backend valida segredo, consulta a Efí, confere plano/valor/tentativa atual e ativa assinatura se o pagamento estiver aprovado/concluido.
+   - Webhook: `POST /api/webhooks/asaas`.
+   - Backend valida `asaas-access-token`, consulta o Asaas, confere plano/valor/tentativa atual e ativa assinatura se o pagamento estiver recebido/confirmado.
 
 ## Rotas Dev Seguras
 
@@ -83,15 +84,61 @@ Esperado: `estado=ativo` e rotas protegidas retornam 200.
 
 ### 6. Webhook Invalido
 
-1. Envie `POST /api/webhooks/efi` sem segredo ou com segredo incorreto.
+1. Envie `POST /api/webhooks/asaas` sem `asaas-access-token` ou com token incorreto.
 
 Esperado: HTTP 401 ou 503 em producao e assinatura nao ativa.
 
 ### 7. Webhook Valido
 
-1. Configure `EFI_WEBHOOK_SECRET` no backend e no painel Efí.
+1. Configure `ASAAS_WEBHOOK_TOKEN` no backend e no webhook Asaas.
 2. Gere cobranca real de sandbox.
 3. Pague ou use simulacao oficial.
 4. Aguarde webhook.
 
 Esperado: pagamento aprovado ativa assinatura; pagamento pendente mantem bloqueio; pagamento cancelado/vencido nao libera acesso.
+
+## Configuracao Asaas
+
+Sandbox:
+
+```env
+PAYMENT_GATEWAY=asaas
+ASAAS_API_KEY=sua_api_key_sandbox
+ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3
+ASAAS_WEBHOOK_TOKEN=seu_token_webhook_asaas
+ASAAS_WEBHOOK_URL=https://fluxmei.onrender.com/api/webhooks/asaas
+```
+
+Producao:
+
+```env
+PAYMENT_GATEWAY=asaas
+ASAAS_API_KEY=sua_api_key_producao
+ASAAS_BASE_URL=https://api.asaas.com/v3
+ASAAS_WEBHOOK_TOKEN=seu_token_webhook_asaas
+ASAAS_WEBHOOK_URL=https://fluxmei.onrender.com/api/webhooks/asaas
+```
+
+Eventos minimos do webhook:
+
+- `PAYMENT_RECEIVED`
+- `PAYMENT_CONFIRMED`
+- `PAYMENT_RECEIVED_IN_CASH`
+- `PAYMENT_OVERDUE`
+- `PAYMENT_DELETED`
+- `PAYMENT_REFUNDED`
+- `PAYMENT_CHARGEBACK_REQUESTED`
+
+## Validacao No Supabase
+
+Apos pagar Pix ou boleto Asaas, confira em `assinaturas`:
+
+- `payment_provider = 'asaas'`
+- `provider_payment_id` preenchido com `pay_...`
+- `provider_customer_id` preenchido com `cus_...`
+- `provider_status` como `RECEIVED`, `CONFIRMED` ou `RECEIVED_IN_CASH`
+- `status = 'ativo'`
+- `bloqueado = false`
+- `paid_at` preenchido
+- `data_vencimento` com +30 dias no mensal ou +365 dias no anual
+

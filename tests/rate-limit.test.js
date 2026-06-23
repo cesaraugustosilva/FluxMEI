@@ -16,6 +16,9 @@ test('rotas de autenticacao usam rate limits especificos', () => {
 });
 
 test('rotas sensiveis de pagamento usam paymentRateLimiter', () => {
+  assert.match(pagamentoRoutes, /\/asaas\/criar-pix', paymentRateLimiter, authMiddleware/);
+  assert.match(pagamentoRoutes, /\/asaas\/criar-boleto', paymentRateLimiter, authMiddleware/);
+  assert.match(pagamentoRoutes, /\/asaas\/status\/:paymentId', paymentRateLimiter, authMiddleware/);
   assert.match(pagamentoRoutes, /\/efi\/criar-pix', paymentRateLimiter, authMiddleware/);
   assert.match(pagamentoRoutes, /\/efi\/criar-cartao', paymentRateLimiter, authMiddleware/);
   assert.match(pagamentoRoutes, /\/efi\/criar-boleto', paymentRateLimiter, authMiddleware/);

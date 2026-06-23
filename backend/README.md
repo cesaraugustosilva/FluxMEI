@@ -1,13 +1,14 @@
 # FluxMEI Backend
 
-Backend REST do FluxMEI usando Node.js, Express, Supabase PostgreSQL/Auth, Gemini API e Efí Bank.
+Backend REST do FluxMEI usando Node.js, Express, Supabase PostgreSQL/Auth, Gemini API, Asaas e Efí Bank como fallback tecnico.
 
 ## Requisitos
 
 - Node.js 18+
 - Projeto no Supabase
 - Chave da Gemini API
-- Credenciais Efí Bank
+- Credenciais Asaas
+- Credenciais Efí Bank, se usar fallback tecnico
 
 ## Configuracao
 
@@ -20,7 +21,7 @@ copy backend\.env.example backend\.env
 
 Edite `backend/.env` com as variaveis do arquivo exemplo. Em local, a porta padrao e `3002`.
 
-Importante: `SUPABASE_SERVICE_ROLE_KEY`, `EFI_CLIENT_SECRET` e certificados Efí ficam somente no backend.
+Importante: `SUPABASE_SERVICE_ROLE_KEY`, `ASAAS_API_KEY`, `EFI_CLIENT_SECRET` e certificados Efí ficam somente no backend.
 
 ## Banco De Dados
 
@@ -68,6 +69,11 @@ Authorization: Bearer SEU_ACCESS_TOKEN
 Todas exigem usuario autenticado:
 
 ```http
+POST /api/pagamentos/asaas/criar-pix
+POST /api/pagamentos/asaas/criar-boleto
+GET  /api/pagamentos/asaas/status/:paymentId
+POST /api/webhooks/asaas
+
 POST /api/pagamentos/efi/criar-pix
 POST /api/pagamentos/efi/criar-cartao
 POST /api/pagamentos/efi/criar-boleto
@@ -86,9 +92,33 @@ A rota `GET /api/assinaturas/status` retorna o estado atual para o frontend exib
 
 O roteiro completo de validacao manual esta em `../docs/assinatura-fluxo-testes.md`.
 
+## Asaas
+
+Gateway principal do FluxMEI para Pix e boleto:
+
+```env
+PAYMENT_GATEWAY=asaas
+ASAAS_API_KEY=sua_api_key_asaas
+ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3
+ASAAS_WEBHOOK_TOKEN=seu_token_webhook_asaas
+ASAAS_WEBHOOK_URL=https://fluxmei.onrender.com/api/webhooks/asaas
+```
+
+Em producao, use `ASAAS_BASE_URL=https://api.asaas.com/v3`.
+
+Configure o webhook Asaas em:
+
+```text
+https://fluxmei.onrender.com/api/webhooks/asaas
+```
+
+Eventos minimos: `PAYMENT_RECEIVED`, `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED_IN_CASH`, `PAYMENT_OVERDUE`, `PAYMENT_DELETED`, `PAYMENT_REFUNDED` e `PAYMENT_CHARGEBACK_REQUESTED`.
+
+O backend valida o header `asaas-access-token` com `ASAAS_WEBHOOK_TOKEN` e consulta o Asaas antes de ativar assinatura.
+
 ## Efí Bank
 
-Configure:
+Fallback tecnico. Configure somente se for manter as rotas Efí disponiveis:
 
 ```env
 EFI_CLIENT_ID=seu_client_id_efi
@@ -102,9 +132,9 @@ EFI_WEBHOOK_SECRET=seu_token_webhook_efi
 EFI_WEBHOOK_URL=https://seudominio.com/api/webhooks/efi
 ```
 
-Cartao deve usar token seguro Efí. Numero, CVV e validade nao devem ser enviados ao backend.
+Cartao permanece indisponivel no checkout nesta etapa. Quando for reativado, deve usar tokenizacao segura no navegador; numero, CVV e validade nunca devem ser enviados ao backend.
 
-A assinatura so e liberada pelo webhook Efí validado, apos consulta do pagamento e validacao de plano/valor.
+A assinatura so e liberada pelo webhook validado do gateway, apos consulta do pagamento e validacao de plano/valor.
 
 Guia completo: `../docs/efi-bank-integracao.md`.
 

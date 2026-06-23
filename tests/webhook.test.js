@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateEfiWebhook } from '../backend/src/services/webhookSecurityService.js';
+import { validateAsaasWebhook, validateEfiWebhook } from '../backend/src/services/webhookSecurityService.js';
 
 function withEnv(env, fn) {
   const previous = {};
@@ -57,5 +57,25 @@ test('webhook EFI sem segredo e recusado em producao', () => {
       headers: {},
       body: { txid: 'fx123', status: 'CONCLUIDA' }
     }), /configuracao insegura/i);
+  });
+});
+
+test('webhook Asaas invalido nao passa validacao', () => {
+  withEnv({ NODE_ENV: 'production', ASAAS_WEBHOOK_TOKEN: 'expected-token' }, () => {
+    assert.throws(() => validateAsaasWebhook({
+      headers: { 'asaas-access-token': 'wrong-token' },
+      body: { event: 'PAYMENT_RECEIVED', payment: { id: 'pay_1', status: 'RECEIVED' } }
+    }), /nao autorizado/i);
+  });
+});
+
+test('webhook Asaas valido passa validacao por asaas-access-token', () => {
+  withEnv({ NODE_ENV: 'production', ASAAS_WEBHOOK_TOKEN: 'expected-token' }, () => {
+    const result = validateAsaasWebhook({
+      headers: { 'asaas-access-token': 'expected-token' },
+      body: { event: 'PAYMENT_RECEIVED', payment: { id: 'pay_1', status: 'RECEIVED' } }
+    });
+
+    assert.equal(result.validated, true);
   });
 });

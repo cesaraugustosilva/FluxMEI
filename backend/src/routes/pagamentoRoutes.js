@@ -2,7 +2,12 @@ import { Router } from 'express';
 import { authMiddleware } from '../middlewares/authMiddleware.js';
 import { asyncHandler } from '../middlewares/errorMiddleware.js';
 import { paymentRateLimiter } from '../middlewares/rateLimitMiddleware.js';
-import { statusPagamentoEfi } from '../controllers/pagamentoController.js';
+import {
+  criarBoletoAsaas,
+  criarPixAsaas,
+  statusPagamentoAsaas,
+  statusPagamentoEfi
+} from '../controllers/pagamentoController.js';
 import {
   criarBoleto as criarBoletoEfi,
   criarCartao as criarCartaoEfi,
@@ -10,6 +15,10 @@ import {
 } from '../controllers/efiController.js';
 
 const router = Router();
+
+router.post('/asaas/criar-pix', paymentRateLimiter, authMiddleware, asyncHandler(criarPixAsaas));
+router.post('/asaas/criar-boleto', paymentRateLimiter, authMiddleware, asyncHandler(criarBoletoAsaas));
+router.get('/asaas/status/:paymentId', paymentRateLimiter, authMiddleware, asyncHandler(statusPagamentoAsaas));
 
 router.post('/efi/criar-pix', paymentRateLimiter, authMiddleware, asyncHandler(criarPixEfi));
 router.post('/efi/criar-cartao', paymentRateLimiter, authMiddleware, asyncHandler(criarCartaoEfi));

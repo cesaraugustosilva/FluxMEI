@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const apiUrl = process.env.FLUXMEI_API_URL;
+const paymentGateway = process.env.PAYMENT_GATEWAY || process.env.FLUXMEI_PAYMENT_GATEWAY || 'asaas';
 const efiPayeeCode = process.env.FLUXMEI_EFI_PAYEE_CODE || '';
 const efiEnvironment = process.env.FLUXMEI_EFI_ENVIRONMENT || process.env.EFI_ENVIRONMENT || '';
 
@@ -18,6 +19,7 @@ writeFileSync(
   envPath,
   `window.FLUXMEI_CONFIG = ${JSON.stringify({
     API_URL: apiUrl.replace(/\/$/, ''),
+    PAYMENT_GATEWAY: paymentGateway,
     EFI_PAYEE_CODE: efiPayeeCode,
     EFI_ENVIRONMENT: efiEnvironment
   })};\n`

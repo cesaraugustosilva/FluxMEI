@@ -216,6 +216,71 @@ test('erro txid_duplicado faz retry uma vez com novo txid sem duplicar pagamento
   });
 });
 
+test('cadastro de webhook Pix usa chave Pix e URL com segredo mascarado na resposta', async () => {
+  const calls = [];
+
+  await withEfiEnv({
+    EFI_CLIENT_ID: 'client-id',
+    EFI_CLIENT_SECRET: 'client-secret',
+    EFI_PIX_KEY: 'pix-key-123',
+    EFI_CERT_BASE64: Buffer.from('fake-cert').toString('base64'),
+    EFI_SANDBOX: 'true',
+    EFI_WEBHOOK_SECRET: 'webhook-secret',
+    EFI_WEBHOOK_URL: 'https://fluxmei.onrender.com/api/webhooks/efi'
+  }, async () => {
+    efiBankService.__test.setRequestClientOverride(async (baseUrl, path, options) => {
+      calls.push({ baseUrl, path, options });
+      return { ok: true };
+    });
+
+    try {
+      const result = await efiBankService.cadastrarWebhookPix();
+
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0].path, '/v2/webhook/pix-key-123');
+      assert.equal(calls[0].options.method, 'PUT');
+      assert.equal(calls[0].options.body.webhookUrl, 'https://fluxmei.onrender.com/api/webhooks/efi?secret=webhook-secret&ignorar=');
+      assert.equal(result.webhookUrl, 'https://fluxmei.onrender.com/api/webhooks/efi?secret=[REDACTED]&ignorar=');
+      assert.doesNotMatch(JSON.stringify(result), /webhook-secret/);
+    } finally {
+      efiBankService.__test.clearRequestClientOverride();
+    }
+  });
+});
+
+test('consulta de webhook Pix usa GET e mascara segredo retornado pela EFI', async () => {
+  const calls = [];
+
+  await withEfiEnv({
+    EFI_CLIENT_ID: 'client-id',
+    EFI_CLIENT_SECRET: 'client-secret',
+    EFI_PIX_KEY: 'pix-key-123',
+    EFI_CERT_BASE64: Buffer.from('fake-cert').toString('base64'),
+    EFI_SANDBOX: 'true',
+    EFI_WEBHOOK_SECRET: 'webhook-secret'
+  }, async () => {
+    efiBankService.__test.setRequestClientOverride(async (baseUrl, path, options) => {
+      calls.push({ baseUrl, path, options });
+      return {
+        webhookUrl: 'https://fluxmei.onrender.com/api/webhooks/efi?secret=webhook-secret&ignorar=',
+        criacao: '2026-06-23T00:00:00Z'
+      };
+    });
+
+    try {
+      const result = await efiBankService.consultarWebhookPix();
+
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0].path, '/v2/webhook/pix-key-123');
+      assert.equal(calls[0].options.method, 'GET');
+      assert.equal(result.webhookUrl, 'https://fluxmei.onrender.com/api/webhooks/efi?secret=[REDACTED]&ignorar=');
+      assert.doesNotMatch(JSON.stringify(result), /webhook-secret/);
+    } finally {
+      efiBankService.__test.clearRequestClientOverride();
+    }
+  });
+});
+
 function createMockResponse() {
   return {
     statusCode: 200,

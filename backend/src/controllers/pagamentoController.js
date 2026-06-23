@@ -2,22 +2,29 @@ import crypto from 'node:crypto';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
 import { PLANOS, assinaturaService } from '../services/assinaturaService.js';
+import { asaasService } from '../services/asaasService.js';
 import { efiBankService } from '../services/efiBankService.js';
 import {
+  ASAAS_PAID_STATUSES,
   EFI_BANK_PAID_STATUSES,
   PAYMENT_PLANS,
+  buildAsaasPaymentAttempt,
+  buildAsaasProviderRaw,
+  buildAsaasSubscriptionUpdates,
   buildEfiBankPaymentAttempt,
   buildEfiBankProviderRaw,
   buildEfiBankSubscriptionUpdates,
   buildPendingPaymentAttemptUpdates,
+  getRecentAsaasPendingAttempt,
   getRecentEfiBankPendingAttempt
 } from '../services/paymentStatusRules.js';
-import { logWebhookEvent, validateEfiWebhook } from '../services/webhookSecurityService.js';
+import { logWebhookEvent, validateAsaasWebhook, validateEfiWebhook } from '../services/webhookSecurityService.js';
 import { sanitizeText } from '../utils/validation.js';
 
 const PENDING_PAYMENT_MESSAGE = 'Voce ja possui um pagamento pendente. Conclua ou aguarde a expiracao antes de gerar outro.';
 const PROCESSING_PAYMENT_MESSAGE = 'Ja existe uma tentativa de pagamento em processamento. Aguarde alguns instantes e tente novamente.';
 const EFI_BANK_LOCK_TTL_SECONDS = 120;
+const ASAAS_LOCK_TTL_SECONDS = 120;
 const FORBIDDEN_CARD_FIELDS = new Set([
   'card_number',
   'cardnumber',
@@ -167,17 +174,31 @@ async function ensureUserSubscription(userId, planId) {
   return await getLatestSubscription(userId) || await assinaturaService.createPendingSubscription(userId, planId);
 }
 
-async function findSubscriptionByProviderPayment(paymentId) {
-  if (!paymentId) return null;
+async function findSubscriptionByProviderPayment(provider, paymentId) {
+  if (!provider || !paymentId) return null;
 
   const { data, error } = await supabaseAdmin
     .from('assinaturas')
     .select('*')
-    .eq('payment_provider', 'efi')
+    .eq('payment_provider', provider)
     .eq('provider_payment_id', String(paymentId))
     .maybeSingle();
 
   if (error) throw new AppError('Erro ao buscar assinatura por pagamento.', 500, error.message);
+  return data || null;
+}
+
+async function findSubscriptionByProviderSubscription(provider, subscriptionId) {
+  if (!provider || !subscriptionId) return null;
+
+  const { data, error } = await supabaseAdmin
+    .from('assinaturas')
+    .select('*')
+    .eq('payment_provider', provider)
+    .eq('provider_subscription_id', String(subscriptionId))
+    .maybeSingle();
+
+  if (error) throw new AppError('Erro ao buscar assinatura por assinatura do processador.', 500, error.message);
   return data || null;
 }
 
@@ -230,6 +251,68 @@ async function releaseEfiAttemptLock(lockId) {
   });
   if (error) throw new AppError('Erro ao liberar tentativa de pagamento.', 500, error.message);
   return Boolean(data);
+}
+
+async function acquireAsaasAttemptLock(userId, plan) {
+  const { data, error } = await supabaseAdmin.rpc('acquire_payment_attempt_lock', {
+    p_user_id: userId,
+    p_provider: 'asaas',
+    p_plano: plan.id,
+    p_ttl_seconds: ASAAS_LOCK_TTL_SECONDS
+  });
+
+  if (error) throw new AppError('Erro ao reservar tentativa de pagamento.', 500, error.message);
+  const lock = Array.isArray(data) ? data[0] : data;
+  return {
+    acquired: Boolean(lock?.acquired),
+    lockId: lock?.lock_id || null,
+    expiresAt: lock?.expires_at || null
+  };
+}
+
+async function releaseAsaasAttemptLock(lockId) {
+  if (!lockId) return false;
+  const { data, error } = await supabaseAdmin.rpc('release_payment_attempt_lock', {
+    p_lock_id: lockId
+  });
+  if (error) throw new AppError('Erro ao liberar tentativa de pagamento.', 500, error.message);
+  return Boolean(data);
+}
+
+async function handleAsaasLockDenied(userId, plan) {
+  const assinatura = await getLatestSubscription(userId);
+  const pendingAttempt = getRecentAsaasPendingAttempt(assinatura, plan);
+  if (pendingAttempt?.method === 'pix') {
+    const reusablePix = pendingAsaasPixResponsePayload(pendingAttempt);
+    if (reusablePix) return reusablePix;
+  }
+
+  throw new AppError(PROCESSING_PAYMENT_MESSAGE, 409);
+}
+
+async function revalidateAsaasAttemptAfterLock(userId, plan, { allowReusablePix = false } = {}) {
+  const assinatura = await ensureUserSubscription(userId, plan.id);
+  const pendingAttempt = getRecentAsaasPendingAttempt(assinatura, plan);
+  if (!pendingAttempt) return { assinatura, reusable: null };
+
+  if (allowReusablePix && pendingAttempt.method === 'pix') {
+    const reusable = pendingAsaasPixResponsePayload(pendingAttempt);
+    if (reusable) return { assinatura, reusable };
+  }
+
+  throw new AppError(PENDING_PAYMENT_MESSAGE, 409);
+}
+
+function assertNoRecentPendingAsaasAttempt(assinatura, plan, { allowReusablePix = false } = {}) {
+  const pendingAttempt = getRecentAsaasPendingAttempt(assinatura, plan);
+  if (!pendingAttempt) return null;
+
+  if (allowReusablePix && pendingAttempt.method === 'pix') {
+    const reusablePix = pendingAsaasPixResponsePayload(pendingAttempt);
+    if (reusablePix) return reusablePix;
+  }
+
+  throw new AppError(PENDING_PAYMENT_MESSAGE, 409);
 }
 
 async function handleEfiLockDenied(userId, plan) {
@@ -288,9 +371,51 @@ function getPaymentSubscriptionId(payment) {
 
 function getPaymentAmount(payment) {
   if (payment?.amount !== undefined) return payment.amount;
+  if (payment?.value !== undefined) return Number(payment.value);
   if (payment?.valor?.original !== undefined) return Number(payment.valor.original);
   if (payment?.total !== undefined) return Number(payment.total) / 100;
   return null;
+}
+
+function normalizeAsaasPixData(qrCode) {
+  if (!qrCode) return { qr_code: null, qr_code_base64: null };
+  return {
+    qr_code: qrCode.payload || qrCode.qr_code || null,
+    qr_code_base64: qrCode.encodedImage || qrCode.encoded_image || qrCode.qr_code_base64 || null
+  };
+}
+
+function getAsaasPaymentMethod(payment, fallback = null) {
+  return String(payment?.billingType || payment?.payment_method_id || fallback || '').toLowerCase();
+}
+
+function getAsaasPaymentPlan(payment) {
+  const reference = String(payment?.externalReference || '');
+  if (reference.includes(':')) return reference.split(':')[2] || null;
+  return payment?.metadata?.plano || null;
+}
+
+function asaasPaymentResponsePayload(payment, fallbackPaymentMethodId = null, pixQrCode = null) {
+  const method = getAsaasPaymentMethod(payment, fallbackPaymentMethodId);
+  const pix = normalizeAsaasPixData(pixQrCode);
+
+  return {
+    payment_id: payment?.id ? String(payment.id) : null,
+    payment_status: payment?.status || null,
+    status: payment?.status || null,
+    payment_method_id: method,
+    payment_type_id: method,
+    valor: getPaymentAmount(payment),
+    plano: getAsaasPaymentPlan(payment),
+    invoice_url: payment?.invoiceUrl || null,
+    bank_slip_url: payment?.bankSlipUrl || payment?.invoiceUrl || null,
+    digitable_line: payment?.identificationField || payment?.digitableLine || null,
+    due_date: payment?.dueDate || null,
+    pix,
+    qr_code: pix.qr_code,
+    qr_code_base64: pix.qr_code_base64,
+    copia_e_cola: pix.qr_code
+  };
 }
 
 function normalizeQrCode(payment, qrcode = null) {
@@ -360,6 +485,64 @@ function pendingEfiPixResponsePayload(pendingAttempt) {
     expires_at: pendingAttempt.expires_at,
     message: 'Pix pendente encontrado. Utilize o pagamento ja gerado.'
   };
+}
+
+function pendingAsaasPixResponsePayload(pendingAttempt) {
+  const payment = pendingAttempt?.payment || null;
+  const pixQrCode = pendingAttempt?.pixQrCode || null;
+  if (!payment) return null;
+
+  const payload = asaasPaymentResponsePayload(payment, 'pix', pixQrCode);
+  if (!payload.qr_code) return null;
+
+  return {
+    success: true,
+    provider: 'asaas',
+    reused: true,
+    ...payload,
+    expires_at: pendingAttempt.expires_at,
+    message: 'Pix pendente encontrado. Utilize o pagamento ja gerado.'
+  };
+}
+
+async function registerAsaasPaymentAttempt(assinatura, plan, customer, payment, { method = null, pixQrCode = null } = {}) {
+  const attempt = buildAsaasPaymentAttempt({
+    plan,
+    payment,
+    method
+  });
+
+  const updates = buildPendingPaymentAttemptUpdates({
+    assinatura,
+    providerUpdates: {
+      plano: plan.id,
+      valor: plan.value,
+      tipo_cobranca: plan.tipo_cobranca,
+      payment_provider: 'asaas',
+      provider_payment_id: payment?.id ? String(payment.id) : null,
+      provider_customer_id: customer?.id || assinatura.provider_customer_id || null,
+      provider_subscription_id: payment?.subscription || assinatura.provider_subscription_id || null,
+      provider_status: payment?.status || 'PENDING',
+      provider_raw: buildAsaasProviderRaw({ payment: payment || null, attempt, pixQrCode }),
+      checkout_url: payment?.invoiceUrl || payment?.bankSlipUrl || null,
+      renovacao_automatica: false
+    }
+  });
+
+  return updateAssinaturaById(assinatura.id, updates);
+}
+
+function logAsaasPaymentCreated({ method, payment, plan, assinatura }) {
+  console.info('[asaas:payment]', {
+    action: `create_${method}`,
+    provider: 'asaas',
+    method,
+    payment_id: sanitizeLogId(payment?.id),
+    status: payment?.status || null,
+    plan: plan?.id || null,
+    assinatura_id: assinatura?.id || null,
+    outcome: 'created'
+  });
 }
 
 async function registerEfiPaymentAttempt(assinatura, plan, payment, { idempotencyKey = null, method = null, qrcode = null } = {}) {
@@ -498,6 +681,86 @@ async function criarPagamentoEfi(req, res, method) {
   }
 }
 
+async function criarPagamentoAsaas(req, res, method) {
+  const { plano, plan } = validatePlanId(req.body?.plano);
+  if (!req.user?.email) throw new AppError('Usuario autenticado sem e-mail cadastrado.', 400);
+
+  const profile = await getProfile(req.user.id);
+  const assinatura = await ensureUserSubscription(req.user.id, plano);
+  const reusable = assertNoRecentPendingAsaasAttempt(assinatura, plan, { allowReusablePix: method === 'pix' });
+  if (reusable) return res.status(200).json(reusable);
+
+  let attemptLock = null;
+  let paymentCreated = false;
+  let shouldReleaseLock = false;
+
+  try {
+    attemptLock = await acquireAsaasAttemptLock(req.user.id, plan);
+    if (!attemptLock.acquired) {
+      const lockedReusable = await handleAsaasLockDenied(req.user.id, plan);
+      if (lockedReusable) return res.status(200).json(lockedReusable);
+    }
+    shouldReleaseLock = true;
+
+    const { assinatura: lockedAssinatura, reusable: lockedReusable } = await revalidateAsaasAttemptAfterLock(req.user.id, plan, {
+      allowReusablePix: method === 'pix'
+    });
+    if (lockedReusable) return res.status(200).json(lockedReusable);
+
+    const customer = await asaasService.criarOuBuscarCliente({
+      user: req.user,
+      profile,
+      existingCustomerId: lockedAssinatura.payment_provider === 'asaas' ? lockedAssinatura.provider_customer_id : null
+    });
+    const payment = await asaasService.criarCobranca({
+      customerId: customer.id,
+      plan,
+      method,
+      externalReference: `${req.user.id}:${lockedAssinatura.id}:${plan.id}`
+    });
+    paymentCreated = true;
+    shouldReleaseLock = false;
+
+    let pixQrCode = null;
+    if (method === 'pix' && payment?.id) {
+      pixQrCode = await asaasService.obterPixQrCode(payment.id);
+    }
+
+    const updatedAssinatura = await registerAsaasPaymentAttempt(lockedAssinatura, plan, customer, payment, {
+      method,
+      pixQrCode
+    });
+    logAsaasPaymentCreated({ method, payment, plan, assinatura: updatedAssinatura });
+    shouldReleaseLock = true;
+
+    return res.status(201).json({
+      success: true,
+      provider: 'asaas',
+      ...asaasPaymentResponsePayload(payment, method, pixQrCode),
+      assinatura: updatedAssinatura,
+      message: method === 'pix' ? 'Pix gerado com sucesso' : 'Boleto gerado com sucesso'
+    });
+  } catch (error) {
+    if (attemptLock?.acquired && attemptLock.lockId && !paymentCreated) {
+      await releaseAsaasAttemptLock(attemptLock.lockId);
+      shouldReleaseLock = false;
+    }
+    throw error;
+  } finally {
+    if (attemptLock?.acquired && attemptLock.lockId && shouldReleaseLock) {
+      await releaseAsaasAttemptLock(attemptLock.lockId);
+    }
+  }
+}
+
+export async function criarPixAsaas(req, res) {
+  return criarPagamentoAsaas(req, res, 'pix');
+}
+
+export async function criarBoletoAsaas(req, res) {
+  return criarPagamentoAsaas(req, res, 'boleto');
+}
+
 export async function criarPixEfi(req, res) {
   return criarPagamentoEfi(req, res, 'pix');
 }
@@ -525,11 +788,50 @@ async function aplicarPagamentoEfiNaAssinatura(payment, assinatura) {
   return updateAssinaturaById(assinatura.id, updates);
 }
 
+async function aplicarPagamentoAsaasNaAssinatura(payment, assinatura, event = null) {
+  const updates = buildAsaasSubscriptionUpdates(payment, assinatura, new Date(), event);
+  if (updates.already_processed || updates.ignored) {
+    return {
+      ...assinatura,
+      payment_provider: updates.payment_provider,
+      already_processed: Boolean(updates.already_processed),
+      ignored: Boolean(updates.ignored),
+      outcome: updates.outcome
+    };
+  }
+
+  return updateAssinaturaById(assinatura.id, updates);
+}
+
+export async function statusPagamentoAsaas(req, res) {
+  const paymentId = validatePaymentId(req.params.paymentId);
+  const payment = await asaasService.consultarPagamento(paymentId);
+  const currentPaymentId = payment?.id || paymentId;
+  const assinatura = await findSubscriptionByProviderPayment('asaas', currentPaymentId);
+
+  if (!assinatura || assinatura.user_id !== req.user.id) {
+    throw new AppError('Pagamento nao encontrado para este usuario.', 404);
+  }
+
+  let pixQrCode = null;
+  if (asaasService.normalizeBillingType(payment.billingType) === 'PIX' && ['PENDING', 'AWAITING_RISK_ANALYSIS'].includes(String(payment.status || '').toUpperCase())) {
+    pixQrCode = await asaasService.obterPixQrCode(payment.id);
+  }
+
+  res.json({
+    success: true,
+    provider: 'asaas',
+    ...asaasPaymentResponsePayload(payment, payment.billingType, pixQrCode),
+    assinatura,
+    message: 'Status consultado. A assinatura sera alterada somente apos webhook valido do Asaas.'
+  });
+}
+
 export async function statusPagamentoEfi(req, res) {
   const paymentId = validatePaymentId(req.params.paymentId);
   const payment = await efiBankService.consultarPagamento(paymentId);
   const currentPaymentId = getPaymentId(payment) || paymentId;
-  const assinatura = await findSubscriptionByProviderPayment(currentPaymentId);
+  const assinatura = await findSubscriptionByProviderPayment('efi', currentPaymentId);
 
   if (!assinatura || assinatura.user_id !== req.user.id) {
     throw new AppError('Pagamento nao encontrado para este usuario.', 404);
@@ -642,7 +944,7 @@ export async function webhookEfi(req, res) {
   logWebhookEvent({ provider: 'efi', event: info.event, paymentId: consultedPaymentId, status: payment?.status, outcome: 'processing' });
 
   const currentPaymentId = getPaymentId(payment) || info.lookupId;
-  let assinatura = await findSubscriptionByProviderPayment(currentPaymentId);
+  let assinatura = await findSubscriptionByProviderPayment('efi', currentPaymentId);
   if (!assinatura) {
     assinatura = await findSubscriptionById(getPaymentSubscriptionId(payment));
   }
@@ -684,4 +986,80 @@ export async function webhookEfi(req, res) {
   });
 
   return res.json({ received: true, event: info.event });
+}
+
+export async function webhookAsaas(req, res) {
+  validateAsaasWebhook(req);
+
+  const event = req.body?.event || null;
+  const webhookPayment = req.body?.payment || null;
+  const paymentId = webhookPayment?.id || req.body?.id || null;
+
+  console.info('[webhook:asaas]', {
+    event,
+    payment_id: sanitizeLogId(paymentId),
+    outcome: paymentId ? 'received' : 'ignored_no_payment_id'
+  });
+
+  if (!paymentId) {
+    logWebhookEvent({ provider: 'asaas', event, outcome: 'ignored_no_payment_id' });
+    return res.json({ received: true, ignored: true });
+  }
+
+  const payment = await asaasService.consultarPagamento(paymentId);
+  console.info('[webhook:asaas]', {
+    event,
+    payment_id: sanitizeLogId(payment?.id || paymentId),
+    status: payment?.status || null,
+    outcome: 'consulted'
+  });
+  logWebhookEvent({ provider: 'asaas', event, paymentId: payment?.id || paymentId, subscriptionId: payment?.subscription || null, status: payment?.status, outcome: 'processing' });
+
+  let assinatura = await findSubscriptionByProviderPayment('asaas', payment?.id || paymentId);
+  if (!assinatura && payment?.subscription) {
+    assinatura = await findSubscriptionByProviderSubscription('asaas', payment.subscription);
+  }
+  if (!assinatura && payment?.externalReference) {
+    const reference = String(payment.externalReference);
+    const assinaturaId = reference.includes(':') ? reference.split(':')[1] : reference;
+    assinatura = await findSubscriptionById(assinaturaId);
+  }
+
+  if (!assinatura) {
+    console.info('[webhook:asaas]', {
+      event,
+      payment_id: sanitizeLogId(payment?.id || paymentId),
+      status: payment?.status || null,
+      outcome: 'ignored_no_subscription'
+    });
+    logWebhookEvent({ provider: 'asaas', event, paymentId: payment?.id || paymentId, subscriptionId: payment?.subscription || null, status: payment?.status, outcome: 'ignored_no_subscription' });
+    return res.json({ received: true, ignored: true });
+  }
+
+  const updatedAssinatura = await aplicarPagamentoAsaasNaAssinatura(payment, assinatura, event);
+  const activated = updatedAssinatura.status === 'ativo' && updatedAssinatura.bloqueado === false;
+  const outcome = updatedAssinatura.outcome
+    || (updatedAssinatura.already_processed ? 'duplicate_ignored' : activated ? 'subscription_activated' : 'not_activated');
+  const reason = updatedAssinatura.outcome || (activated ? null : `payment_status_${String(payment?.status || 'unknown').toLowerCase()}`);
+
+  logWebhookEvent({
+    provider: 'asaas',
+    event,
+    paymentId: payment?.id || paymentId,
+    subscriptionId: payment?.subscription || assinatura.provider_subscription_id || null,
+    status: payment?.status,
+    outcome
+  });
+  console.info('[webhook:asaas]', {
+    event,
+    payment_id: sanitizeLogId(payment?.id || paymentId),
+    assinatura_id: assinatura.id,
+    status: payment?.status || null,
+    assinatura_status: updatedAssinatura.status || assinatura.status || null,
+    bloqueado: updatedAssinatura.bloqueado ?? assinatura.bloqueado ?? null,
+    outcome,
+    reason
+  });
+
+  return res.json({ received: true, event });
 }

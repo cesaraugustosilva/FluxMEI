@@ -65,7 +65,7 @@
         </section>
 
         <section class="security-box" aria-label="Seguranca">
-          <strong>O pagamento e processado com seguranca pela EFI Bank.</strong>
+          <strong id="securityProviderText">O pagamento e processado com seguranca pelo Asaas.</strong>
           <span>O FluxMEI nao armazena dados de cartao.</span>
         </section>
 
@@ -78,14 +78,14 @@
         <div class="summary-head">
           <div>
             <span>Pagamento</span>
-            <strong id="providerTitle">EFI Bank</strong>
+            <strong id="providerTitle">Asaas</strong>
           </div>
-          <span class="payment-badge">Pix, boleto e cartao</span>
+          <span class="payment-badge">Pix e boleto</span>
         </div>
 
         <section class="provider-panel" aria-label="Processador de pagamento">
-          <strong>Pagamento seguro processado pela EFI Bank.</strong>
-          <small>Pix e boleto estao ativos. Cartao aparece apenas com tokenizacao segura EFI configurada no frontend.</small>
+          <strong id="providerSecureText">Pagamento seguro processado pelo Asaas.</strong>
+          <small id="providerHelperText">Pix e boleto estao ativos. Cartao sera liberado em uma etapa futura.</small>
         </section>
 
         <section class="payment-methods" aria-label="Forma de pagamento">
@@ -97,7 +97,7 @@
           <button class="method-card" id="cardMethodButton" type="button" data-payment-method="cartao" aria-pressed="false" hidden>
             <span>Cartao</span>
             <strong>Credito seguro</strong>
-            <small>Tokenizado pela EFI</small>
+            <small>Indisponivel no momento</small>
           </button>
           <button class="method-card" type="button" data-payment-method="boleto" aria-pressed="false">
             <span>Boleto</span>
@@ -123,7 +123,7 @@
         <div class="brick-loading" id="brickLoading">
           <span class="loading-spinner" aria-hidden="true"></span>
           <strong>Carregando meios de pagamento...</strong>
-          <span>Estamos preparando o pagamento no ambiente seguro da EFI Bank.</span>
+          <span id="brickLoadingText">Estamos preparando o pagamento no ambiente seguro do Asaas.</span>
         </div>
 
         <div class="brick-shell">
@@ -132,7 +132,7 @@
 
         <section class="efi-card-panel" id="efiCardPanel" hidden aria-label="Pagamento via cartao">
           <strong>Pagamento com cartao</strong>
-          <p>Os dados do cartao sao tokenizados pela EFI no navegador. O FluxMEI envia ao backend apenas o payment_token.</p>
+          <p>Pagamento por cartao sera liberado em uma etapa futura.</p>
           <div class="card-form-grid">
             <label>
               <span>Nome no cartao</span>
@@ -166,7 +166,7 @@
 
         <section class="boleto-generate-panel" id="boletoGeneratePanel" hidden aria-label="Gerar boleto">
           <strong>Gerar boleto para o plano escolhido</strong>
-          <p>Depois de gerar, use o link ou a linha digitavel retornada pela EFI Bank.</p>
+          <p>Depois de gerar, use o link ou a linha digitavel retornada pelo processador.</p>
           <button class="pix-button" type="button" id="generateBoletoButton">Gerar boleto</button>
         </section>
 

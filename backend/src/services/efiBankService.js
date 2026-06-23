@@ -44,6 +44,7 @@ function getConfig() {
     clientId,
     clientSecret,
     pixKey,
+    webhookSecret,
     environment,
     pixBaseUrl: (process.env.EFI_PIX_BASE_URL || PIX_BASE_URLS[environment]).replace(/\/$/, ''),
     chargesBaseUrl: (process.env.EFI_CHARGES_BASE_URL || CHARGES_BASE_URLS[environment]).replace(/\/$/, ''),
@@ -89,6 +90,7 @@ function sanitizeForLog(value, key = '') {
       })
     );
   }
+  if (typeof value === 'string') return value.replace(/([?&](?:secret|token|webhook_secret)=)[^&]*/gi, '$1[REDACTED]');
   return value;
 }
 
@@ -551,12 +553,89 @@ function getWebhookUrl() {
   return publicUrl ? `${publicUrl}/api/webhooks/efi` : undefined;
 }
 
+function getPixWebhookUrl(config = getConfig()) {
+  const webhookUrl = process.env.EFI_WEBHOOK_URL || 'https://fluxmei.onrender.com/api/webhooks/efi';
+  const url = new URL(webhookUrl);
+  url.searchParams.set('secret', config.webhookSecret);
+  url.searchParams.set('ignorar', '');
+  return url.toString();
+}
+
+async function cadastrarWebhookPix() {
+  const config = getConfig();
+  const webhookUrl = getPixWebhookUrl(config);
+  let response;
+
+  try {
+    response = await request(config.pixBaseUrl, `/v2/webhook/${encodeURIComponent(config.pixKey)}`, {
+      method: 'PUT',
+      body: { webhookUrl }
+    });
+  } catch (error) {
+    console.error('[efi:webhook]', {
+      action: 'register_pix_webhook',
+      provider: 'efi',
+      environment: config.environment,
+      pix_key: '[REDACTED]',
+      webhook_url: sanitizeForLog(webhookUrl),
+      outcome: 'failure',
+      error: error.message
+    });
+    throw error;
+  }
+
+  console.info('[efi:webhook]', {
+    action: 'register_pix_webhook',
+    provider: 'efi',
+    environment: config.environment,
+    pix_key: '[REDACTED]',
+    webhook_url: sanitizeForLog(webhookUrl),
+    outcome: 'success'
+  });
+
+  return {
+    ...response,
+    webhookUrl: sanitizeForLog(webhookUrl)
+  };
+}
+
+async function consultarWebhookPix() {
+  const config = getConfig();
+  let response;
+
+  try {
+    response = await request(config.pixBaseUrl, `/v2/webhook/${encodeURIComponent(config.pixKey)}`);
+  } catch (error) {
+    console.error('[efi:webhook]', {
+      action: 'get_pix_webhook',
+      provider: 'efi',
+      environment: config.environment,
+      pix_key: '[REDACTED]',
+      outcome: 'failure',
+      error: error.message
+    });
+    throw error;
+  }
+
+  console.info('[efi:webhook]', {
+    action: 'get_pix_webhook',
+    provider: 'efi',
+    environment: config.environment,
+    pix_key: '[REDACTED]',
+    outcome: 'success'
+  });
+
+  return sanitizeForLog(response);
+}
+
 export const efiBankService = {
   criarPix,
   criarBoleto,
   criarCartao,
   consultarPagamento,
   consultarNotificacao,
+  cadastrarWebhookPix,
+  consultarWebhookPix,
   onlyDigits,
   __test: {
     buildTxid,
@@ -569,6 +648,7 @@ export const efiBankService = {
     moneyCents,
     logEfiErrorDetails,
     sanitizeForLog,
+    getPixWebhookUrl,
     setRequestClientOverride(fn) {
       requestClientOverride = fn;
     },

@@ -4,7 +4,7 @@ SaaS de gestao financeira para MEIs.
 
 O FluxMEI ajuda microempreendedores a controlar receitas, despesas, clientes, DAS, metas financeiras e assinatura em uma plataforma web simples, com teste gratis de 7 dias e checkout integrado.
 
-O gateway de pagamento ativo e unico e a Efí Bank, com Pix, boleto e cartao por token seguro.
+O gateway principal de pagamento e o Asaas, com Pix e boleto. A Efí Bank permanece no backend como fallback tecnico.
 
 ## Principais Recursos
 
@@ -15,14 +15,15 @@ O gateway de pagamento ativo e unico e a Efí Bank, com Pix, boleto e cartao por
 - Metas financeiras
 - Teste gratis de 7 dias
 - Assinatura
-- Checkout com Pix, cartao e boleto via Efí Bank
+- Checkout com Pix e boleto via Asaas
 
 ## Stack
 
 - Frontend HTML/CSS/JS
 - Backend Node.js/Express
 - Supabase
-- Efí Bank
+- Asaas
+- Efí Bank como fallback tecnico
 - Vercel
 - Render
 
@@ -83,6 +84,12 @@ SUPABASE_SERVICE_ROLE_KEY=sua_chave_service_role
 
 GEMINI_API_KEY=sua_chave_gemini
 
+PAYMENT_GATEWAY=asaas
+ASAAS_API_KEY=sua_api_key_asaas
+ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3
+ASAAS_WEBHOOK_TOKEN=seu_token_webhook_asaas
+ASAAS_WEBHOOK_URL=https://fluxmei.onrender.com/api/webhooks/asaas
+
 EFI_CLIENT_ID=seu_client_id_efi
 EFI_CLIENT_SECRET=seu_client_secret_efi
 EFI_ENVIRONMENT=sandbox
@@ -98,6 +105,7 @@ No frontend, o build usa:
 
 ```env
 FLUXMEI_API_URL=https://api.seudominio.com/api
+FLUXMEI_PAYMENT_GATEWAY=asaas
 ```
 
 ## Deploy
@@ -107,18 +115,18 @@ Deploy recomendado:
 - Frontend na Vercel, com root directory `frontend`
 - Backend no Render, com root directory `backend`
 - Banco e Auth no Supabase
-- Webhook configurado no painel da Efí Bank
+- Webhook Asaas configurado para `https://fluxmei.onrender.com/api/webhooks/asaas`
 
 Consulte o passo a passo completo em `DEPLOY.md`.
-Para a configuracao operacional da Efí Bank, consulte `docs/efi-bank-integracao.md`.
+Para fallback Efí Bank, consulte `docs/efi-bank-integracao.md`.
 
 ## Observacoes De Seguranca
 
 - Nunca commitar `.env`, `.env.*`, certificados ou chaves reais.
 - `SUPABASE_SERVICE_ROLE_KEY` deve ficar apenas no backend.
-- Chaves privadas da Efí Bank e Gemini nunca devem ir para a Vercel.
+- Chaves privadas do Asaas, da Efí Bank e Gemini nunca devem ir para a Vercel.
 - Webhook de pagamento precisa de segredo configurado.
-- O webhook Efí e a fonte oficial para ativar assinatura.
+- O webhook do gateway ativo e a fonte oficial para ativar assinatura.
 - Alem do rate limit global, rotas sensiveis possuem limites especificos por IP: login 10/15min, cadastro 5/30min, recuperacao/nova senha 3/30min e pagamentos 20/15min.
 
 ## Status Do Projeto

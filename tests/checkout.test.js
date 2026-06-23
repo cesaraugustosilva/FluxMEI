@@ -91,6 +91,7 @@ function createCheckoutHarness(options = {}) {
     window: {
       FLUXMEI_CONFIG: {
         API_URL: 'http://127.0.0.1/api',
+        PAYMENT_GATEWAY: options.paymentGateway || 'asaas',
         EFI_PAYEE_CODE: options.efiPayeeCode || '',
         EFI_ENVIRONMENT: options.efiEnvironment || 'sandbox'
       },
@@ -116,9 +117,9 @@ function createCheckoutHarness(options = {}) {
   };
 }
 
-test('checkout principal usa EFI Bank para Pix e boleto ativos', () => {
-  assert.match(checkoutHtml, /Pagamento seguro processado pela EFI Bank\./);
-  assert.match(checkoutHtml, /Cartao aparece apenas com tokenizacao segura EFI/);
+test('checkout principal usa Asaas para Pix e boleto ativos', () => {
+  assert.match(checkoutHtml, /Pagamento seguro processado pelo Asaas\./);
+  assert.match(checkoutHtml, /Cartao sera liberado em uma etapa futura/);
   assert.match(checkoutHtml, /id="boletoPanel"/);
   assert.match(checkoutHtml, /data-payment-method="pix"/);
   assert.match(checkoutHtml, /data-payment-method="boleto"/);
@@ -133,20 +134,18 @@ test('checkout principal usa EFI Bank para Pix e boleto ativos', () => {
   assert.doesNotMatch(checkoutHtml, /name="paymentProvider"/);
 });
 
-test('checkout principal chama rotas EFI sem dados crus de cartao no fetch', () => {
-  assert.match(checkoutJs, /\/pagamentos\/efi\/criar-pix/);
-  assert.match(checkoutJs, /\/pagamentos\/efi\/criar-boleto/);
-  assert.match(checkoutJs, /\/pagamentos\/efi\/criar-cartao/);
-  assert.match(checkoutJs, /\/pagamentos\/efi\/status\/\$\{encodeURIComponent\(paymentId\)\}/);
+test('checkout principal chama rotas Asaas quando PAYMENT_GATEWAY=asaas', () => {
+  assert.match(checkoutJs, /\/pagamentos\/asaas\/criar-pix/);
+  assert.match(checkoutJs, /\/pagamentos\/asaas\/criar-boleto/);
+  assert.match(checkoutJs, /\/pagamentos\/asaas\/status\/\$\{encodeURIComponent\(paymentId\)\}/);
   assert.match(checkoutJs, /generatePixPayment/);
   assert.match(checkoutJs, /generateBoletoPayment/);
   assert.match(checkoutJs, /submitEfiCardPayment/);
   assert.match(checkoutJs, /ACTIVE_PAYMENT_METHODS = new Set\(\['pix', 'boleto'\]\)/);
-  assert.match(checkoutJs, /setCreditCardData/);
   assert.match(checkoutJs, /copyPixButton/);
 });
 
-test('checkout exibe Cartao somente com tokenizacao EFI configurada', () => {
+test('checkout nao exibe Cartao mesmo com tokenizacao EFI configurada', () => {
   const disabled = createCheckoutHarness();
   assert.equal(disabled.api.configureCardAvailability(), false);
   assert.equal(disabled.elements.get('cardMethodButton').hidden, true);
@@ -161,11 +160,11 @@ test('checkout exibe Cartao somente com tokenizacao EFI configurada', () => {
   };
   const enabled = createCheckoutHarness({ efiPayeeCode: 'payee-1', efiPay: { CreditCard } });
 
-  assert.equal(enabled.api.configureCardAvailability(), true);
-  assert.equal(enabled.elements.get('cardMethodButton').hidden, false);
+  assert.equal(enabled.api.configureCardAvailability(), false);
+  assert.equal(enabled.elements.get('cardMethodButton').hidden, true);
 });
 
-test('formulario de cartao valida campos obrigatorios', async () => {
+test('cartao permanece desativado e nao chama backend', async () => {
   const CreditCard = {
     setCardNumber() { return this; },
     verifyCardBrand: async () => 'visa',
@@ -174,60 +173,19 @@ test('formulario de cartao valida campos obrigatorios', async () => {
     setCreditCardData() { return this; },
     getPaymentToken: async () => ({ payment_token: 'token-seguro', card_mask: 'XXXXXXXXXXXX1111' })
   };
-  const { api, elements } = createCheckoutHarness({ efiPayeeCode: 'payee-1', efiPay: { CreditCard } });
+  const { api, elements, fetchCalls } = createCheckoutHarness({ efiPayeeCode: 'payee-1', efiPay: { CreditCard } });
 
   await api.submitEfiCardPayment();
 
-  assert.match(elements.get('checkoutAlert').textContent, /nome impresso no cartao/i);
+  assert.match(elements.get('checkoutAlert').textContent, /cartao ainda nao esta disponivel/i);
+  assert.equal(fetchCalls.length, 0);
 });
 
-test('cartao tokenizado envia somente payment_token ao backend', async () => {
-  let tokenizationPayload = null;
-  const CreditCard = {
-    setCardNumber() { return this; },
-    verifyCardBrand: async () => 'visa',
-    setAccount() { return this; },
-    setEnvironment() { return this; },
-    setCreditCardData(payload) {
-      tokenizationPayload = payload;
-      return this;
-    },
-    getPaymentToken: async () => ({ payment_token: 'token-seguro-123', card_mask: 'XXXXXXXXXXXX1111' })
-  };
-  const { api, elements, fetchCalls, setFetchData } = createCheckoutHarness({ efiPayeeCode: 'payee-1', efiPay: { CreditCard } });
-  elements.get('cardHolderName').value = 'Cliente FluxMEI';
-  elements.get('cardHolderDocument').value = '123.456.789-01';
-  elements.get('cardNumber').value = '4111 1111 1111 1111';
-  elements.get('cardExpiry').value = '05/2029';
-  elements.get('cardCvv').value = '123';
-  elements.get('cardInstallments').value = '1';
-  elements.get('userEmail').textContent = 'cliente@example.com';
-  setFetchData({
-    success: true,
-    provider: 'efi',
-    payment_id: 'card-1',
-    payment_status: 'approved',
-    payment_method_id: 'cartao',
-    assinatura: { status: 'ativo' }
-  });
-
-  await api.submitEfiCardPayment();
-
-  const requestBody = JSON.parse(fetchCalls.at(-1).options.body);
-  assert.equal(fetchCalls.at(-1).url, 'http://127.0.0.1/api/pagamentos/efi/criar-cartao');
-  assert.equal(requestBody.payment.payment_token, 'token-seguro-123');
-  assert.equal(requestBody.payment.installments, 1);
-  assert.equal(requestBody.payment.documento, '12345678901');
-  assert.doesNotMatch(JSON.stringify(requestBody), /4111111111111111|05\/2029|"cvv"|card_number|expirationMonth|expirationYear|security_code/);
-  assert.equal(tokenizationPayload.number, '4111111111111111');
-  assert.equal(tokenizationPayload.cvv, '123');
-});
-
-test('gerar Pix chama a rota EFI de Pix', async () => {
+test('gerar Pix chama a rota Asaas de Pix', async () => {
   const { api, fetchCalls, setFetchData } = createCheckoutHarness();
   setFetchData({
     success: true,
-    provider: 'efi',
+    provider: 'asaas',
     payment_id: 'pix-1',
     payment_status: 'ATIVA',
     payment_method_id: 'pix',
@@ -236,16 +194,16 @@ test('gerar Pix chama a rota EFI de Pix', async () => {
 
   await api.generatePixPayment();
 
-  assert.equal(fetchCalls.at(-1).url, 'http://127.0.0.1/api/pagamentos/efi/criar-pix');
+  assert.equal(fetchCalls.at(-1).url, 'http://127.0.0.1/api/pagamentos/asaas/criar-pix');
   assert.equal(fetchCalls.at(-1).options.method, 'POST');
   assert.doesNotMatch(JSON.stringify(fetchCalls), /criar-cartao|payment_token|card_number|cvv/);
 });
 
-test('gerar boleto chama a rota EFI de boleto', async () => {
+test('gerar boleto chama a rota Asaas de boleto', async () => {
   const { api, fetchCalls, setFetchData } = createCheckoutHarness();
   setFetchData({
     success: true,
-    provider: 'efi',
+    provider: 'asaas',
     payment_id: 'boleto-1',
     payment_status: 'waiting',
     payment_method_id: 'boleto',
@@ -255,7 +213,7 @@ test('gerar boleto chama a rota EFI de boleto', async () => {
 
   await api.generateBoletoPayment();
 
-  assert.equal(fetchCalls.at(-1).url, 'http://127.0.0.1/api/pagamentos/efi/criar-boleto');
+  assert.equal(fetchCalls.at(-1).url, 'http://127.0.0.1/api/pagamentos/asaas/criar-boleto');
   assert.equal(fetchCalls.at(-1).options.method, 'POST');
   assert.doesNotMatch(JSON.stringify(fetchCalls), /criar-cartao|payment_token|card_number|cvv/);
 });

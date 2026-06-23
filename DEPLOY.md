@@ -5,7 +5,8 @@ Este guia prepara o FluxMEI para:
 - Frontend na Vercel
 - Backend no Render
 - Banco e Auth no Supabase
-- Pagamentos na Efí Bank: Pix, cartao por token seguro e boleto
+- Pagamentos no Asaas: Pix e boleto
+- Efí Bank mantida como fallback tecnico
 - Dominio proprio
 
 ## Render
@@ -33,6 +34,11 @@ GEMINI_API_KEY=sua_chave_gemini
 JWT_SECRET=opcional_para_integracoes_futuras
 AUTH_AUTO_CONFIRM_EMAIL=false
 ALLOW_SELF_MANAGED_SUBSCRIPTIONS=false
+PAYMENT_GATEWAY=asaas
+ASAAS_API_KEY=sua_api_key_asaas
+ASAAS_BASE_URL=https://api.asaas.com/v3
+ASAAS_WEBHOOK_TOKEN=seu_token_webhook_asaas
+ASAAS_WEBHOOK_URL=https://fluxmei.onrender.com/api/webhooks/asaas
 EFI_CLIENT_ID=seu_client_id_efi
 EFI_CLIENT_SECRET=seu_client_secret_efi
 EFI_ENVIRONMENT=sandbox
@@ -48,8 +54,9 @@ EFI_WEBHOOK_URL=https://fluxmei.onrender.com/api/webhooks/efi
 Observacoes:
 
 - O Render define `PORT` automaticamente.
-- Nunca coloque `SUPABASE_SERVICE_ROLE_KEY`, `EFI_CLIENT_SECRET`, certificado Efí ou `GEMINI_API_KEY` na Vercel.
-- Em producao, `EFI_WEBHOOK_SECRET` e obrigatorio.
+- Nunca coloque `SUPABASE_SERVICE_ROLE_KEY`, `ASAAS_API_KEY`, `EFI_CLIENT_SECRET`, certificado Efí ou `GEMINI_API_KEY` na Vercel.
+- Em producao, `ASAAS_WEBHOOK_TOKEN` e obrigatorio para validar eventos do Asaas.
+- Se usar Efí como fallback, `EFI_WEBHOOK_SECRET` tambem deve ser configurado.
 - Em producao, `/api/dev/*` nao e registrado.
 
 ## Vercel
@@ -65,11 +72,10 @@ Variavel de ambiente:
 
 ```env
 FLUXMEI_API_URL=https://api.seudominio.com/api
-FLUXMEI_EFI_PAYEE_CODE=identificador_publico_da_conta_efi
-FLUXMEI_EFI_ENVIRONMENT=production
+FLUXMEI_PAYMENT_GATEWAY=asaas
 ```
 
-`FLUXMEI_EFI_PAYEE_CODE` e `FLUXMEI_EFI_ENVIRONMENT` sao publicos e usados apenas para tokenizar cartao no navegador. Nunca coloque `EFI_CLIENT_SECRET`, certificado ou chave Pix na Vercel.
+`FLUXMEI_PAYMENT_GATEWAY=asaas` faz o checkout chamar as rotas Asaas. Cartao permanece oculto/desativado nesta etapa. Nunca coloque `ASAAS_API_KEY`, `EFI_CLIENT_SECRET`, certificado ou chave Pix na Vercel.
 
 ## Supabase
 
@@ -107,7 +113,45 @@ https://www.seudominio.com/auth/login/index.html
 https://www.seudominio.com/auth/recovery/nova-senha.html
 ```
 
+## Asaas
+
+No painel do Asaas:
+
+1. Gere uma chave de API e configure no Render como `ASAAS_API_KEY`.
+2. Use `ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3` para sandbox.
+3. Use `ASAAS_BASE_URL=https://api.asaas.com/v3` para producao.
+4. Configure `PAYMENT_GATEWAY=asaas`.
+5. Crie um token secreto para webhook e configure em `ASAAS_WEBHOOK_TOKEN`.
+6. Cadastre o webhook para:
+
+```text
+https://fluxmei.onrender.com/api/webhooks/asaas
+```
+
+Eventos minimos:
+
+- `PAYMENT_RECEIVED`
+- `PAYMENT_CONFIRMED`
+- `PAYMENT_RECEIVED_IN_CASH`
+- `PAYMENT_OVERDUE`
+- `PAYMENT_DELETED`
+- `PAYMENT_REFUNDED`
+- `PAYMENT_CHARGEBACK_REQUESTED`
+
+O Asaas deve enviar o token no header `asaas-access-token`, com o mesmo valor de `ASAAS_WEBHOOK_TOKEN`. A assinatura so e ativada depois que o backend consulta `GET /v3/payments/{id}` e confirma status `RECEIVED`, `CONFIRMED` ou `RECEIVED_IN_CASH`.
+
+Para validar no Supabase, confira em `assinaturas`:
+
+- `status = ativo`
+- `bloqueado = false`
+- `payment_provider = asaas`
+- `provider_payment_id` preenchido
+- `paid_at` preenchido
+- `data_vencimento` atualizado
+
 ## Efí Bank
+
+A Efí fica como fallback tecnico. Mantenha as variaveis somente se for usar ou testar esse fallback.
 
 No painel da Efí Bank:
 
@@ -116,26 +160,28 @@ No painel da Efí Bank:
 3. No Render, prefira `EFI_CERT_BASE64`; localmente, use `EFI_CERT_PATH`.
 4. Configure `EFI_ENVIRONMENT=sandbox` para homologacao e `EFI_ENVIRONMENT=production` para producao.
 5. Configure a chave Pix em `EFI_PIX_KEY`.
-6. Para cartao no checkout, copie o `Identificador de conta` da Efí e configure na Vercel como `FLUXMEI_EFI_PAYEE_CODE`.
-7. Configure o webhook para:
+6. Cadastre o webhook Pix pela API da EFI (`PUT /v2/webhook/:chave`, usando `EFI_PIX_KEY`) para:
 
 ```text
-https://api.seudominio.com/api/webhooks/efi
+https://api.seudominio.com/api/webhooks/efi?secret=<EFI_WEBHOOK_SECRET>&ignorar=
 ```
 
 Para o Render atual do FluxMEI, use:
 
 ```text
-https://fluxmei.onrender.com/api/webhooks/efi
+https://fluxmei.onrender.com/api/webhooks/efi?secret=<EFI_WEBHOOK_SECRET>&ignorar=
 ```
 
-Se o painel da Efí nao permitir headers customizados para o segredo, use:
+Em desenvolvimento, com usuario autenticado, o backend expoe rotas protegidas para executar e conferir o cadastro:
 
-```text
-https://fluxmei.onrender.com/api/webhooks/efi?secret=<EFI_WEBHOOK_SECRET>
+```http
+POST /api/dev/efi/register-webhook
+GET  /api/dev/efi/webhook
 ```
 
-8. Configure o mesmo segredo/token no Render em `EFI_WEBHOOK_SECRET`.
+Essas rotas nao sao registradas quando `NODE_ENV=production`. Em producao, use uma ferramenta administrativa segura ou script temporario no backend para executar o mesmo cadastro, sem expor `EFI_WEBHOOK_SECRET`, certificado ou chave Pix.
+
+7. Configure o mesmo segredo/token no Render em `EFI_WEBHOOK_SECRET`.
 
 O backend aceita o segredo via:
 
@@ -161,7 +207,7 @@ $body = @{
 } | ConvertTo-Json
 
 Invoke-RestMethod `
-  -Uri "http://localhost:3002/api/pagamentos/efi/pix" `
+  -Uri "http://localhost:3002/api/pagamentos/asaas/criar-pix" `
   -Method POST `
   -Headers @{ Authorization = "Bearer $token" } `
   -ContentType "application/json" `
@@ -176,10 +222,10 @@ Invoke-RestMethod `
 4. Confirmar que `https://seudominio.com/env.js` contem a API correta.
 5. Configurar Supabase Auth com URLs do dominio.
 6. Executar SQL necessario no Supabase.
-7. Configurar webhook na Efí Bank.
+7. Configurar webhook no Asaas.
 8. Criar usuario real.
 9. Fazer login.
 10. Abrir `/checkout/`.
-11. Gerar Pix, boleto ou pagar cartao com token seguro Efí.
+11. Gerar Pix ou boleto Asaas no checkout.
 12. Confirmar assinatura `ativo` no Supabase.
 13. Confirmar acesso desbloqueado no app.

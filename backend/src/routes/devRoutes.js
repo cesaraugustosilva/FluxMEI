@@ -144,4 +144,28 @@ router.post('/efi/processar/:paymentId', authMiddleware, asyncHandler(async (req
   res.json({ provider: 'efi', payment_id: String(paymentId), status: payment?.status || null, assinatura: data });
 }));
 
+router.post('/efi/register-webhook', authMiddleware, asyncHandler(async (req, res) => {
+  assertDevRouteEnabled();
+
+  const result = await efiBankService.cadastrarWebhookPix();
+  res.json({
+    provider: 'efi',
+    type: 'pix',
+    action: 'register_webhook',
+    webhook: result
+  });
+}));
+
+router.get('/efi/webhook', authMiddleware, asyncHandler(async (req, res) => {
+  assertDevRouteEnabled();
+
+  const result = await efiBankService.consultarWebhookPix();
+  res.json({
+    provider: 'efi',
+    type: 'pix',
+    action: 'get_webhook',
+    webhook: result
+  });
+}));
+
 export default router;

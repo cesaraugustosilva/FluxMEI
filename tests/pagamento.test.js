@@ -2,11 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PAYMENT_PLANS,
+  buildAsaasPaymentAttempt,
+  buildAsaasProviderRaw,
+  buildAsaasSubscriptionUpdates,
   buildEfiBankPaymentAttempt,
   buildEfiBankProviderRaw,
   buildEfiBankSubscriptionUpdates,
   buildPendingPaymentAttemptUpdates,
   getRecentEfiBankPendingAttempt,
+  sanitizeAsaasProviderRaw,
   sanitizeEfiProviderRaw,
   todayPlusDays
 } from '../backend/src/services/paymentStatusRules.js';
@@ -71,6 +75,54 @@ function payment(status = 'CONCLUIDA', extra = {}) {
   };
 }
 
+function assinaturaAsaasBase(extra = {}) {
+  return {
+    ...assinaturaBase({
+      payment_provider: 'asaas',
+      provider_payment_id: 'pay_asaas_1',
+      provider_customer_id: 'cus_1',
+      provider_status: 'PENDING',
+      provider_raw: {
+        attempt: {
+          plano_original: 'pro_mensal',
+          valor_original: 49.9,
+          tipo_cobranca_original: 'mensal',
+          payment_id: 'pay_asaas_1',
+          payment_method_id: 'PIX',
+          created_at: new Date().toISOString(),
+          metadata: {
+            user_id: 'user-1',
+            assinatura_id: 'sub-1',
+            plano: 'pro_mensal'
+          }
+        },
+        payment: {
+          provider: 'asaas',
+          payment_id: 'pay_asaas_1',
+          status: 'PENDING',
+          billing_type: 'PIX',
+          value: 49.9,
+          external_reference: 'user-1:sub-1:pro_mensal'
+        }
+      }
+    }),
+    ...extra
+  };
+}
+
+function asaasPayment(status = 'RECEIVED', extra = {}) {
+  return {
+    id: 'pay_asaas_1',
+    customer: 'cus_1',
+    status,
+    billingType: 'PIX',
+    value: 49.9,
+    dueDate: '2026-06-21',
+    externalReference: 'user-1:sub-1:pro_mensal',
+    ...extra
+  };
+}
+
 test('tentativa EFI preserva dados necessarios para conciliacao', () => {
   const attempt = buildEfiBankPaymentAttempt({
     plan: PAYMENT_PLANS.pro_mensal,
@@ -86,6 +138,65 @@ test('tentativa EFI preserva dados necessarios para conciliacao', () => {
   assert.equal(attempt.payment_method_id, 'pix');
   assert.equal(attempt.idempotency_key, 'idem-1');
   assert.equal(attempt.metadata.assinatura_id, 'sub-1');
+});
+
+test('tentativa Asaas preserva dados necessarios para conciliacao', () => {
+  const attempt = buildAsaasPaymentAttempt({
+    plan: PAYMENT_PLANS.pro_mensal,
+    payment: asaasPayment('PENDING'),
+    method: 'pix'
+  });
+
+  assert.equal(attempt.plano_original, 'pro_mensal');
+  assert.equal(attempt.valor_original, 49.9);
+  assert.equal(attempt.tipo_cobranca_original, 'mensal');
+  assert.equal(attempt.payment_id, 'pay_asaas_1');
+  assert.equal(attempt.payment_method_id, 'PIX');
+  assert.equal(attempt.metadata.assinatura_id, 'sub-1');
+});
+
+test('provider_raw Asaas remove dados sensiveis e preserva tentativa', () => {
+  const raw = sanitizeAsaasProviderRaw({
+    attempt: {
+      plano_original: 'pro_mensal',
+      valor_original: 49.9,
+      tipo_cobranca_original: 'mensal',
+      payment_id: 'pay_asaas_1',
+      payment_method_id: 'PIX',
+      created_at: '2026-06-21T10:00:00.000Z'
+    },
+    payment: {
+      id: 'pay_asaas_1',
+      customer: 'cus_1',
+      status: 'PENDING',
+      billingType: 'PIX',
+      value: 49.9,
+      cpfCnpj: '12345678901',
+      email: 'cliente@example.com',
+      creditCard: { number: '4111111111111111', cvv: '123' }
+    },
+    pixQrCode: {
+      payload: '000201-pix',
+      encodedImage: 'base64'
+    }
+  });
+
+  const serialized = JSON.stringify(raw);
+  assert.equal(raw.provider, 'asaas');
+  assert.equal(raw.payment.payment_id, 'pay_asaas_1');
+  assert.equal(raw.pixQrCode.has_qrcode, true);
+  assert.doesNotMatch(serialized, /12345678901|cliente@example.com|4111111111111111|000201-pix|base64|cvv/);
+});
+
+test('buildAsaasProviderRaw usa sanitizacao segura', () => {
+  const raw = buildAsaasProviderRaw({
+    attempt: { plano_original: 'pro_mensal', valor_original: 49.9, payment_id: 'pay_asaas_1' },
+    payment: asaasPayment('PENDING', { email: 'cliente@example.com' }),
+    pixQrCode: { payload: 'payload-pix' }
+  });
+
+  assert.equal(raw.payment.payment_id, 'pay_asaas_1');
+  assert.doesNotMatch(JSON.stringify(raw), /cliente@example.com|payload-pix/);
 });
 
 test('provider_raw EFI remove dados sensiveis e preserva attempt', () => {
@@ -149,6 +260,45 @@ test('pagamento EFI aprovado ativa assinatura com plano e valor validos', () => 
   assert.equal(updates.valor, 49.9);
   assert.equal(updates.data_vencimento, todayPlusDays(30, baseDate));
   assert.equal(updates.paid_at, baseDate.toISOString());
+});
+
+test('pagamento Asaas recebido ativa assinatura com plano e valor validos', () => {
+  const baseDate = new Date('2026-06-21T12:00:00.000Z');
+  const updates = buildAsaasSubscriptionUpdates(asaasPayment('RECEIVED'), assinaturaAsaasBase(), baseDate, 'PAYMENT_RECEIVED');
+
+  assert.equal(updates.payment_provider, 'asaas');
+  assert.equal(updates.provider_payment_id, 'pay_asaas_1');
+  assert.equal(updates.provider_status, 'RECEIVED');
+  assert.equal(updates.status, 'ativo');
+  assert.equal(updates.bloqueado, false);
+  assert.equal(updates.plano, 'pro_mensal');
+  assert.equal(updates.valor, 49.9);
+  assert.equal(updates.data_vencimento, todayPlusDays(30, baseDate));
+  assert.equal(updates.paid_at, baseDate.toISOString());
+});
+
+test('webhook Asaas duplicado aprovado nao avanca vencimento de novo', () => {
+  const updates = buildAsaasSubscriptionUpdates(asaasPayment('RECEIVED'), assinaturaAsaasBase({
+    status: 'ativo',
+    bloqueado: false,
+    provider_status: 'RECEIVED',
+    data_vencimento: '2026-07-21'
+  }));
+
+  assert.equal(updates.already_processed, true);
+  assert.equal(updates.outcome, 'duplicate_ignored');
+  assert.equal(updates.status, undefined);
+});
+
+test('pagamento Asaas estornado nao ativa assinatura', () => {
+  const updates = buildAsaasSubscriptionUpdates(asaasPayment('REFUNDED'), assinaturaAsaasBase({
+    status: 'pendente',
+    bloqueado: true
+  }), new Date('2026-06-21T12:00:00.000Z'), 'PAYMENT_REFUNDED');
+
+  assert.equal(updates.status, 'cancelado');
+  assert.equal(updates.bloqueado, true);
+  assert.equal(updates.renovacao_automatica, false);
 });
 
 test('pagamento EFI pendente mantem usuario vencido bloqueado', () => {

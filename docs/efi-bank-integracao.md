@@ -223,9 +223,31 @@ O frontend deve enviar apenas o token:
 
 Numero, CVV, validade e dados sensiveis do cartao nao devem chegar ao backend.
 
-## Webhook
+## Webhook Pix via API
 
-Configure no painel EFI:
+O webhook Pix da EFI pode nao aparecer como opcao manual no painel. Para Pix, o cadastro e feito pela API:
+
+```http
+PUT /v2/webhook/:chave
+GET /v2/webhook/:chave
+```
+
+O FluxMEI usa `EFI_PIX_KEY` como `:chave` e cadastra a URL:
+
+```text
+https://fluxmei.onrender.com/api/webhooks/efi?secret=<EFI_WEBHOOK_SECRET>&ignorar=
+```
+
+Em desenvolvimento, com usuario autenticado, use as rotas protegidas:
+
+```http
+POST /api/dev/efi/register-webhook
+GET  /api/dev/efi/webhook
+```
+
+Essas rotas nao sao registradas quando `NODE_ENV=production`. Em producao, execute o cadastro com uma ferramenta administrativa temporaria ou script seguro usando as mesmas variaveis EFI do backend, sem expor `EFI_WEBHOOK_SECRET`, certificado ou chave Pix em frontend/logs.
+
+Se houver uma opcao manual no painel EFI para outros webhooks/cobrancas, a URL base continua sendo:
 
 ```text
 https://fluxmei.onrender.com/api/webhooks/efi
@@ -247,7 +269,7 @@ O backend valida `EFI_WEBHOOK_SECRET`. Envie o segredo por um destes headers:
 Se o painel da Efí nao permitir configurar headers customizados, configure o webhook com query string:
 
 ```text
-https://fluxmei.onrender.com/api/webhooks/efi?secret=<EFI_WEBHOOK_SECRET>
+https://fluxmei.onrender.com/api/webhooks/efi?secret=<EFI_WEBHOOK_SECRET>&ignorar=
 ```
 
 Em producao, o webhook EFI e recusado se `EFI_WEBHOOK_SECRET` nao estiver configurado.
