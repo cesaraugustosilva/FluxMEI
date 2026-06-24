@@ -1,0 +1,282 @@
+'use strict';
+
+const TOKEN_KEY = 'fluxmei_access_token';
+
+const state = {
+  metrics: null,
+  users: [],
+  subscriptions: [],
+  payments: []
+};
+
+function normalizeApiUrl(url) {
+  return String(url || '').replace(/\/$/, '');
+}
+
+function getApiUrl() {
+  const apiUrl = normalizeApiUrl(window.FLUXMEI_CONFIG?.API_URL);
+  if (!apiUrl) throw new Error('FLUXMEI_CONFIG.API_URL nao configurada.');
+  return apiUrl;
+}
+
+function getToken() {
+  return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
+}
+
+function clearAuthStorage() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('fluxmei_user');
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem('fluxmei_user');
+}
+
+async function apiRequest(path) {
+  const token = getToken();
+  if (!token) {
+    window.location.href = '/auth/login/';
+    throw new Error('Faca login para continuar.');
+  }
+
+  const response = await fetch(`${getApiUrl()}${path}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    }
+  });
+
+  const data = response.headers.get('content-type')?.includes('application/json')
+    ? await response.json()
+    : null;
+
+  if (response.status === 401) {
+    clearAuthStorage();
+    window.location.href = '/auth/login/';
+    throw new Error('Sessao expirada.');
+  }
+
+  if (response.status === 403) {
+    showState('Acesso restrito a administradores FluxMEI.', 'error');
+    throw new Error('Acesso restrito.');
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.message || data?.error || `Erro ${response.status}`);
+  }
+
+  return data;
+}
+
+function esc(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatBRL(value) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
+}
+
+function formatDate(value) {
+  if (!value) return '--';
+  const [year, month, day] = String(value).slice(0, 10).split('-');
+  if (!year || !month || !day) return '--';
+  return `${day}/${month}/${year}`;
+}
+
+function planLabel(planId) {
+  if (planId === 'pro_anual') return 'Pro Anual';
+  if (planId === 'pro_mensal') return 'Pro Mensal';
+  if (planId === 'gratuito') return 'Trial';
+  return planId || '--';
+}
+
+function statusMeta(status) {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (['ativo', 'received', 'confirmed', 'paid', 'pago', 'concluida', 'settled'].includes(normalized)) {
+    return { label: normalized === 'ativo' ? 'Ativo' : 'Pago', className: normalized === 'ativo' ? 'active' : 'paid' };
+  }
+  if (['teste_gratis'].includes(normalized)) return { label: 'Trial', className: 'info' };
+  if (['pending', 'awaiting_risk_analysis', 'pendente', 'ativa', 'waiting', 'new', 'processing', 'em_processamento'].includes(normalized)) {
+    return { label: 'Pendente', className: 'pending' };
+  }
+  if (['overdue', 'expired', 'vencido'].includes(normalized)) return { label: 'Vencido', className: 'overdue' };
+  if (['refunded', 'estornado'].includes(normalized)) return { label: 'Estornado', className: 'warning' };
+  if (['canceled', 'cancelled', 'deleted', 'cancelado', 'bloqueado'].includes(normalized)) return { label: 'Cancelado', className: 'canceled' };
+  return { label: status || '--', className: 'info' };
+}
+
+function methodMeta(method) {
+  const normalized = String(method || '').trim().toLowerCase();
+  if (normalized === 'pix') return { label: 'Pix', icon: 'PIX' };
+  if (normalized === 'boleto' || normalized === 'bank_slip') return { label: 'Boleto', icon: 'BOL' };
+  if (normalized === 'cartao' || normalized === 'credit_card' || normalized === 'card') return { label: 'Cartao', icon: 'CAR' };
+  return { label: method || '--', icon: 'PAY' };
+}
+
+function showState(message, type = '') {
+  const root = document.getElementById('adminState');
+  if (!root) return;
+  root.hidden = !message;
+  root.className = `admin-state ${type}`.trim();
+  root.textContent = message || '';
+}
+
+function setMetric(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+function renderMetrics() {
+  const metrics = state.metrics || {};
+  setMetric('metricUsers', metrics.usuarios_cadastrados ?? 0);
+  setMetric('metricTrials', metrics.trials_ativos ?? 0);
+  setMetric('metricActiveSubscriptions', metrics.assinaturas_ativas ?? 0);
+  setMetric('metricCanceledSubscriptions', metrics.assinaturas_canceladas ?? 0);
+  setMetric('metricPendingPayments', metrics.pagamentos_pendentes ?? 0);
+  setMetric('metricTotalRevenue', formatBRL(metrics.receita_total || 0));
+  setMetric('metricMrr', formatBRL(metrics.mrr || 0));
+  setMetric('metricArr', formatBRL(metrics.arr || 0));
+}
+
+function renderUsers() {
+  const body = document.getElementById('usersTableBody');
+  const query = String(document.getElementById('userSearch')?.value || '').trim().toLowerCase();
+  if (!body) return;
+
+  const users = state.users.filter((user) => {
+    const haystack = `${user.nome || ''} ${user.email || ''}`.toLowerCase();
+    return !query || haystack.includes(query);
+  });
+
+  if (!users.length) {
+    body.innerHTML = '<tr><td colspan="5" class="cell-muted">Nenhum usuario encontrado.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = users.map((user) => {
+    const meta = statusMeta(user.status);
+    return `
+      <tr>
+        <td><strong>${esc(user.nome)}</strong></td>
+        <td class="cell-muted">${esc(user.email || '--')}</td>
+        <td>${esc(planLabel(user.plano))}</td>
+        <td><span class="badge ${esc(meta.className)}">${esc(meta.label)}</span></td>
+        <td>${formatDate(user.created_at)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderSubscriptions() {
+  const body = document.getElementById('subscriptionsTableBody');
+  if (!body) return;
+
+  if (!state.subscriptions.length) {
+    body.innerHTML = '<tr><td colspan="5" class="cell-muted">Nenhuma assinatura encontrada.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = state.subscriptions.map((subscription) => {
+    const meta = statusMeta(subscription.status);
+    return `
+      <tr>
+        <td>
+          <div class="user-cell">
+            <strong>${esc(subscription.user_name)}</strong>
+            <span class="cell-muted">${esc(subscription.user_email || '--')}</span>
+          </div>
+        </td>
+        <td>${esc(planLabel(subscription.plano))}</td>
+        <td><span class="badge ${esc(meta.className)}">${esc(meta.label)}</span></td>
+        <td>${formatDate(subscription.data_vencimento)}</td>
+        <td><span class="badge ${subscription.cancel_at_period_end ? 'warning' : 'active'}">${subscription.cancel_at_period_end ? 'Sim' : 'Nao'}</span></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderPayments() {
+  const body = document.getElementById('paymentsTableBody');
+  const filter = String(document.getElementById('paymentMethodFilter')?.value || '').trim().toLowerCase();
+  if (!body) return;
+
+  const payments = state.payments.filter((payment) => !filter || String(payment.method || '').toLowerCase() === filter);
+
+  if (!payments.length) {
+    body.innerHTML = '<tr><td colspan="5" class="cell-muted">Nenhum pagamento encontrado.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = payments.map((payment) => {
+    const method = methodMeta(payment.method);
+    const status = statusMeta(payment.status);
+    return `
+      <tr>
+        <td>
+          <div class="user-cell">
+            <strong>${esc(payment.user_name)}</strong>
+            <span class="cell-muted">${esc(payment.user_email || '--')}</span>
+          </div>
+        </td>
+        <td>
+          <span class="method-pill"><span class="method-icon">${esc(method.icon)}</span>${esc(method.label)}</span>
+        </td>
+        <td>${formatBRL(payment.valor)}</td>
+        <td><span class="badge ${esc(status.className)}">${esc(status.label)}</span></td>
+        <td>${formatDate(payment.date)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderAll() {
+  renderMetrics();
+  renderUsers();
+  renderSubscriptions();
+  renderPayments();
+}
+
+async function loadAdminData() {
+  showState('Carregando dados administrativos...');
+  const [dashboard, users, subscriptions, payments] = await Promise.all([
+    apiRequest('/admin/dashboard'),
+    apiRequest('/admin/users'),
+    apiRequest('/admin/subscriptions'),
+    apiRequest('/admin/payments')
+  ]);
+
+  state.metrics = dashboard.metrics || {};
+  state.users = Array.isArray(users.users) ? users.users : [];
+  state.subscriptions = Array.isArray(subscriptions.subscriptions) ? subscriptions.subscriptions : [];
+  state.payments = Array.isArray(payments.payments) ? payments.payments : [];
+  showState('');
+  renderAll();
+}
+
+function setupEvents() {
+  document.getElementById('userSearch')?.addEventListener('input', renderUsers);
+  document.getElementById('paymentMethodFilter')?.addEventListener('change', renderPayments);
+
+  document.querySelectorAll('[data-admin-nav]').forEach((link) => {
+    link.addEventListener('click', () => {
+      document.querySelectorAll('[data-admin-nav]').forEach((item) => item.classList.remove('active'));
+      link.classList.add('active');
+    });
+  });
+}
+
+async function init() {
+  setupEvents();
+  try {
+    await loadAdminData();
+  } catch (error) {
+    if (error.message !== 'Acesso restrito.') {
+      showState(error.message || 'Nao foi possivel carregar o painel administrativo.', 'error');
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);

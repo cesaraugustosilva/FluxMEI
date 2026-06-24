@@ -35,6 +35,7 @@ GEMINI_API_KEY=sua_chave_gemini
 JWT_SECRET=opcional_para_integracoes_futuras
 AUTH_AUTO_CONFIRM_EMAIL=false
 ALLOW_SELF_MANAGED_SUBSCRIPTIONS=false
+ADMIN_EMAILS=admin@seudominio.com
 PAYMENT_GATEWAY=asaas
 ASAAS_API_KEY=sua_api_key_asaas
 ASAAS_BASE_URL=https://api.asaas.com/v3
@@ -64,6 +65,7 @@ Observacoes:
 - `JWT_SECRET` e reservado para tokens proprios do FluxMEI, se existirem no futuro. Nao use `JWT_SECRET` para validar Supabase Auth JWT.
 - Em producao, `ASAAS_WEBHOOK_TOKEN` e obrigatorio para validar eventos do Asaas.
 - Configure `RESEND_API_KEY` somente no Render/backend para e-mails automaticos. Nao coloque essa chave na Vercel.
+- Configure `ADMIN_EMAILS` somente no Render/backend ou marque `profiles.is_admin=true` no Supabase para liberar `/admin/`.
 - Se usar Efí como fallback, `EFI_WEBHOOK_SECRET` tambem deve ser configurado.
 - Em producao, `/api/dev/*` nao e registrado.
 
@@ -98,6 +100,8 @@ Banco existente:
 2. Execute `backend/database/migrate_payment_provider_fields.sql`.
 3. Execute `backend/database/migrate_fix_assinaturas_rls.sql`.
 4. Execute `backend/database/migrate_payment_attempt_locks.sql`.
+5. Execute `backend/database/migrate_subscription_management.sql`.
+6. Execute `backend/database/migrate_admin_panel.sql`.
 
 Tabelas esperadas:
 
@@ -108,6 +112,7 @@ Tabelas esperadas:
 - `relatorios_ia`
 - `assinaturas`
 - `payment_attempt_locks`
+- `notification_events`
 
 Auth:
 

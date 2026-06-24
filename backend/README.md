@@ -38,6 +38,7 @@ Banco existente:
 3. Execute `database/migrate_fix_assinaturas_rls.sql`.
 4. Execute `database/migrate_payment_attempt_locks.sql`.
 5. Execute `database/migrate_subscription_management.sql` para cancelamento/reativacao e deduplicacao de notificacoes.
+6. Execute `database/migrate_admin_panel.sql` para habilitar o campo `profiles.is_admin`.
 
 ## Rodar
 
@@ -93,6 +94,25 @@ Ao cadastrar um usuario, o backend cria uma assinatura com `status = teste_grati
 A rota `GET /api/assinaturas/status` retorna o estado atual para o frontend exibir avisos e redirecionar para `/checkout/`.
 
 O roteiro completo de validacao manual esta em `../docs/assinatura-fluxo-testes.md`.
+
+## Painel Administrativo
+
+O painel fica em `/admin/` e consome rotas restritas:
+
+```http
+GET /api/admin/dashboard
+GET /api/admin/users
+GET /api/admin/subscriptions
+GET /api/admin/payments
+```
+
+Defina administradores de uma das formas:
+
+```env
+ADMIN_EMAILS=admin@seudominio.com,outro@seudominio.com
+```
+
+Ou marque `profiles.is_admin = true` no Supabase para o usuario desejado. Usuarios comuns recebem HTTP `403`. As respostas administrativas nao retornam `provider_raw`, CPF/CNPJ, dados de cartao nem secrets.
 
 ## Asaas
 

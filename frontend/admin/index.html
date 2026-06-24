@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>FluxMEI Admin</title>
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="stylesheet" href="admin.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <main class="admin-shell">
+    <aside class="admin-sidebar">
+      <a class="brand" href="/app/" aria-label="Voltar ao app FluxMEI">
+        <span class="brand-mark">F</span>
+        <span>FluxMEI Admin</span>
+      </a>
+      <nav class="admin-nav" aria-label="Navegacao administrativa">
+        <a href="#dashboard" class="active" data-admin-nav="dashboard">Dashboard</a>
+        <a href="#users" data-admin-nav="users">Usuarios</a>
+        <a href="#subscriptions" data-admin-nav="subscriptions">Assinaturas</a>
+        <a href="#payments" data-admin-nav="payments">Pagamentos</a>
+      </nav>
+      <div class="sidebar-note">
+        <strong>Area restrita</strong>
+        <span>Acesso permitido apenas para administradores FluxMEI.</span>
+      </div>
+    </aside>
+
+    <section class="admin-content">
+      <header class="admin-header">
+        <div>
+          <p class="eyebrow">Painel Administrativo</p>
+          <h1>Operacao do SaaS em tempo real</h1>
+          <p>Acompanhe usuarios, assinaturas, pagamentos e receita sem expor dados sensiveis.</p>
+        </div>
+        <a class="header-action" href="/app/">Voltar ao app</a>
+      </header>
+
+      <section class="admin-state" id="adminState" hidden></section>
+
+      <section class="metrics-grid" id="metricsGrid" aria-label="Metricas principais">
+        <article class="metric-card"><span>Usuarios cadastrados</span><strong id="metricUsers">--</strong></article>
+        <article class="metric-card"><span>Trials ativos</span><strong id="metricTrials">--</strong></article>
+        <article class="metric-card"><span>Assinaturas ativas</span><strong id="metricActiveSubscriptions">--</strong></article>
+        <article class="metric-card"><span>Cancelamentos</span><strong id="metricCanceledSubscriptions">--</strong></article>
+        <article class="metric-card"><span>Pagamentos pendentes</span><strong id="metricPendingPayments">--</strong></article>
+        <article class="metric-card primary"><span>Receita total</span><strong id="metricTotalRevenue">--</strong></article>
+        <article class="metric-card"><span>MRR</span><strong id="metricMrr">--</strong></article>
+        <article class="metric-card"><span>ARR estimado</span><strong id="metricArr">--</strong></article>
+      </section>
+
+      <section class="admin-panel" id="users">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Usuarios</p>
+            <h2>Base cadastrada</h2>
+          </div>
+          <input class="admin-input" type="search" id="userSearch" placeholder="Buscar por nome ou e-mail" />
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>E-mail</th>
+                <th>Plano</th>
+                <th>Status</th>
+                <th>Cadastro</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="admin-panel" id="subscriptions">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Assinaturas</p>
+            <h2>Ciclos e cancelamentos</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Usuario</th>
+                <th>Plano</th>
+                <th>Status</th>
+                <th>Proximo vencimento</th>
+                <th>Cancelamento agendado</th>
+              </tr>
+            </thead>
+            <tbody id="subscriptionsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="admin-panel" id="payments">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Pagamentos</p>
+            <h2>Cobrancas recentes</h2>
+          </div>
+          <select class="admin-input" id="paymentMethodFilter" aria-label="Filtrar metodo de pagamento">
+            <option value="">Todos os metodos</option>
+            <option value="pix">Pix</option>
+            <option value="boleto">Boleto</option>
+            <option value="cartao">Cartao</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Usuario</th>
+                <th>Metodo</th>
+                <th>Valor</th>
+                <th>Status</th>
+                <th>Data</th>
+              </tr>
+            </thead>
+            <tbody id="paymentsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="/env.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

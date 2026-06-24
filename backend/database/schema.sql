@@ -20,6 +20,7 @@ create table if not exists public.profiles (
   ramo text,
   whatsapp text,
   tipo_negocio text,
+  is_admin boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -27,6 +28,7 @@ create table if not exists public.profiles (
 alter table public.profiles add column if not exists cnpj text;
 alter table public.profiles add column if not exists cpf text;
 alter table public.profiles add column if not exists ramo text;
+alter table public.profiles add column if not exists is_admin boolean not null default false;
 
 create table if not exists public.movimentacoes (
   id uuid primary key default gen_random_uuid(),

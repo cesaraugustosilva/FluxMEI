@@ -16,6 +16,7 @@ import relatorioRoutes from './routes/relatorioRoutes.js';
 import assinaturaRoutes from './routes/assinaturaRoutes.js';
 import pagamentoRoutes from './routes/pagamentoRoutes.js';
 import webhookRoutes from './routes/webhookRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
 import devRoutes from './routes/devRoutes.js';
 import { planos } from './controllers/assinaturaController.js';
 import { asyncHandler, errorHandler, notFoundHandler } from './middlewares/errorMiddleware.js';
@@ -110,6 +111,7 @@ apiRouter.use('/relatorios', relatorioRoutes);
 apiRouter.use('/assinaturas', assinaturaRoutes);
 apiRouter.use('/pagamentos', pagamentoRoutes);
 apiRouter.use('/webhooks', webhookRoutes);
+apiRouter.use('/admin', adminRoutes);
 if (!isProduction) apiRouter.use('/dev', devRoutes);
 apiRouter.get('/planos', asyncHandler(planos));
 
