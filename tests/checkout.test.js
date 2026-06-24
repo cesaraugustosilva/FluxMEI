@@ -13,15 +13,37 @@ function createCheckoutHarness(options = {}) {
 
   function element(id) {
     if (!elements.has(id)) {
-      elements.set(id, {
+      const node = {
         id,
         hidden: false,
-        value: '',
+        _value: '',
+        _innerHTML: '',
+        options: [],
         textContent: '',
         className: '',
         src: '',
         href: '',
         disabled: false,
+        get value() {
+          return this._value;
+        },
+        set value(nextValue) {
+          this._value = String(nextValue ?? '');
+        },
+        get innerHTML() {
+          return this._innerHTML;
+        },
+        set innerHTML(nextValue) {
+          this._innerHTML = String(nextValue ?? '');
+          if (this.id === 'cardInstallments') this.options = [];
+        },
+        appendChild(child) {
+          if (this.id === 'cardInstallments') this.options.push(child);
+          return child;
+        },
+        querySelector() {
+          return null;
+        },
         removeAttribute(name) {
           delete this[name];
         },
@@ -30,7 +52,8 @@ function createCheckoutHarness(options = {}) {
         },
         addEventListener() {},
         select() {}
-      });
+      };
+      elements.set(id, node);
     }
     return elements.get(id);
   }
@@ -113,6 +136,9 @@ function createCheckoutHarness(options = {}) {
     },
     document: {
       getElementById: element,
+      createElement(tagName) {
+        return { tagName: String(tagName).toUpperCase(), value: '', textContent: '' };
+      },
       querySelectorAll() { return []; },
       querySelector() { return element('queryResult'); },
       addEventListener() {}
@@ -134,7 +160,7 @@ function createCheckoutHarness(options = {}) {
   };
   context.globalThis = context;
   vm.createContext(context);
-  vm.runInContext(`${checkoutJs}\nglobalThis.__checkoutTest = { renderPixPanel, renderBoletoPanel, checkPaymentStatus, getStatusKeyFromPayment, generatePixPayment, generateBoletoPayment, configureCardAvailability, submitCardPayment, submitAsaasCardPayment, submitEfiCardPayment, getLoginUrl };`, context);
+  vm.runInContext(`${checkoutJs}\nglobalThis.__checkoutTest = { renderPixPanel, renderBoletoPanel, checkPaymentStatus, getStatusKeyFromPayment, generatePixPayment, generateBoletoPayment, configureCardAvailability, renderCardInstallments, submitCardPayment, submitAsaasCardPayment, submitEfiCardPayment, getLoginUrl };`, context);
 
   return {
     elements,
@@ -180,6 +206,43 @@ test('checkout exibe Cartao quando gateway ativo e Asaas', () => {
   const harness = createCheckoutHarness({ paymentGateway: 'asaas' });
   assert.equal(harness.api.configureCardAvailability(), true);
   assert.equal(harness.elements.get('cardMethodButton').hidden, false);
+});
+
+test('checkout HTML traz opcoes de parcelas ate 12x', () => {
+  assert.match(checkoutHtml, /<option value="1">1x<\/option>/);
+  assert.match(checkoutHtml, /<option value="12">12x<\/option>/);
+});
+
+test('checkout gera parcelas do cartao com valor aproximado do plano anual', () => {
+  const { api, elements } = createCheckoutHarness();
+
+  api.renderCardInstallments({
+    id: 'pro_anual',
+    nome: 'Plano FluxMEI Anual',
+    preco: 478.8,
+    tipo_cobranca: 'anual'
+  });
+
+  const options = elements.get('cardInstallments').options;
+  assert.equal(options.length, 12);
+  assert.equal(options[0].value, '1');
+  assert.equal(options[11].value, '12');
+  assert.equal(options[11].textContent, '12x de R$ 39,90');
+});
+
+test('checkout mensal mantem 1x como recomendado', () => {
+  const { api, elements } = createCheckoutHarness();
+
+  api.renderCardInstallments({
+    id: 'pro_mensal',
+    nome: 'Plano FluxMEI Mensal',
+    preco: 49.9,
+    tipo_cobranca: 'mensal'
+  });
+
+  const options = elements.get('cardInstallments').options;
+  assert.equal(options.length, 12);
+  assert.equal(options[0].textContent, '1x de R$ 49,90 recomendado');
 });
 
 test('checkout oculta Cartao quando gateway ativo e EFI', () => {

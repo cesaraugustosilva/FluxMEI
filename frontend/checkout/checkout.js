@@ -464,6 +464,28 @@ function renderPlan(plan) {
   document.getElementById('planCycle').textContent = getPlanCycle(plan);
 }
 
+function renderCardInstallments(plan = selectedPlan) {
+  const select = document.getElementById('cardInstallments');
+  if (!select) return;
+
+  const total = Number(plan?.preco || 0);
+  const currentValue = Number(select.value || 1);
+  select.innerHTML = '';
+
+  for (let installments = 1; installments <= 12; installments += 1) {
+    const option = document.createElement('option');
+    option.value = String(installments);
+    const installmentValue = total > 0 ? formatBRL(total / installments).replace(/\u00a0/g, ' ') : null;
+    const recommended = installments === 1 && plan?.tipo_cobranca !== 'anual' ? ' recomendado' : '';
+    option.textContent = installmentValue
+      ? `${installments}x de ${installmentValue}${recommended}`
+      : `${installments}x${recommended}`;
+    select.appendChild(option);
+  }
+
+  select.value = currentValue >= 1 && currentValue <= 12 ? String(currentValue) : '1';
+}
+
 function renderUser(data) {
   currentUserData = data || null;
   const profile = data?.profile || {};
@@ -1101,6 +1123,7 @@ async function initCheckout() {
   if (isSubscribeIntentUrl()) saveSubscribeIntent(planId);
   selectedPlan = await loadPlan(planId);
   renderPlan(selectedPlan);
+  renderCardInstallments(selectedPlan);
 
   if (!getToken()) {
     handleLoginRequired(planId);
