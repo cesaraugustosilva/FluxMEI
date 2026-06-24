@@ -19,6 +19,12 @@ import {
   getRecentEfiBankPendingAttempt
 } from '../services/paymentStatusRules.js';
 import { logWebhookEvent, validateAsaasWebhook, validateEfiWebhook } from '../services/webhookSecurityService.js';
+import {
+  notifyPaymentConfirmed,
+  notifyPaymentPending,
+  notifySubscriptionCreated,
+  safelyNotify
+} from '../services/notificationService.js';
 import { sanitizeText } from '../utils/validation.js';
 
 const PENDING_PAYMENT_MESSAGE = 'Voce ja possui um pagamento pendente. Conclua ou aguarde a expiracao antes de gerar outro.';
@@ -131,6 +137,25 @@ function normalizeHistoryPayment(assinatura = {}) {
     valor: raw?.attempt?.valor_original ?? assinatura.valor ?? null,
     link: assinatura.checkout_url || raw?.payment?.invoice_url || raw?.payment?.bank_slip_url || null
   };
+}
+
+function isPaidReceiptStatus(status) {
+  const normalized = String(status || '').trim().toLowerCase();
+  return [
+    'received',
+    'confirmed',
+    'received_in_cash',
+    'paid',
+    'pago',
+    'concluida',
+    'settled'
+  ].includes(normalized);
+}
+
+async function getUserEmail(userId) {
+  const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);
+  if (error) return null;
+  return data?.user?.email || null;
 }
 
 function normalizeFieldName(field) {
@@ -859,6 +884,8 @@ async function criarPagamentoEfi(req, res, method) {
 
     if (method === 'cartao' && isEfiPaidStatus(payment?.status)) {
       updatedAssinatura = await aplicarPagamentoEfiNaAssinatura(payment, updatedAssinatura);
+    } else {
+      await safelyNotify(notifyPaymentPending, { assinatura: updatedAssinatura, payment, method });
     }
     logEfiPaymentCreated({ method, payment, plan, assinatura: updatedAssinatura, idempotencyKey });
     shouldReleaseLock = true;
@@ -953,6 +980,8 @@ async function criarPagamentoAsaas(req, res, method) {
     });
     if (method === 'cartao' && ASAAS_PAID_STATUSES.includes(String(payment?.status || '').trim().toLowerCase())) {
       updatedAssinatura = await aplicarPagamentoAsaasNaAssinatura(payment, updatedAssinatura);
+    } else {
+      await safelyNotify(notifyPaymentPending, { assinatura: updatedAssinatura, payment, method });
     }
     logAsaasPaymentCreated({ method, payment, plan, assinatura: updatedAssinatura });
     shouldReleaseLock = true;
@@ -1017,7 +1046,12 @@ async function aplicarPagamentoEfiNaAssinatura(payment, assinatura) {
     };
   }
 
-  return updateAssinaturaById(assinatura.id, updates);
+  const updated = await updateAssinaturaById(assinatura.id, updates);
+  if (updated.status === 'ativo' && updated.bloqueado === false) {
+    await safelyNotify(notifyPaymentConfirmed, { assinatura: updated, payment });
+    await safelyNotify(notifySubscriptionCreated, { assinatura: updated });
+  }
+  return updated;
 }
 
 async function aplicarPagamentoAsaasNaAssinatura(payment, assinatura, event = null) {
@@ -1032,7 +1066,12 @@ async function aplicarPagamentoAsaasNaAssinatura(payment, assinatura, event = nu
     };
   }
 
-  return updateAssinaturaById(assinatura.id, updates);
+  const updated = await updateAssinaturaById(assinatura.id, updates);
+  if (updated.status === 'ativo' && updated.bloqueado === false) {
+    await safelyNotify(notifyPaymentConfirmed, { assinatura: updated, payment });
+    await safelyNotify(notifySubscriptionCreated, { assinatura: updated });
+  }
+  return updated;
 }
 
 export async function statusPagamentoAsaas(req, res) {
@@ -1092,6 +1131,38 @@ export async function historicoPagamentos(req, res) {
   res.json({
     success: true,
     payments: (data || []).map(normalizeHistoryPayment)
+  });
+}
+
+export async function reciboPagamento(req, res) {
+  const paymentId = validatePaymentId(req.params.paymentId);
+  const { data: assinatura, error } = await supabaseAdmin
+    .from('assinaturas')
+    .select('id,user_id,created_at,paid_at,plano,valor,status,payment_provider,provider_payment_id,provider_status,provider_raw')
+    .eq('user_id', req.user.id)
+    .eq('provider_payment_id', paymentId)
+    .maybeSingle();
+
+  if (error) throw new AppError('Erro ao consultar recibo.', 500, error.message);
+  if (!assinatura) throw new AppError('Pagamento nao encontrado para este usuario.', 404);
+
+  const historyPayment = normalizeHistoryPayment(assinatura);
+  if (!isPaidReceiptStatus(historyPayment.status)) {
+    throw new AppError('Recibo disponivel apenas para pagamentos confirmados.', 400);
+  }
+
+  res.json({
+    success: true,
+    receipt: {
+      payment_id: historyPayment.id,
+      paid_at: assinatura.paid_at || assinatura.created_at || null,
+      plano: historyPayment.plano,
+      method: historyPayment.payment_method,
+      provider: assinatura.payment_provider || null,
+      status: 'paid',
+      valor: historyPayment.valor,
+      user_email: req.user.email || await getUserEmail(req.user.id)
+    }
   });
 }
 

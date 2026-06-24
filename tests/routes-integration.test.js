@@ -51,6 +51,17 @@ test('rota de historico de pagamentos exige autenticacao no Express', async () =
   });
 });
 
+test('rota de recibo de pagamento exige autenticacao no Express', async () => {
+  await withTestServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/pagamentos/pay-1/recibo`);
+
+    assert.equal(response.status, 401);
+    const payload = await response.json();
+    assert.equal(typeof payload, 'object');
+    assert.notEqual(payload, null);
+  });
+});
+
 test('rotas de gerenciamento de assinatura exigem autenticacao no Express', async () => {
   await withTestServer(async (baseUrl) => {
     for (const path of ['/api/assinaturas/cancelar', '/api/assinaturas/reativar']) {

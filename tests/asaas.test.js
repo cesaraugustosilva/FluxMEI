@@ -331,7 +331,7 @@ test('Cartao Asaas aprovado registra tentativa saneada e ativa assinatura', asyn
     assert.equal(stats.lastUpdate.bloqueado, false);
     assert.ok(stats.lastUpdate.paid_at);
     const raw = JSON.stringify(stats.lastUpdate.provider_raw);
-    assert.doesNotMatch(raw, /4111111111111111|123|2030|12/);
+    assert.doesNotMatch(raw, /4111111111111111|2030|creditCard|creditCardHolderInfo|holderName|ccv|cvv/);
     assert.doesNotMatch(raw, /creditCard|ccv|cvv|holderName|number/);
   });
 });

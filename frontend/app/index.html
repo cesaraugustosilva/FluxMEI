@@ -175,6 +175,8 @@
       </div>
     </div>
 
+    <section class="smart-alerts" id="dashboardSmartAlerts" aria-label="Avisos importantes"></section>
+
     <!-- DAS Alert -->
     <div class="das-alert" id="dasAlert" style="display:none"></div>
 
@@ -624,6 +626,8 @@
       </div>
     </div>
 
+    <section class="smart-alerts account-smart-alerts" id="accountSmartAlerts" aria-label="Avisos importantes da assinatura"></section>
+
     <section class="account-subscription-hero" aria-label="Minha assinatura">
       <div class="account-hero-copy">
         <span>Minha assinatura</span>
@@ -700,6 +704,25 @@
       <button class="btn btn-outline" type="button" data-logout>Sair</button>
     </footer>
   </section>
+</div>
+
+<!-- Modal Recibo -->
+<div class="modal-backdrop" id="modalRecibo">
+  <div class="modal receipt-modal">
+    <div class="modal-header">
+      <h2>Recibo de pagamento</h2>
+      <button class="modal-close" type="button" id="receiptClose" aria-label="Fechar">x</button>
+    </div>
+    <div class="modal-body">
+      <div class="receipt-printable" id="receiptContent">
+        <div class="receipt-loading">Carregando recibo...</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" type="button" id="receiptCloseFooter">Fechar</button>
+      <button class="btn btn-primary" type="button" id="receiptPrintAction">Baixar PDF</button>
+    </div>
+  </div>
 </div>
 
 <!-- Modal Confirmacao -->

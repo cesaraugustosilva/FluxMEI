@@ -277,9 +277,25 @@ function renderSubscriptionNotice(status) {
 
   const estado = status.estado || status.status;
   const isBlocked = status.bloqueado || ['expirado', 'bloqueado', 'pendente_pagamento', 'vencido', 'pendente'].includes(estado);
+  const topAlert = buildSmartAlerts(status, { includeActive: false })[0];
+
+  if (topAlert) {
+    banner.className = `subscription-banner ${topAlert.tone}${topAlert.urgent ? ' urgent' : ''}`;
+    if (bannerTitle) bannerTitle.textContent = topAlert.title;
+    if (bannerText) bannerText.textContent = topAlert.message;
+    if (bannerAction) {
+      bannerAction.textContent = topAlert.actionLabel;
+      bannerAction.href = topAlert.href || '#';
+      bannerAction.dataset.smartAlertAction = topAlert.action || '';
+      bannerAction.dataset.smartAlertUrl = topAlert.href || '';
+      bannerAction.style.display = topAlert.actionLabel ? '' : 'none';
+    }
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+  }
 
   if (isBlocked) {
-    banner.style.display = 'none';
     if (lockTitle) {
       lockTitle.textContent = estado === 'pendente_pagamento'
         ? 'Pagamento pendente'
@@ -293,29 +309,6 @@ function renderSubscriptionNotice(status) {
   }
 
   lock.style.display = 'none';
-
-  if (estado === 'teste_gratis') {
-    const dias = Number(status.dias_restantes || 0);
-    if (bannerTitle) bannerTitle.textContent = dias <= 2 ? 'Seu teste gratis termina em breve' : 'Teste gratis ativo';
-    if (bannerText) {
-      bannerText.textContent = status.mensagem || (
-        dias <= 2
-          ? 'Assine agora para continuar usando sem interrupcoes.'
-          : `Voce esta no teste gratis do FluxMEI. Faltam ${dias} dia(s) para o fim do teste.`
-      );
-    }
-    banner.className = `subscription-banner${dias <= 2 ? ' warning' : ''}`;
-    if (bannerAction) bannerAction.style.display = '';
-    banner.style.display = 'flex';
-    return;
-  }
-
-  if (estado === 'ativo') {
-    banner.style.display = 'none';
-    return;
-  }
-
-  banner.style.display = 'none';
 }
 function getPlanLabel(status = subscriptionStatus) {
   const plano = status?.plano || 'gratuito';
@@ -361,6 +354,145 @@ function getPaymentStatusMeta(status) {
   if (['refunded', 'estornado'].includes(normalized)) return { label: 'Estornado', className: 'refunded' };
   if (['canceled', 'cancelled', 'deleted', 'deleted_payment'].includes(normalized)) return { label: 'Cancelado', className: 'canceled' };
   return { label: status ? String(status) : '--', className: 'pending' };
+}
+
+function isReceiptEligible(status) {
+  return getPaymentStatusMeta(status).className === 'paid';
+}
+
+function getPendingPayment() {
+  const payments = Array.isArray(state.paymentHistory) ? state.paymentHistory : [];
+  return payments.find((payment) => getPaymentStatusMeta(payment.status).className === 'pending') || null;
+}
+
+function buildPaymentPendingAlert(payment) {
+  const method = getPaymentMethodMeta(payment?.payment_method || payment?.method);
+  const date = payment?.created_at || payment?.date ? formatDate(payment.created_at || payment.date) : '--';
+  const value = payment?.valor != null ? formatBRL(Number(payment.valor || 0)) : '--';
+
+  return {
+    id: 'pagamento-pendente',
+    tone: 'info',
+    title: 'Existe um pagamento aguardando confirmação.',
+    message: `Metodo: ${method.label}. Valor: ${value}. Data: ${date}.`,
+    actionLabel: 'Ver pagamento',
+    action: 'payment',
+    href: payment?.link || ''
+  };
+}
+
+function buildSmartAlerts(status = subscriptionStatus, options = {}) {
+  const includeActive = options.includeActive !== false;
+  const alerts = [];
+  const estado = status?.estado || status?.status;
+  const dias = Number(status?.dias_restantes || 0);
+  const currentPlanId = getCurrentPlanId(status);
+  const currentPlan = getPlanById(currentPlanId);
+  const checkoutUrl = getCheckoutUrlForPlan(currentPlanId && currentPlanId !== 'gratuito' ? currentPlanId : 'pro_mensal');
+  const pendingPayment = getPendingPayment();
+
+  if (estado === 'expirado' || estado === 'vencido' || estado === 'bloqueado') {
+    alerts.push({
+      id: 'trial-expirado',
+      tone: 'danger',
+      title: 'Seu período de teste terminou.',
+      message: 'Escolha um plano para continuar usando o FluxMEI sem interrupções.',
+      actionLabel: 'Escolher plano',
+      action: 'checkout',
+      href: '/checkout/',
+      urgent: true
+    });
+    return alerts;
+  }
+
+  if (status?.cancel_at_period_end || estado === 'cancelamento_agendado') {
+    alerts.push({
+      id: 'cancelamento-agendado',
+      tone: 'warning',
+      title: 'Cancelamento agendado',
+      message: `Sua assinatura será encerrada em ${status?.data_vencimento ? formatDate(status.data_vencimento) : 'fim do ciclo atual'}.`,
+      actionLabel: 'Reativar assinatura',
+      action: 'reactivate',
+      href: '#'
+    });
+  }
+
+  if (pendingPayment || ['pendente_pagamento', 'pendente'].includes(estado)) {
+    alerts.push(buildPaymentPendingAlert(pendingPayment || {
+      method: status?.ultimo_pagamento_metodo,
+      valor: currentPlan?.preco,
+      date: status?.data_inicio
+    }));
+  }
+
+  if (estado === 'teste_gratis') {
+    if (dias <= 3) {
+      alerts.push({
+        id: 'trial-fim',
+        tone: 'warning',
+        title: 'Seu período gratuito termina em breve.',
+        message: `Seu período gratuito termina em ${dias} dia(s).`,
+        actionLabel: 'Assinar agora',
+        action: 'checkout',
+        href: '/checkout/?plan=pro_mensal',
+        urgent: dias <= 1
+      });
+    }
+    return alerts;
+  }
+
+  if (estado === 'ativo') {
+    if (dias <= 7) {
+      alerts.push({
+        id: 'assinatura-vence',
+        tone: dias <= 3 ? 'warning urgent' : 'warning',
+        title: 'Assinatura vence em breve',
+        message: `Seu plano vence em ${dias} dia(s). Evite interrupções renovando sua assinatura.`,
+        actionLabel: 'Renovar agora',
+        action: 'checkout',
+        href: checkoutUrl,
+        urgent: dias <= 3
+      });
+    } else if (includeActive) {
+      alerts.push({
+        id: 'assinatura-ativa',
+        tone: 'success',
+        title: 'Seu plano está ativo.',
+        message: `${getPaymentPlanLabel(status?.plano)} · Vencimento: ${status?.data_vencimento ? formatDate(status.data_vencimento) : '--'} · Status: Ativo.`,
+        actionLabel: 'Ver assinatura',
+        action: 'account',
+        href: '#'
+      });
+    }
+  }
+
+  return alerts;
+}
+
+function renderSmartAlerts(rootId, options = {}) {
+  const root = document.getElementById(rootId);
+  if (!root) return;
+
+  const alerts = buildSmartAlerts(subscriptionStatus, options);
+  if (!alerts.length) {
+    root.innerHTML = '';
+    root.hidden = true;
+    return;
+  }
+
+  root.hidden = false;
+  root.innerHTML = alerts.map((alert) => `
+    <article class="smart-alert ${esc(alert.tone)}" data-alert-id="${esc(alert.id)}">
+      <div class="smart-alert-body">
+        <strong>${esc(alert.title)}</strong>
+        <span>${esc(alert.message)}</span>
+      </div>
+      <div class="smart-alert-actions">
+        ${alert.actionLabel ? `<button class="btn btn-sm ${alert.tone.includes('danger') ? 'btn-danger' : 'btn-primary'}" type="button" data-smart-alert-action="${esc(alert.action)}" data-smart-alert-url="${esc(alert.href || '')}">${esc(alert.actionLabel)}</button>` : ''}
+        <button class="smart-alert-close" type="button" data-smart-alert-close aria-label="Fechar aviso">x</button>
+      </div>
+    </article>
+  `).join('');
 }
 
 function getPlanById(planId) {
@@ -509,6 +641,45 @@ function scrollToPaymentHistory() {
   if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+function handleSmartAlertClick(event) {
+  const closeButton = event.target.closest('[data-smart-alert-close]');
+  if (closeButton) {
+    closeButton.closest('.smart-alert, .subscription-banner')?.remove();
+    return;
+  }
+
+  const actionButton = event.target.closest('[data-smart-alert-action]');
+  if (!actionButton) return;
+
+  event.preventDefault();
+  const action = actionButton.dataset.smartAlertAction;
+  const url = actionButton.dataset.smartAlertUrl;
+
+  if (action === 'checkout') {
+    window.location.href = url || '/checkout/';
+    return;
+  }
+
+  if (action === 'reactivate') {
+    reactivateSubscription();
+    return;
+  }
+
+  if (action === 'payment') {
+    if (url) {
+      window.open(url, '_blank', 'noopener');
+      return;
+    }
+    openAccountPanel();
+    window.setTimeout(scrollToPaymentHistory, 120);
+    return;
+  }
+
+  if (action === 'account') {
+    openAccountPanel();
+  }
+}
+
 function renderAccountPanel() {
   const nome = state.profile?.nome || state.config.nome || state.user?.user_metadata?.nome || 'Usuario FluxMEI';
   const email = state.user?.email || 'Email nao informado';
@@ -645,6 +816,7 @@ function renderAccountPanel() {
   if (reactivateAction) {
     reactivateAction.hidden = !canReactivate;
   }
+  renderSmartAlerts('accountSmartAlerts', { includeActive: true });
   renderPaymentHistory();
 }
 
@@ -668,8 +840,14 @@ function renderPaymentHistory() {
     const status = getPaymentStatusMeta(payment.status);
     const date = payment.paid_at || payment.created_at;
     const provider = payment.provider ? String(payment.provider).toUpperCase() : '--';
-    const action = payment.link
+    const externalAction = payment.link
       ? `<a class="account-payment-action" href="${esc(payment.link)}" target="_blank" rel="noopener">Abrir</a>`
+      : '';
+    const receiptAction = isReceiptEligible(payment.status)
+      ? `<button class="account-payment-action receipt-link" type="button" data-receipt-id="${esc(payment.id)}">Ver recibo</button>`
+      : '';
+    const action = externalAction || receiptAction
+      ? `<div class="account-payment-actions">${externalAction}${receiptAction}</div>`
       : '<span class="account-payment-action muted">--</span>';
 
     return `
@@ -689,6 +867,92 @@ function renderPaymentHistory() {
       </article>
     `;
   }).join('');
+}
+
+function receiptPlanLabel(planId) {
+  if (planId === 'pro_anual') return 'Plano Pro Anual';
+  if (planId === 'pro_mensal') return 'Plano Pro Mensal';
+  return getPaymentPlanLabel(planId);
+}
+
+function renderReceipt(receipt) {
+  const content = document.getElementById('receiptContent');
+  if (!content) return;
+  const method = getPaymentMethodMeta(receipt.method);
+  const provider = receipt.provider ? String(receipt.provider).toUpperCase() : '--';
+
+  content.innerHTML = `
+    <section class="receipt-card">
+      <div class="receipt-brand">FluxMEI</div>
+      <h3>Recibo de pagamento</h3>
+      <p>Este recibo confirma o pagamento da assinatura FluxMEI referente ao plano contratado.</p>
+      <dl class="receipt-details">
+        <div><dt>ID do pagamento</dt><dd>${esc(receipt.payment_id)}</dd></div>
+        <div><dt>Data do pagamento</dt><dd>${receipt.paid_at ? formatDate(receipt.paid_at) : '--'}</dd></div>
+        <div><dt>Plano</dt><dd>${esc(receiptPlanLabel(receipt.plano))}</dd></div>
+        <div><dt>Metodo</dt><dd>${esc(method.label)}</dd></div>
+        <div><dt>Valor</dt><dd>${formatBRL(receipt.valor || 0)}</dd></div>
+        <div><dt>Status</dt><dd>Pago</dd></div>
+        <div><dt>Provedor</dt><dd>${esc(provider)}</dd></div>
+        <div><dt>Usuario/email</dt><dd>${esc(receipt.user_email || '--')}</dd></div>
+      </dl>
+    </section>
+  `;
+}
+
+async function openPaymentReceipt(paymentId) {
+  if (!paymentId) return;
+  const modal = document.getElementById('modalRecibo');
+  const content = document.getElementById('receiptContent');
+  if (content) content.innerHTML = '<div class="receipt-loading">Carregando recibo...</div>';
+  if (modal) modal.classList.add('open');
+
+  try {
+    const response = await apiRequest(`/pagamentos/${encodeURIComponent(paymentId)}/recibo`);
+    renderReceipt(response.receipt);
+  } catch (error) {
+    if (content) {
+      content.innerHTML = `<div class="account-history-state error">${esc(error.message || 'Nao foi possivel carregar o recibo agora.')}</div>`;
+    }
+  }
+}
+
+function closeReceiptModal() {
+  closeModal('modalRecibo');
+}
+
+function printReceipt() {
+  const content = document.getElementById('receiptContent');
+  if (!content) return;
+  const printWindow = window.open('', '_blank', 'noopener');
+  if (!printWindow) {
+    window.print();
+    return;
+  }
+  printWindow.document.write(`
+    <!doctype html>
+    <html lang="pt-BR">
+      <head>
+        <meta charset="utf-8">
+        <title>Recibo de pagamento FluxMEI</title>
+        <style>
+          body { margin: 0; padding: 32px; font-family: Arial, sans-serif; color: #10231a; background: #fff; }
+          .receipt-card { max-width: 720px; margin: 0 auto; border: 1px solid #d8eadf; border-radius: 12px; padding: 28px; }
+          .receipt-brand { color: #087333; font-weight: 900; font-size: 15px; }
+          h3 { margin: 10px 0 8px; font-size: 26px; }
+          p { color: #334844; line-height: 1.5; }
+          dl { display: grid; gap: 10px; margin-top: 20px; }
+          dl div { display: flex; justify-content: space-between; gap: 20px; border-bottom: 1px solid #e5efe9; padding: 10px 0; }
+          dt { color: #6f8780; font-weight: 700; }
+          dd { margin: 0; font-weight: 800; text-align: right; }
+        </style>
+      </head>
+      <body>${content.innerHTML}</body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
 }
 
 function openAccountPanel() {
@@ -852,9 +1116,9 @@ async function loadState() {
   ]);
 
   state.user = me.user;
-  renderSubscriptionNotice(assinaturaStatus);
   await loadAvailablePlans();
   await loadPaymentHistory();
+  renderSubscriptionNotice(assinaturaStatus);
 
   if (assinaturaStatus?.bloqueado) {
     state.profile = me.profile;
@@ -1091,6 +1355,7 @@ function renderDashboard() {
   const mesSelecionado = getDashboardMes();
   syncDashboardMesInput();
   const movMes = filtrarMes(state.movimentacoes, mesSelecionado);
+  renderSmartAlerts('dashboardSmartAlerts', { includeActive: true });
 
   const entradas = movMes.filter(m=>m.tipo==='entrada').reduce((s,m)=>s+m.valor,0);
   const saidas   = movMes.filter(m=>m.tipo==='saida').reduce((s,m)=>s+m.valor,0);
@@ -2379,6 +2644,14 @@ async function init() {
   document.getElementById('accountQuickHistory')?.addEventListener('click', scrollToPaymentHistory);
   document.getElementById('accountCancelAction')?.addEventListener('click', cancelSubscription);
   document.getElementById('accountReactivateAction')?.addEventListener('click', reactivateSubscription);
+  document.getElementById('receiptClose')?.addEventListener('click', closeReceiptModal);
+  document.getElementById('receiptCloseFooter')?.addEventListener('click', closeReceiptModal);
+  document.getElementById('receiptPrintAction')?.addEventListener('click', printReceipt);
+  document.getElementById('accountPaymentHistory')?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-receipt-id]');
+    if (button) openPaymentReceipt(button.dataset.receiptId);
+  });
+  document.addEventListener('click', handleSmartAlertClick);
   document.getElementById('accountModal')?.addEventListener('click', (event) => {
     if (event.target.id === 'accountModal') closeAccountPanel();
   });

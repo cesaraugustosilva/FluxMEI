@@ -117,6 +117,20 @@ create table if not exists public.payment_attempt_locks (
   constraint payment_attempt_locks_user_provider_plan_key unique (user_id, provider, plano)
 );
 
+create table if not exists public.notification_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  type text not null,
+  event_key text not null,
+  provider text not null default 'email',
+  status text not null default 'pending' check (status in ('pending', 'sent', 'skipped', 'failed')),
+  metadata jsonb,
+  sent_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint notification_events_user_type_event_key unique (user_id, type, event_key)
+);
+
 create index if not exists idx_profiles_id on public.profiles(id);
 create index if not exists idx_movimentacoes_user_data on public.movimentacoes(user_id, data);
 create index if not exists idx_movimentacoes_user_tipo on public.movimentacoes(user_id, tipo);
@@ -130,6 +144,7 @@ create index if not exists idx_assinaturas_user_created on public.assinaturas(us
 create index if not exists idx_assinaturas_provider_payment on public.assinaturas(payment_provider, provider_payment_id);
 create index if not exists idx_assinaturas_provider_subscription on public.assinaturas(payment_provider, provider_subscription_id);
 create index if not exists idx_payment_attempt_locks_expires on public.payment_attempt_locks(provider, plano, status, expires_at);
+create index if not exists idx_notification_events_user_created on public.notification_events(user_id, created_at desc);
 
 drop trigger if exists set_profiles_updated_at on public.profiles;
 create trigger set_profiles_updated_at before update on public.profiles
@@ -162,6 +177,7 @@ alter table public.das enable row level security;
 alter table public.relatorios_ia enable row level security;
 alter table public.assinaturas enable row level security;
 alter table public.payment_attempt_locks enable row level security;
+alter table public.notification_events enable row level security;
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own" on public.profiles
@@ -240,6 +256,10 @@ using (auth.uid() = user_id);
 drop policy if exists "assinaturas_insert_own" on public.assinaturas;
 drop policy if exists "assinaturas_update_own" on public.assinaturas;
 drop policy if exists "assinaturas_delete_own" on public.assinaturas;
+
+drop policy if exists "notification_events_select_own" on public.notification_events;
+create policy "notification_events_select_own" on public.notification_events
+for select using (auth.uid() = user_id);
 
 create or replace function public.acquire_payment_attempt_lock(
   p_user_id uuid,

@@ -37,6 +37,7 @@ Banco existente:
 2. Execute `database/migrate_payment_provider_fields.sql` se o banco ainda nao tiver `payment_provider`, `provider_payment_id`, `provider_customer_id`, `provider_subscription_id`, `provider_status` e `provider_raw`.
 3. Execute `database/migrate_fix_assinaturas_rls.sql`.
 4. Execute `database/migrate_payment_attempt_locks.sql`.
+5. Execute `database/migrate_subscription_management.sql` para cancelamento/reativacao e deduplicacao de notificacoes.
 
 ## Rodar
 
@@ -118,6 +119,18 @@ https://fluxmei.onrender.com/api/webhooks/asaas
 Eventos minimos: `PAYMENT_RECEIVED`, `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED_IN_CASH`, `PAYMENT_OVERDUE`, `PAYMENT_DELETED`, `PAYMENT_REFUNDED` e `PAYMENT_CHARGEBACK_REQUESTED`.
 
 O backend valida o header `asaas-access-token` com `ASAAS_WEBHOOK_TOKEN` e consulta o Asaas antes de ativar assinatura. Cartao aprovado imediatamente tambem ativa a assinatura no retorno da criacao; pagamentos pendentes aguardam webhook.
+
+## E-mails Automaticos
+
+O FluxMEI envia e-mails transacionais com provider isolado em `backend/src/services/emailService.js` e templates em `backend/src/services/notificationService.js`.
+
+```env
+EMAIL_PROVIDER=resend
+RESEND_API_KEY=sua_chave_resend
+EMAIL_FROM=FluxMEI <no-reply@seudominio.com>
+```
+
+Eventos cobertos: pagamento confirmado, boas-vindas ao Pro, pagamento pendente, assinatura vencendo em 7/3 dias, assinatura vencida, cancelamento agendado e reativacao. A tabela `notification_events` evita envio duplicado por usuario, tipo e chave de evento.
 
 ## Efí Bank
 

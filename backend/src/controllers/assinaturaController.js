@@ -1,6 +1,12 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
 import { assinaturaService, PLANOS } from '../services/assinaturaService.js';
+import {
+  notifyCancellationScheduled,
+  notifySubscriptionLifecycle,
+  notifySubscriptionReactivated,
+  safelyNotify
+} from '../services/notificationService.js';
 
 const TRIAL_DAYS = assinaturaService.TRIAL_DAYS;
 const TRIAL_STATUS = assinaturaService.TRIAL_STATUS;
@@ -72,7 +78,9 @@ export async function planos(req, res) {
 }
 
 export async function statusAssinatura(req, res) {
-  res.json(await assinaturaService.getSubscriptionStatus(req.user.id));
+  const status = await assinaturaService.getSubscriptionStatus(req.user.id);
+  await safelyNotify(notifySubscriptionLifecycle, status, req.user.id);
+  res.json(status);
 }
 
 export async function listAssinaturas(req, res) {
@@ -158,6 +166,7 @@ export async function cancelarAssinatura(req, res) {
     .single();
 
   if (error) throw new AppError('Erro ao cancelar assinatura.', 500, error.message);
+  await safelyNotify(notifyCancellationScheduled, { assinatura: data });
   res.json({
     success: true,
     message: preserveAccess
@@ -195,6 +204,7 @@ export async function reativarAssinatura(req, res) {
     .single();
 
   if (error) throw new AppError('Erro ao reativar assinatura.', 500, error.message);
+  await safelyNotify(notifySubscriptionReactivated, { assinatura: data });
   res.json({
     success: true,
     action: 'reactivated',

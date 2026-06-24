@@ -40,6 +40,9 @@ ASAAS_API_KEY=sua_api_key_asaas
 ASAAS_BASE_URL=https://api.asaas.com/v3
 ASAAS_WEBHOOK_TOKEN=seu_token_webhook_asaas
 ASAAS_WEBHOOK_URL=https://fluxmei.onrender.com/api/webhooks/asaas
+EMAIL_PROVIDER=resend
+RESEND_API_KEY=sua_chave_resend
+EMAIL_FROM=FluxMEI <no-reply@seudominio.com>
 EFI_CLIENT_ID=seu_client_id_efi
 EFI_CLIENT_SECRET=seu_client_secret_efi
 EFI_ENVIRONMENT=sandbox
@@ -60,6 +63,7 @@ Observacoes:
 - `SUPABASE_JWT_SECRET` e opcional e nao e usado pelo middleware atual. Configure apenas se uma validacao local de JWT Supabase for implementada no futuro.
 - `JWT_SECRET` e reservado para tokens proprios do FluxMEI, se existirem no futuro. Nao use `JWT_SECRET` para validar Supabase Auth JWT.
 - Em producao, `ASAAS_WEBHOOK_TOKEN` e obrigatorio para validar eventos do Asaas.
+- Configure `RESEND_API_KEY` somente no Render/backend para e-mails automaticos. Nao coloque essa chave na Vercel.
 - Se usar Efí como fallback, `EFI_WEBHOOK_SECRET` tambem deve ser configurado.
 - Em producao, `/api/dev/*` nao e registrado.
 
