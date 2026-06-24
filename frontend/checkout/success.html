@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Pagamento confirmado no FluxMEI" />
+  <meta name="theme-color" content="#48D52F" />
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <title>Pagamento confirmado | FluxMEI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="success.css" />
+</head>
+<body>
+  <main class="success-shell">
+    <section class="success-card" aria-label="Pagamento confirmado">
+      <div class="success-mark" aria-hidden="true">OK</div>
+      <p class="eyebrow">FluxMEI Pro</p>
+      <h1>Pagamento confirmado!</h1>
+      <p class="success-subtitle">Seu acesso ao FluxMEI foi liberado com sucesso.</p>
+
+      <section class="payment-summary" aria-label="Resumo do pagamento">
+        <div>
+          <span>Plano contratado</span>
+          <strong id="successPlan">Carregando...</strong>
+        </div>
+        <div>
+          <span>Metodo utilizado</span>
+          <strong id="successMethod">Carregando...</strong>
+        </div>
+        <div>
+          <span>Data da confirmacao</span>
+          <strong id="successDate">Carregando...</strong>
+        </div>
+        <div>
+          <span>Status</span>
+          <strong id="successStatus">Ativo</strong>
+        </div>
+      </section>
+
+      <section class="pro-card" aria-label="FluxMEI Pro ativo">
+        <strong>FluxMEI Pro Ativo</strong>
+        <ul>
+          <li>Assinatura liberada</li>
+          <li>Recursos desbloqueados</li>
+          <li>Renovacao registrada</li>
+        </ul>
+      </section>
+
+      <div class="success-actions">
+        <a class="primary-action" id="dashboardButton" href="/app/">Ir para o Dashboard</a>
+        <a class="secondary-action" id="accountButton" href="/app/#minha-conta">Ver minha assinatura</a>
+      </div>
+
+      <p class="success-note" id="successNote">Validamos sua assinatura com seguranca antes de liberar esta confirmacao.</p>
+    </section>
+  </main>
+
+  <script src="/env.js"></script>
+  <script src="success.js"></script>
+</body>
+</html>

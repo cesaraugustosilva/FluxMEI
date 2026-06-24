@@ -8,7 +8,7 @@
   --muted-2: #d7f7dc;
   --panel: rgba(8, 18, 15, 0.86);
   --panel-soft: rgba(255, 255, 255, 0.07);
-  --line: rgba(184, 255, 160, 0.16);
+  --line: rgba(184, 255, 160, 0.13);
   --line-strong: rgba(72, 213, 47, 0.48);
   --danger: #ffb4ad;
   --warning: #ffd37a;
@@ -62,6 +62,7 @@ a { color: inherit; text-decoration: none; }
 .secure-pill,
 .payment-badge,
 .plan-economy-badge,
+.plan-savings-badge,
 .secure-mini,
 .pix-status {
   display: inline-flex;
@@ -137,24 +138,24 @@ a { color: inherit; text-decoration: none; }
 
 .checkout-layout {
   display: grid;
-  grid-template-columns: minmax(320px, 0.9fr) minmax(430px, 1.1fr);
-  gap: 20px;
+  grid-template-columns: minmax(330px, 0.92fr) minmax(460px, 1.08fr);
+  gap: 24px;
   align-items: start;
 }
 
 .checkout-card {
-  border: 1px solid var(--line);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.105), rgba(255, 255, 255, 0.045)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.055)),
     var(--panel);
-  box-shadow: var(--shadow);
+  box-shadow: 0 34px 110px rgba(0, 0, 0, 0.46);
   backdrop-filter: blur(18px);
 }
 
 .summary-card,
 .payment-card {
-  padding: 22px;
+  padding: 24px;
 }
 
 .checkout-intro {
@@ -191,19 +192,39 @@ a { color: inherit; text-decoration: none; }
 .selected-plan {
   position: relative;
   display: grid;
-  gap: 14px;
-  padding: 18px;
-  border-color: rgba(72, 213, 47, 0.32);
+  gap: 18px;
+  padding: 24px;
+  border: 0;
   background:
-    linear-gradient(135deg, rgba(72, 213, 47, 0.16), rgba(50, 213, 210, 0.08)),
-    rgba(255, 255, 255, 0.065);
+    linear-gradient(140deg, rgba(72, 213, 47, 0.24), rgba(50, 213, 210, 0.09) 46%, rgba(255, 255, 255, 0.075)),
+    rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 22px 60px rgba(0, 0, 0, 0.22);
 }
 
-.plan-economy-badge {
+.plan-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.plan-economy-badge,
+.plan-savings-badge {
   width: fit-content;
   padding: 0 10px;
   background: linear-gradient(135deg, var(--green), var(--green-2));
   color: #041008;
+}
+
+.plan-savings-badge {
+  background: rgba(142, 235, 43, 0.15);
+  color: var(--green-2);
+  box-shadow: inset 0 0 0 1px rgba(142, 235, 43, 0.28);
+}
+
+.plan-economy-badge[hidden],
+.plan-savings-badge[hidden],
+.plan-installment[hidden] {
+  display: none;
 }
 
 .selected-plan span,
@@ -233,23 +254,39 @@ a { color: inherit; text-decoration: none; }
 .plan-price {
   display: flex;
   align-items: flex-end;
-  gap: 9px;
+  gap: 10px;
 }
 
 .plan-price strong {
   font-family: "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
-  font-size: clamp(2rem, 6vw, 3rem);
+  font-size: clamp(2.8rem, 7vw, 4.35rem);
   line-height: 1;
+  color: #ffffff;
+  text-shadow: 0 12px 34px rgba(72, 213, 47, 0.18);
 }
 
 .plan-price span {
-  padding-bottom: 4px;
+  padding-bottom: 7px;
+  color: var(--green-2);
+  font-size: 1rem;
+  font-weight: 900;
 }
 
-.plan-economy {
+.plan-economy,
+.plan-installment {
   margin: 0;
-  color: var(--muted);
+  color: #e6ffec;
   line-height: 1.5;
+  font-weight: 750;
+}
+
+.plan-installment {
+  width: fit-content;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: rgba(4, 16, 8, 0.34);
+  color: var(--green-2);
+  font-weight: 900;
 }
 
 .plan-renewal {
@@ -312,20 +349,49 @@ a { color: inherit; text-decoration: none; }
 }
 
 .benefits-list li::before {
-  content: "OK";
-  color: var(--green-2);
-  font-size: 0.62rem;
-  font-weight: 900;
+  content: "";
+  width: 9px;
+  height: 9px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 14px rgba(72, 213, 47, 0.62);
 }
 
-.security-box span {
-  color: var(--muted);
-  line-height: 1.45;
+.security-box {
+  border: 0;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.security-list {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.security-list li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  color: var(--muted-2);
+  font-weight: 750;
+}
+
+.security-list li::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 16px rgba(72, 213, 47, 0.7);
 }
 
 .trust-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin-top: 14px;
 }
@@ -338,6 +404,7 @@ a { color: inherit; text-decoration: none; }
   color: var(--muted-2);
   font-size: 0.84rem;
   font-weight: 800;
+  text-align: center;
 }
 
 .checkout-actions {
@@ -387,6 +454,11 @@ a { color: inherit; text-decoration: none; }
   gap: 8px;
 }
 
+.billing-document-panel small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
 .billing-document-panel input,
 .card-form-grid input,
 .card-form-grid select,
@@ -422,18 +494,19 @@ a { color: inherit; text-decoration: none; }
 .payment-methods {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: 16px;
+  margin: 4px 0 18px;
 }
 
 .method-card {
+  position: relative;
   display: grid;
-  min-height: 134px;
-  gap: 6px;
-  padding: 14px;
-  border: 1px solid var(--line);
+  min-height: 184px;
+  gap: 9px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.105);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.055);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--ink);
   cursor: pointer;
   text-align: left;
@@ -443,20 +516,37 @@ a { color: inherit; text-decoration: none; }
 .method-card:hover,
 .method-card.is-selected {
   transform: translateY(-1px);
-  border-color: var(--line-strong);
-  background: rgba(72, 213, 47, 0.105);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
+  border-color: rgba(142, 235, 43, 0.76);
+  background:
+    linear-gradient(180deg, rgba(72, 213, 47, 0.17), rgba(72, 213, 47, 0.07)),
+    rgba(255, 255, 255, 0.07);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.22), inset 0 0 0 1px rgba(142, 235, 43, 0.14);
+}
+
+.method-card.is-selected::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 2px rgba(142, 235, 43, 0.54);
+  pointer-events: none;
 }
 
 .method-icon {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 54px;
+  height: 54px;
   place-items: center;
   border-radius: 8px;
-  background: rgba(72, 213, 47, 0.16);
+  background: rgba(72, 213, 47, 0.18);
   color: var(--green-2);
-  font-weight: 900;
+  box-shadow: inset 0 0 0 1px rgba(142, 235, 43, 0.16);
+}
+
+.method-icon svg {
+  width: 31px;
+  height: 31px;
+  fill: currentColor;
 }
 
 .method-card > span:not(.method-icon) {
@@ -469,13 +559,25 @@ a { color: inherit; text-decoration: none; }
 
 .method-card strong {
   color: #ffffff;
-  font-size: 0.98rem;
+  font-size: 1rem;
   line-height: 1.25;
 }
 
 .method-card small {
   color: var(--muted);
   line-height: 1.35;
+}
+
+.method-card em {
+  width: fit-content;
+  margin-top: 2px;
+  padding: 7px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.075);
+  color: #eaffee;
+  font-size: 0.76rem;
+  font-style: normal;
+  font-weight: 900;
 }
 
 .status-panel {
@@ -563,10 +665,11 @@ a { color: inherit; text-decoration: none; }
 .boleto-panel,
 .pix-panel {
   display: grid;
-  gap: 13px;
-  margin: 14px 0;
-  padding: 16px;
-  border-color: rgba(50, 213, 210, 0.28);
+  gap: 16px;
+  margin: 16px 0;
+  padding: 20px;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.055);
 }
 
 .pix-generate-panel[hidden],
@@ -629,6 +732,15 @@ a { color: inherit; text-decoration: none; }
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.installments-field {
+  border: 1px solid rgba(142, 235, 43, 0.42);
+  border-radius: 8px;
+  padding: 12px;
+  background:
+    linear-gradient(135deg, rgba(72, 213, 47, 0.13), rgba(50, 213, 210, 0.05)),
+    rgba(72, 213, 47, 0.075);
+}
+
 .card-panel-head {
   display: flex;
   align-items: flex-start;
@@ -636,10 +748,28 @@ a { color: inherit; text-decoration: none; }
   gap: 12px;
 }
 
+.card-brand-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.card-brand-strip span {
+  min-width: 76px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-align: center;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
 .card-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 13px;
 }
 
 .card-form-grid label {
@@ -657,7 +787,7 @@ a { color: inherit; text-decoration: none; }
 
 .boleto-link {
   display: inline-flex;
-  min-height: 46px;
+  min-height: 56px;
   align-items: center;
   justify-content: center;
   border: 0;
@@ -665,6 +795,28 @@ a { color: inherit; text-decoration: none; }
   background: linear-gradient(135deg, var(--green), var(--green-2));
   color: #06120a;
   font-weight: 900;
+  box-shadow: 0 16px 36px rgba(72, 213, 47, 0.18);
+}
+
+#boletoDueDate {
+  display: inline-flex;
+  width: fit-content;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 211, 122, 0.38);
+  border-radius: 8px;
+  background: rgba(255, 211, 122, 0.12);
+  color: var(--warning);
+  font-weight: 900;
+}
+
+#boletoDueDate:empty {
+  display: none;
+}
+
+.boleto-note {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 .brick-shell {
@@ -704,18 +856,30 @@ a { color: inherit; text-decoration: none; }
   color: var(--warning);
 }
 
+.pix-status::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+  animation: pulse 1.45s ease-in-out infinite;
+}
+
 .pix-qr-wrap {
   display: grid;
-  min-height: 240px;
+  min-height: 340px;
   place-items: center;
-  padding: 16px;
+  padding: 24px;
   border-radius: 8px;
-  background: #ffffff;
+  background:
+    linear-gradient(180deg, #ffffff, #f2fff4);
+  box-shadow: inset 0 0 0 1px rgba(4, 16, 8, 0.08), 0 20px 60px rgba(0, 0, 0, 0.2);
 }
 
 .pix-qr-wrap img {
   display: block;
-  width: min(232px, 100%);
+  width: min(320px, 100%);
   height: auto;
 }
 
@@ -739,7 +903,8 @@ a { color: inherit; text-decoration: none; }
 }
 
 .pix-button {
-  min-height: 48px;
+  min-height: 56px;
+  padding: 0 18px;
   border: 0;
   border-radius: 8px;
   background: linear-gradient(135deg, var(--green), var(--green-2));
@@ -747,7 +912,8 @@ a { color: inherit; text-decoration: none; }
   cursor: pointer;
   font: inherit;
   font-weight: 900;
-  transition: transform 0.18s ease, filter 0.18s ease, opacity 0.18s ease;
+  box-shadow: 0 16px 36px rgba(72, 213, 47, 0.18);
+  transition: transform 0.18s ease, filter 0.18s ease, opacity 0.18s ease, box-shadow 0.18s ease;
 }
 
 .pix-button:hover,
@@ -790,6 +956,17 @@ a { color: inherit; text-decoration: none; }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
 }
 
 @media (max-width: 900px) {
@@ -840,12 +1017,13 @@ a { color: inherit; text-decoration: none; }
   .payment-methods,
   .payment-steps.compact,
   .card-form-grid,
-  .pix-actions {
+  .pix-actions,
+  .trust-grid {
     grid-template-columns: 1fr;
   }
 
   .method-card {
-    min-height: auto;
+    min-height: 154px;
   }
 
   .plan-price {
@@ -859,6 +1037,6 @@ a { color: inherit; text-decoration: none; }
   }
 
   .pix-qr-wrap {
-    min-height: 210px;
+    min-height: 270px;
   }
 }

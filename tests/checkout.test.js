@@ -5,6 +5,8 @@ import vm from 'node:vm';
 
 const checkoutHtml = readFileSync(new URL('../frontend/checkout/index.html', import.meta.url), 'utf8');
 const checkoutJs = readFileSync(new URL('../frontend/checkout/checkout.js', import.meta.url), 'utf8');
+const successHtml = readFileSync(new URL('../frontend/checkout/success.html', import.meta.url), 'utf8');
+const successJs = readFileSync(new URL('../frontend/checkout/success.js', import.meta.url), 'utf8');
 
 function createCheckoutHarness(options = {}) {
   const elements = new Map();
@@ -64,7 +66,9 @@ function createCheckoutHarness(options = {}) {
     'planPrice',
     'planCycle',
     'planEconomyBadge',
+    'planSavingsBadge',
     'planEconomyText',
+    'planInstallmentText',
     'planRenewalText',
     'billingDocument',
     'pixPanel',
@@ -159,7 +163,10 @@ function createCheckoutHarness(options = {}) {
       EfiPay: options.efiPay || null,
       location: { origin: 'http://127.0.0.1', hostname: '127.0.0.1', search: options.search || '', href: '' },
       addEventListener() {},
-      setTimeout() {},
+      setTimeout(callback) {
+        if (options.runTimers && typeof callback === 'function') callback();
+        return 1;
+      },
       setInterval() { return 1; },
       clearInterval() {}
     }
@@ -172,9 +179,96 @@ function createCheckoutHarness(options = {}) {
     elements,
     api: context.__checkoutTest,
     fetchCalls,
+    location: context.window.location,
     setFetchData(data) {
       fetchData = data;
     }
+  };
+}
+
+function createSuccessHarness(options = {}) {
+  const elements = new Map();
+  const session = new Map(Object.entries(options.session || {}));
+  const local = new Map();
+  if (options.token !== null) session.set('fluxmei_access_token', options.token || 'test-token');
+
+  function element(id) {
+    if (!elements.has(id)) {
+      elements.set(id, {
+        id,
+        textContent: '',
+        href: '',
+        setAttribute(name, value) {
+          this[name] = value;
+        },
+        addEventListener() {}
+      });
+    }
+    return elements.get(id);
+  }
+
+  [
+    'successPlan',
+    'successMethod',
+    'successDate',
+    'successStatus',
+    'successNote',
+    'dashboardButton',
+    'accountButton'
+  ].forEach(element);
+
+  const context = {
+    console,
+    URL,
+    localStorage: {
+      getItem(key) { return local.get(key) || null; },
+      setItem(key, value) { local.set(key, String(value)); },
+      removeItem(key) { local.delete(key); }
+    },
+    sessionStorage: {
+      getItem(key) { return session.get(key) || null; },
+      setItem(key, value) { session.set(key, String(value)); },
+      removeItem(key) { session.delete(key); }
+    },
+    fetch: async (url) => {
+      if (String(url).endsWith('/auth/me')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => options.me || { user: { email: 'cliente@example.com' } }
+        };
+      }
+      if (String(url).endsWith('/assinaturas/status')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => options.subscriptionStatus || { estado: 'ativo', status: 'ativo', plano: 'pro_mensal', payment_provider: 'asaas' }
+        };
+      }
+      return {
+        ok: false,
+        status: 404,
+        json: async () => ({ message: 'not found' })
+      };
+    },
+    document: {
+      getElementById: element,
+      addEventListener() {}
+    },
+    window: {
+      FLUXMEI_CONFIG: { API_URL: 'http://127.0.0.1/api' },
+      location: { origin: 'http://127.0.0.1', href: '' }
+    }
+  };
+  context.globalThis = context;
+  vm.createContext(context);
+  vm.runInContext(`${successJs}\nglobalThis.__successTest = { renderSuccess, initSuccessPage, getLoginUrl };`, context);
+
+  return {
+    elements,
+    api: context.__successTest,
+    location: context.window.location,
+    session
   };
 }
 
@@ -190,7 +284,9 @@ test('checkout principal usa Asaas para Pix e boleto ativos', () => {
   assert.match(checkoutHtml, /id="generateBoletoButton"/);
   assert.match(checkoutHtml, /id="billingDocument"/);
   assert.match(checkoutHtml, /id="payCardButton"/);
-  assert.match(checkoutHtml, /Gerar Pix/);
+  assert.match(checkoutHtml, /Gerar QR Code Pix/);
+  assert.match(checkoutHtml, /Emitir boleto/);
+  assert.match(checkoutHtml, /Finalizar pagamento/);
   assert.match(checkoutHtml, /id="pixPanel"/);
   assert.match(checkoutHtml, /id="pixCode"/);
   assert.doesNotMatch(checkoutHtml, /name="paymentProvider"/);
@@ -208,14 +304,73 @@ test('checkout principal chama rotas Asaas quando PAYMENT_GATEWAY=asaas', () => 
   assert.match(checkoutJs, /copyPixButton/);
 });
 
+test('success.html renderiza tela premium de pagamento confirmado', () => {
+  assert.match(successHtml, /Pagamento confirmado!/);
+  assert.match(successHtml, /Seu acesso ao FluxMEI foi liberado com sucesso/);
+  assert.match(successHtml, /id="successPlan"/);
+  assert.match(successHtml, /id="successMethod"/);
+  assert.match(successHtml, /id="successDate"/);
+  assert.match(successHtml, /FluxMEI Pro Ativo/);
+});
+
+test('success sem login redireciona para login', async () => {
+  const { api, location } = createSuccessHarness({ token: null });
+
+  await api.initSuccessPage();
+
+  assert.match(location.href, /\/auth\/login\.html/);
+  assert.match(location.href, /redirect=%2Fcheckout%2Fsuccess\.html/);
+});
+
+test('success mostra dados de assinatura ativa autenticada', () => {
+  const { api, elements } = createSuccessHarness({
+    session: {
+      fluxmei_payment_success_summary: JSON.stringify({
+        method: 'pix',
+        confirmed_at: '2026-06-24T12:30:00.000Z'
+      })
+    }
+  });
+
+  const rendered = api.renderSuccess({ estado: 'ativo', plano: 'pro_anual', payment_provider: 'asaas' }, {
+    method: 'pix',
+    confirmed_at: '2026-06-24T12:30:00.000Z'
+  });
+
+  assert.equal(rendered, true);
+  assert.equal(elements.get('successPlan').textContent, 'Plano Pro Anual');
+  assert.equal(elements.get('successMethod').textContent, 'Pix');
+  assert.equal(elements.get('successStatus').textContent, 'Ativo');
+});
+
+test('success botoes apontam para dashboard e minha conta', () => {
+  assert.match(successHtml, /id="dashboardButton" href="\/app\/"/);
+  assert.match(successHtml, /id="accountButton" href="\/app\/#minha-conta"/);
+});
+
+test('success nao confirma assinatura pendente', () => {
+  const { api, location } = createSuccessHarness();
+
+  const rendered = api.renderSuccess({ estado: 'pendente', status: 'pendente', plano: 'pro_mensal' }, {});
+
+  assert.equal(rendered, false);
+  assert.equal(location.href, '/app/#minha-conta');
+});
+
 test('checkout exibe metodos com cards, descricoes e confianca', () => {
   assert.match(checkoutHtml, /class="method-icon"/);
   assert.match(checkoutHtml, /Aprovacao rapida/);
-  assert.match(checkoutHtml, /Pagamento em ate 3 dias/);
-  assert.match(checkoutHtml, /Ate 12x/);
+  assert.match(checkoutHtml, /Aprovacao imediata/);
+  assert.match(checkoutHtml, /Pague em qualquer banco ou app/);
+  assert.match(checkoutHtml, /Ate 12x sem complicacao/);
   assert.match(checkoutHtml, /Pagamento seguro/);
-  assert.match(checkoutHtml, /Ambiente protegido/);
+  assert.match(checkoutHtml, /Processado pelo Asaas/);
+  assert.match(checkoutHtml, /Ambiente criptografado/);
   assert.match(checkoutHtml, /Liberacao automatica/);
+  assert.match(checkoutHtml, /Dados protegidos/);
+  assert.match(checkoutHtml, /Suporte disponivel/);
+  assert.doesNotMatch(checkoutHtml, /<span class="method-icon" aria-hidden="true">[PCB]<\/span>/);
+  assert.match(checkoutHtml, /<svg viewBox="0 0 24 24" focusable="false">/);
 });
 
 test('checkout exibe resumo premium do plano anual', () => {
@@ -228,12 +383,34 @@ test('checkout exibe resumo premium do plano anual', () => {
     tipo_cobranca: 'anual'
   });
 
-  assert.equal(elements.get('planName').textContent, 'Plano FluxMEI Anual');
+  assert.equal(elements.get('planName').textContent, 'Plano Pro Anual');
   assert.match(elements.get('planPrice').textContent, /478,80/);
-  assert.equal(elements.get('planCycle').textContent, 'por ano');
+  assert.equal(elements.get('planCycle').textContent, '/ano');
   assert.equal(elements.get('planEconomyBadge').hidden, false);
+  assert.equal(elements.get('planSavingsBadge').hidden, false);
+  assert.equal(elements.get('planInstallmentText').hidden, false);
+  assert.match(elements.get('planEconomyText').textContent, /R\$ 478,80 por ano/);
   assert.match(elements.get('planEconomyText').textContent, /12x de R\$ 39,90/);
   assert.equal(elements.get('planRenewalText').textContent, 'Anual apos confirmacao');
+});
+
+test('checkout exibe resumo comercial do plano mensal', () => {
+  const { api, elements } = createCheckoutHarness();
+
+  api.renderPlan({
+    id: 'pro_mensal',
+    nome: 'Plano FluxMEI Mensal',
+    preco: 49.9,
+    tipo_cobranca: 'mensal'
+  });
+
+  assert.equal(elements.get('planName').textContent, 'Plano Pro Mensal');
+  assert.match(elements.get('planPrice').textContent, /49,90/);
+  assert.equal(elements.get('planCycle').textContent, '/mes');
+  assert.equal(elements.get('planEconomyBadge').hidden, true);
+  assert.equal(elements.get('planSavingsBadge').hidden, true);
+  assert.equal(elements.get('planInstallmentText').hidden, true);
+  assert.equal(elements.get('planEconomyText').textContent, 'Ideal para comecar com flexibilidade.');
 });
 
 test('checkout respeita plano informado na URL', () => {
@@ -245,12 +422,18 @@ test('checkout respeita plano informado na URL', () => {
 });
 
 test('checkout destaca a experiencia de Pix e boleto', () => {
-  assert.match(checkoutHtml, /Gere o QR Code/);
+  assert.match(checkoutHtml, /Abra o app do seu banco/);
+  assert.match(checkoutHtml, /Escaneie ou copie o codigo Pix/);
   assert.match(checkoutHtml, /Copiar codigo Pix/);
   assert.match(checkoutHtml, /id="pixQrImage"/);
   assert.match(checkoutHtml, /Abrir boleto/);
   assert.match(checkoutHtml, /Copiar linha digitavel/);
   assert.match(checkoutHtml, /id="boletoDueDate"/);
+  assert.match(checkoutHtml, /compensacao pode levar ate 3 dias uteis/);
+  assert.match(checkoutHtml, /Verificacao automatica a cada 4s/);
+  assert.match(checkoutHtml, /Visa/);
+  assert.match(checkoutHtml, /Mastercard/);
+  assert.match(checkoutHtml, /Elo/);
 });
 
 test('checkout permite pagamento de troca quando assinatura ativa usa outro plano', () => {
@@ -332,6 +515,39 @@ test('cartao Asaas chama backend e limpa campos sensiveis', async () => {
   assert.equal(elements.get('cardCvv').value, '');
   assert.equal(elements.get('cardExpiry').value, '');
   assert.match(elements.get('checkoutAlert').textContent, /Pagamento aprovado/i);
+});
+
+test('cartao Asaas aprovado abre tela de sucesso', async () => {
+  const { api, fetchCalls, location, setFetchData } = createCheckoutHarness({ paymentGateway: 'asaas', runTimers: true });
+  setFetchData({
+    success: true,
+    provider: 'asaas',
+    payment_id: 'pay_card_1',
+    payment_status: 'CONFIRMED',
+    payment_method_id: 'CREDIT_CARD',
+    assinatura: { status: 'ativo' }
+  });
+
+  await api.submitAsaasCardPayment();
+
+  assert.equal(fetchCalls.at(-1).url, 'http://127.0.0.1/api/pagamentos/asaas/criar-cartao');
+  assert.equal(location.href, '/checkout/success.html');
+});
+
+test('pagamento pendente nao abre tela de sucesso', async () => {
+  const { api, location, setFetchData } = createCheckoutHarness({ paymentGateway: 'asaas', runTimers: true });
+  setFetchData({
+    success: true,
+    provider: 'asaas',
+    payment_id: 'pay_card_pending',
+    payment_status: 'PENDING',
+    payment_method_id: 'CREDIT_CARD',
+    assinatura: { status: 'pendente' }
+  });
+
+  await api.submitAsaasCardPayment();
+
+  assert.notEqual(location.href, '/checkout/success.html');
 });
 
 test('checkout nao salva dados de cartao em storage', () => {

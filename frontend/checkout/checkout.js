@@ -4,6 +4,7 @@ const TOKEN_KEY = 'fluxmei_access_token';
 const INTENT_KEY = 'fluxmei_intent';
 const PLAN_KEY = 'fluxmei_subscribe_plan';
 const INTENT_CREATED_AT_KEY = 'fluxmei_intent_created_at';
+const SUCCESS_SUMMARY_KEY = 'fluxmei_payment_success_summary';
 const SUBSCRIBE_INTENT = 'subscribe';
 const DEFAULT_PLAN = 'pro_mensal';
 const ACTIVE_PAYMENT_METHODS = new Set(['pix', 'boleto']);
@@ -199,7 +200,13 @@ function formatBRL(value) {
 }
 
 function getPlanCycle(plan) {
-  return plan.tipo_cobranca === 'anual' ? 'por ano' : 'por mes';
+  return plan.tipo_cobranca === 'anual' ? '/ano' : '/mes';
+}
+
+function getPlanDisplayName(plan) {
+  return plan.tipo_cobranca === 'anual' || plan.id === 'pro_anual'
+    ? 'Plano Pro Anual'
+    : 'Plano Pro Mensal';
 }
 
 function normalizePlan(plan) {
@@ -236,6 +243,24 @@ function showStatus(statusKey, overrideText) {
   panel.hidden = false;
 }
 
+function getPaymentMethodLabel(method, payment = {}) {
+  const normalized = String(method || payment.payment_method_id || payment.payment_type_id || payment.method || '').toLowerCase();
+  if (normalized.includes('pix')) return 'pix';
+  if (normalized.includes('boleto')) return 'boleto';
+  if (normalized.includes('cart') || normalized.includes('card') || normalized.includes('credit')) return 'cartao';
+  return normalized || selectedPaymentMethod || currentPaymentMethod || 'pagamento';
+}
+
+function redirectToPaymentSuccess(payment = {}, method = currentPaymentMethod || selectedPaymentMethod) {
+  sessionStorage.setItem(SUCCESS_SUMMARY_KEY, JSON.stringify({
+    plan: selectedPlan?.id || getSelectedPlanId(),
+    method: getPaymentMethodLabel(method, payment),
+    provider: getPaymentGateway().provider,
+    confirmed_at: new Date().toISOString()
+  }));
+  window.location.href = '/checkout/success.html';
+}
+
 function hidePixPanel() {
   const panel = document.getElementById('pixPanel');
   panel.hidden = true;
@@ -263,7 +288,7 @@ function setGeneratePixLoading(isLoading) {
   const button = document.getElementById('generatePixButton');
   if (!button) return;
   button.disabled = isLoading;
-  button.textContent = isLoading ? 'Gerando Pix...' : 'Gerar Pix';
+  button.textContent = isLoading ? 'Gerando Pix...' : 'Gerar QR Code Pix';
 }
 
 function isPixPayment(payment) {
@@ -467,19 +492,23 @@ async function loadPlan(planId) {
 }
 
 function renderPlan(plan) {
-  document.getElementById('planName').textContent = plan.nome;
+  document.getElementById('planName').textContent = getPlanDisplayName(plan);
   document.getElementById('planPrice').textContent = formatBRL(plan.preco);
   document.getElementById('planCycle').textContent = getPlanCycle(plan);
   const economyBadge = document.getElementById('planEconomyBadge');
+  const savingsBadge = document.getElementById('planSavingsBadge');
   const economyText = document.getElementById('planEconomyText');
+  const installmentText = document.getElementById('planInstallmentText');
   const renewalText = document.getElementById('planRenewalText');
   const isAnnual = plan.id === 'pro_anual' || plan.tipo_cobranca === 'anual';
 
   if (economyBadge) economyBadge.hidden = !isAnnual;
+  if (savingsBadge) savingsBadge.hidden = !isAnnual;
+  if (installmentText) installmentText.hidden = !isAnnual;
   if (economyText) {
     economyText.textContent = isAnnual
-      ? 'Economia de R$ 120,00 por ano. Equivalente a R$ 39,90 por mes ou 12x de R$ 39,90.'
-      : 'Renovacao mensal. Ideal para comecar com flexibilidade.';
+      ? 'R$ 478,80 por ano, ou 12x de R$ 39,90.'
+      : 'Ideal para comecar com flexibilidade.';
   }
   if (renewalText) {
     renewalText.textContent = isAnnual ? 'Anual apos confirmacao' : 'Mensal apos confirmacao';
@@ -553,6 +582,7 @@ async function pollSubscriptionActivation(maxAttempts = 12) {
         clearSubscribeIntent();
         showStatus('active');
         showAlert('Assinatura ativada com sucesso.', 'success');
+        redirectToPaymentSuccess({ assinatura: status }, currentPaymentMethod || selectedPaymentMethod);
       }
     } catch {
       // Keep the current payment message visible while polling.
@@ -589,9 +619,9 @@ async function checkPaymentStatus(paymentId = currentPaymentId, { silent = false
       hideBoletoPanel();
       clearSubscribeIntent();
       showStatus('active', 'Pagamento aprovado! Sua assinatura foi ativada.');
-      showAlert('Pagamento aprovado! Redirecionando para o painel...', 'success');
+      showAlert('Pagamento aprovado! Abrindo confirmacao...', 'success');
       window.setTimeout(() => {
-        window.location.href = '/app/';
+        redirectToPaymentSuccess(data, paymentMethod);
       }, 1400);
       return data;
     }
@@ -653,7 +683,7 @@ function setCardLoading(isLoading) {
   const button = document.getElementById('payCardButton');
   if (!button) return;
   button.disabled = isLoading;
-  button.textContent = isLoading ? 'Processando...' : 'Pagar com cartao';
+  button.textContent = isLoading ? 'Processando...' : 'Finalizar pagamento';
 }
 
 function setEfiCardVisible(isVisible) {
@@ -848,9 +878,9 @@ async function submitAsaasCardPayment() {
     if (data.assinatura?.status === 'ativo' || data.assinatura?.estado === 'ativo') {
       clearSubscribeIntent();
       showStatus('active', 'Pagamento aprovado! Sua assinatura foi ativada.');
-      showAlert('Pagamento aprovado! Redirecionando para o painel...', 'success');
+      showAlert('Pagamento aprovado! Abrindo confirmacao...', 'success');
       window.setTimeout(() => {
-        window.location.href = '/app/';
+        redirectToPaymentSuccess(data, 'cartao');
       }, 1400);
     } else if (statusKey === 'approved') {
       showAlert('Pagamento aprovado pelo Asaas. Aguardando confirmacao final.', 'success');
@@ -910,9 +940,9 @@ async function submitEfiCardPayment() {
     if (data.assinatura?.status === 'ativo' || data.assinatura?.estado === 'ativo') {
       clearSubscribeIntent();
       showStatus('active', 'Pagamento aprovado! Sua assinatura foi ativada.');
-      showAlert('Pagamento aprovado! Redirecionando para o painel...', 'success');
+      showAlert('Pagamento aprovado! Abrindo confirmacao...', 'success');
       window.setTimeout(() => {
-        window.location.href = '/app/';
+        redirectToPaymentSuccess(data, 'cartao');
       }, 1400);
     } else if (statusKey === 'approved') {
       showAlert('Pagamento aprovado pela EFI Bank. Aguardando confirmacao final.', 'success');
