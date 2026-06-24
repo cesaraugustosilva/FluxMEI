@@ -329,6 +329,50 @@ function getPlanLabel(status = subscriptionStatus) {
   return 'Plano gratuito';
 }
 
+function getPlanShortLabel(planId) {
+  if (planId === 'pro_anual' || planId === 'anual') return 'Anual';
+  if (planId === 'pro_mensal' || planId === 'mensal') return 'Mensal';
+  if (planId === 'gratuito') return 'Trial';
+  return 'Plano';
+}
+
+function getPlanById(planId) {
+  return state.planos.find((plan) => plan.id === planId) || DEFAULT_ACCOUNT_PLANS.find((plan) => plan.id === planId) || null;
+}
+
+function getCheckoutUrlForPlan(planId) {
+  return `/checkout/?plan=${encodeURIComponent(planId)}`;
+}
+
+function isAsaasPendingStatus(status) {
+  return ['pending', 'awaiting_risk_analysis'].includes(String(status || '').trim().toLowerCase());
+}
+
+function getPendingPaymentPlan(status = subscriptionStatus) {
+  if (!isAsaasPendingStatus(status?.provider_status)) return null;
+  return status?.pending_payment_plan || null;
+}
+
+function getSwitchTargetPlanId(currentPlanId) {
+  if (currentPlanId === 'pro_mensal' || currentPlanId === 'mensal') return 'pro_anual';
+  if (currentPlanId === 'pro_anual' || currentPlanId === 'anual') return 'pro_mensal';
+  return null;
+}
+
+async function confirmPlanSwitch(targetPlanId) {
+  const targetPlan = getPlanById(targetPlanId);
+  if (!targetPlan || !['pro_mensal', 'pro_anual'].includes(targetPlan.id)) return;
+
+  const confirmed = await confirmarAcao({
+    title: `Trocar para ${getPlanShortLabel(targetPlan.id)}`,
+    message: 'Voce sera levado ao checkout para pagar o novo plano. A troca sera confirmada apos o pagamento.',
+    confirmText: 'Ir para checkout'
+  });
+
+  if (!confirmed) return;
+  window.location.href = getCheckoutUrlForPlan(targetPlan.id);
+}
+
 function formatPlanPrice(plan) {
   if (plan.priceLabel) return plan.priceLabel;
   const preco = Number(plan.preco || 0);
@@ -385,6 +429,9 @@ function renderAccountPanel() {
   const status = subscriptionStatus || {};
   const currentPlanId = getCurrentPlanId(status);
   const currentPlan = state.planos.find((plan) => plan.id === currentPlanId) || state.planos[0];
+  const switchTargetPlanId = getSwitchTargetPlanId(currentPlanId);
+  const switchTargetPlan = switchTargetPlanId ? getPlanById(switchTargetPlanId) : null;
+  const pendingPaymentPlan = getPendingPaymentPlan(status);
   const statusMeta = getAccountStatusMeta(status);
   const estado = status.estado || status.status;
   const dias = Number(status.dias_restantes || 0);
@@ -396,7 +443,9 @@ function renderAccountPanel() {
   document.querySelectorAll('.account-avatar').forEach((avatar) => {
     avatar.textContent = nome.charAt(0).toUpperCase();
   });
-  document.getElementById('accountCurrentPlan').textContent = currentPlan?.nome || getPlanLabel(status);
+  document.getElementById('accountCurrentPlan').textContent = getPlanShortLabel(currentPlanId) || currentPlan?.nome || getPlanLabel(status);
+  document.getElementById('accountCurrentValue').textContent = currentPlan ? formatPlanPrice(currentPlan) : '--';
+  document.getElementById('accountNextDueDate').textContent = status.data_vencimento ? formatDate(status.data_vencimento) : '--';
 
   const badge = document.getElementById('accountStatusBadge');
   badge.textContent = statusMeta.label;
@@ -408,6 +457,47 @@ function renderAccountPanel() {
       ? `Faltam ${dias} dia(s) para o fim do teste.`
       : 'Acompanhe seu plano e assinatura por aqui.'));
   document.getElementById('accountStatusText').textContent = statusText;
+
+  const switchCard = document.getElementById('accountSwitchCard');
+  const switchTitle = document.getElementById('accountSwitchTitle');
+  const switchText = document.getElementById('accountSwitchText');
+  const switchButton = document.getElementById('accountPlanSwitchAction');
+  const pendingWarning = document.getElementById('accountPendingWarning');
+
+  if (switchCard && switchTitle && switchText && switchButton) {
+    if (switchTargetPlan) {
+      switchCard.hidden = false;
+      switchButton.hidden = false;
+      switchButton.disabled = false;
+      switchButton.dataset.targetPlan = switchTargetPlan.id;
+      switchButton.textContent = `Trocar para ${getPlanShortLabel(switchTargetPlan.id)}`;
+      switchTitle.textContent = `Trocar para ${getPlanShortLabel(switchTargetPlan.id)}`;
+      switchText.textContent = switchTargetPlan.id === 'pro_anual'
+        ? 'Economize no anual: R$ 478,80 por ano, equivalente a R$ 39,90 por mes.'
+        : 'A troca para mensal sera aplicada no proximo vencimento ou apos um novo pagamento aprovado.';
+    } else if (estado === 'teste_gratis' || currentPlanId === 'gratuito') {
+      switchCard.hidden = false;
+      switchButton.hidden = false;
+      switchButton.disabled = false;
+      switchButton.dataset.targetPlan = 'pro_mensal';
+      switchButton.textContent = 'Escolher plano';
+      switchTitle.textContent = 'Escolher assinatura';
+      switchText.textContent = 'Escolha mensal ou anual no checkout. A assinatura sera confirmada somente apos pagamento aprovado.';
+    } else {
+      switchCard.hidden = true;
+      switchButton.dataset.targetPlan = '';
+    }
+
+    if (pendingWarning) {
+      if (pendingPaymentPlan && pendingPaymentPlan !== currentPlanId) {
+        pendingWarning.hidden = false;
+        pendingWarning.textContent = `Ha um pagamento pendente para ${getPlanShortLabel(pendingPaymentPlan)}. A troca sera aplicada somente apos a confirmacao do pagamento.`;
+      } else {
+        pendingWarning.hidden = true;
+        pendingWarning.textContent = '';
+      }
+    }
+  }
 
   const plansRoot = document.getElementById('accountPlans');
   plansRoot.innerHTML = state.planos.map((plan) => {
@@ -434,6 +524,7 @@ function renderAccountPanel() {
   subscribeAction.textContent = isPending ? 'Tentar novamente' : (estado === 'expirado' || estado === 'vencido' || estado === 'bloqueado' ? 'Escolher plano' : 'Assinar agora');
   subscribeAction.style.display = isActive ? 'none' : '';
   manageAction.style.display = isActive ? '' : 'none';
+  manageAction.href = switchTargetPlan ? getCheckoutUrlForPlan(switchTargetPlan.id) : '/checkout/';
 }
 
 function openAccountPanel() {
@@ -2069,7 +2160,8 @@ function exposeGlobalHandlers() {
     salvarCliente,
     salvarConfig,
     salvarDAS,
-    limparTudo
+    limparTudo,
+    confirmPlanSwitch
   });
 }
 
@@ -2111,6 +2203,9 @@ async function init() {
 
   document.getElementById('accountMenuButton')?.addEventListener('click', openAccountPanel);
   document.getElementById('accountModalClose')?.addEventListener('click', closeAccountPanel);
+  document.getElementById('accountPlanSwitchAction')?.addEventListener('click', (event) => {
+    confirmPlanSwitch(event.currentTarget.dataset.targetPlan);
+  });
   document.getElementById('accountModal')?.addEventListener('click', (event) => {
     if (event.target.id === 'accountModal') closeAccountPanel();
   });

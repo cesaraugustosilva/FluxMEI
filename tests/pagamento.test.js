@@ -277,6 +277,76 @@ test('pagamento Asaas recebido ativa assinatura com plano e valor validos', () =
   assert.equal(updates.paid_at, baseDate.toISOString());
 });
 
+test('pagamento Asaas anual confirmado troca assinatura para anual com 365 dias', () => {
+  const baseDate = new Date('2026-06-21T12:00:00.000Z');
+  const assinatura = assinaturaAsaasBase({
+    plano: 'pro_mensal',
+    provider_payment_id: 'pay_asaas_anual',
+    provider_raw: {
+      attempt: {
+        plano_original: 'pro_anual',
+        valor_original: 478.8,
+        tipo_cobranca_original: 'anual',
+        payment_id: 'pay_asaas_anual',
+        payment_method_id: 'CREDIT_CARD',
+        created_at: '2026-06-21T10:00:00.000Z',
+        metadata: { user_id: 'user-1', assinatura_id: 'sub-1', plano: 'pro_anual' }
+      }
+    }
+  });
+  const updates = buildAsaasSubscriptionUpdates(
+    asaasPayment('CONFIRMED', {
+      id: 'pay_asaas_anual',
+      billingType: 'CREDIT_CARD',
+      value: 478.8,
+      externalReference: 'user-1:sub-1:pro_anual'
+    }),
+    assinatura,
+    baseDate,
+    'PAYMENT_CONFIRMED'
+  );
+
+  assert.equal(updates.status, 'ativo');
+  assert.equal(updates.plano, 'pro_anual');
+  assert.equal(updates.tipo_cobranca, 'anual');
+  assert.equal(updates.valor, 478.8);
+  assert.equal(updates.data_vencimento, todayPlusDays(365, baseDate));
+});
+
+test('pagamento Asaas pendente de troca nao altera plano da assinatura', () => {
+  const updates = buildAsaasSubscriptionUpdates(
+    asaasPayment('PENDING', {
+      id: 'pay_asaas_anual',
+      billingType: 'CREDIT_CARD',
+      value: 478.8,
+      externalReference: 'user-1:sub-1:pro_anual'
+    }),
+    assinaturaAsaasBase({
+      plano: 'pro_mensal',
+      status: 'ativo',
+      bloqueado: false,
+      data_vencimento: '2026-07-21',
+      provider_payment_id: 'pay_asaas_anual',
+      provider_raw: {
+        attempt: {
+          plano_original: 'pro_anual',
+          valor_original: 478.8,
+          tipo_cobranca_original: 'anual',
+          payment_id: 'pay_asaas_anual',
+          payment_method_id: 'CREDIT_CARD',
+          created_at: '2026-06-21T10:00:00.000Z',
+          metadata: { user_id: 'user-1', assinatura_id: 'sub-1', plano: 'pro_anual' }
+        }
+      }
+    })
+  );
+
+  assert.equal(updates.plano, undefined);
+  assert.equal(updates.status, 'ativo');
+  assert.equal(updates.bloqueado, false);
+  assert.equal(updates.data_vencimento, '2026-07-21');
+});
+
 test('webhook Asaas de cartao confirmado ativa assinatura', () => {
   const baseDate = new Date('2026-06-21T12:00:00.000Z');
   const assinatura = assinaturaAsaasBase({

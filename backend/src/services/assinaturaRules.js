@@ -172,6 +172,8 @@ export function buildSubscriptionStatus(access, todayIso) {
   const trialEnd = getTrialEndDate(assinatura);
   const diasRestantes = assinatura?.status === TRIAL_STATUS ? diffDaysUntil(trialEnd, todayIso) : 0;
   const estado = getSubscriptionState(assinatura, access.allowed);
+  const providerRaw = assinatura?.provider_raw || {};
+  const pendingPaymentPlan = providerRaw?.attempt?.plano_original || providerRaw?.attempt?.metadata?.plano || null;
 
   return {
     plano: assinatura?.plano || 'gratuito',
@@ -183,6 +185,9 @@ export function buildSubscriptionStatus(access, todayIso) {
     data_inicio: assinatura?.data_inicio || null,
     data_vencimento: assinatura?.data_vencimento || null,
     data_trial_fim: trialEnd,
+    payment_provider: assinatura?.payment_provider || null,
+    provider_status: assinatura?.provider_status || null,
+    pending_payment_plan: pendingPaymentPlan,
     teste_gratis_usado: Boolean(assinatura?.teste_gratis_usado),
     dias_restantes: diasRestantes,
     aviso_urgente: estado === TRIAL_STATUS && diasRestantes <= 2,

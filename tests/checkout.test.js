@@ -160,7 +160,7 @@ function createCheckoutHarness(options = {}) {
   };
   context.globalThis = context;
   vm.createContext(context);
-  vm.runInContext(`${checkoutJs}\nglobalThis.__checkoutTest = { renderPixPanel, renderBoletoPanel, checkPaymentStatus, getStatusKeyFromPayment, generatePixPayment, generateBoletoPayment, configureCardAvailability, renderCardInstallments, submitCardPayment, submitAsaasCardPayment, submitEfiCardPayment, getLoginUrl };`, context);
+  vm.runInContext(`${checkoutJs}\nglobalThis.__checkoutTest = { renderPixPanel, renderBoletoPanel, checkPaymentStatus, getStatusKeyFromPayment, generatePixPayment, generateBoletoPayment, configureCardAvailability, renderCardInstallments, isPlanSwitchCheckout, submitCardPayment, submitAsaasCardPayment, submitEfiCardPayment, getLoginUrl };`, context);
 
   return {
     elements,
@@ -200,6 +200,14 @@ test('checkout principal chama rotas Asaas quando PAYMENT_GATEWAY=asaas', () => 
   assert.match(checkoutJs, /submitAsaasCardPayment/);
   assert.match(checkoutJs, /ACTIVE_PAYMENT_METHODS = new Set\(\['pix', 'boleto'\]\)/);
   assert.match(checkoutJs, /copyPixButton/);
+});
+
+test('checkout permite pagamento de troca quando assinatura ativa usa outro plano', () => {
+  const { api } = createCheckoutHarness();
+
+  assert.equal(api.isPlanSwitchCheckout({ estado: 'ativo', plano: 'pro_mensal' }, 'pro_anual'), true);
+  assert.equal(api.isPlanSwitchCheckout({ estado: 'ativo', plano: 'pro_anual' }, 'pro_mensal'), true);
+  assert.equal(api.isPlanSwitchCheckout({ estado: 'ativo', plano: 'pro_mensal' }, 'pro_mensal'), false);
 });
 
 test('checkout exibe Cartao quando gateway ativo e Asaas', () => {
@@ -536,6 +544,6 @@ test('checkout nao rearma intent antiga sem query de assinatura', () => {
 });
 
 test('checkout com assinatura ativa limpa intent de assinatura', () => {
-  assert.match(checkoutJs, /if \(subscriptionStatus\?\.estado === 'ativo'\) \{\s*clearSubscribeIntent\(\);/);
+  assert.match(checkoutJs, /if \(subscriptionStatus\?\.estado === 'ativo' && !isPlanSwitchCheckout\(subscriptionStatus, selectedPlan\.id\)\) \{\s*clearSubscribeIntent\(\);/);
   assert.match(checkoutJs, /showStatus\('active', 'Sua assinatura ja esta ativa\. Voce pode voltar ao app\.'\)/);
 });

@@ -417,6 +417,23 @@ test('Pix Asaas sem CPF/CNPJ retorna erro claro antes de chamar gateway', async 
   }, { profile: { nome: 'Cliente FluxMEI', cpf: '', cnpj: '' } });
 });
 
+test('Pagamento Asaas rejeita plano invalido antes de chamar gateway', async () => {
+  await withMockedAsaasEnvironment(assinaturaBase(), async ({ criarPixAsaas, stats }) => {
+    const response = createMockResponse();
+
+    await assert.rejects(
+      () => criarPixAsaas({
+        body: { plano: 'plano_invalido', cpfCnpj: '123.456.789-01' },
+        user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
+      }, response),
+      /Plano invalido/
+    );
+
+    assert.equal(stats.customerCpfCnpj, null);
+    assert.equal(stats.pixCreated, 0);
+  });
+});
+
 test('Status Asaas consulta pagamento e preserva assinatura do usuario', async () => {
   await withMockedAsaasEnvironment(assinaturaBase({
     payment_provider: 'asaas',

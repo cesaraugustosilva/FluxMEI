@@ -631,7 +631,27 @@
       </div>
       <span class="account-status-badge" id="accountStatusBadge">Status</span>
     </section>
+    <section class="account-plan-overview">
+      <div>
+        <span>Valor atual</span>
+        <strong id="accountCurrentValue">--</strong>
+      </div>
+      <div>
+        <span>Proximo vencimento</span>
+        <strong id="accountNextDueDate">--</strong>
+      </div>
+    </section>
     <p class="account-status-text" id="accountStatusText"></p>
+
+    <section class="account-switch-card" id="accountSwitchCard">
+      <div>
+        <span class="account-section-title inline">Troca de plano</span>
+        <strong id="accountSwitchTitle">Trocar plano</strong>
+        <p id="accountSwitchText"></p>
+        <p class="account-pending-warning" id="accountPendingWarning" hidden></p>
+      </div>
+      <button class="btn btn-primary" type="button" id="accountPlanSwitchAction">Trocar plano</button>
+    </section>
 
     <section>
       <div class="account-section-title">Planos disponiveis</div>

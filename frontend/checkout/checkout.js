@@ -168,6 +168,14 @@ function isSubscribeIntentUrl() {
   return params.get('intent') === SUBSCRIBE_INTENT;
 }
 
+function isPlanSwitchCheckout(subscriptionStatus, planId) {
+  const currentPlan = subscriptionStatus?.plano;
+  return subscriptionStatus?.estado === 'ativo'
+    && ['pro_mensal', 'pro_anual'].includes(currentPlan)
+    && ['pro_mensal', 'pro_anual'].includes(planId)
+    && currentPlan !== planId;
+}
+
 function getLoginUrl(planId = getSelectedPlanId()) {
   const url = new URL('/auth/login.html', window.location.origin);
   url.searchParams.set('redirect', '/checkout/');
@@ -1137,7 +1145,7 @@ async function initCheckout() {
     ]);
     renderUser(me);
 
-    if (subscriptionStatus?.estado === 'ativo') {
+    if (subscriptionStatus?.estado === 'ativo' && !isPlanSwitchCheckout(subscriptionStatus, selectedPlan.id)) {
       clearSubscribeIntent();
       setBrickVisible(false);
       setBrickLoading(false);
@@ -1146,6 +1154,10 @@ async function initCheckout() {
       setBoletoGenerateVisible(false);
       showStatus('active', 'Sua assinatura ja esta ativa. Voce pode voltar ao app.');
       return;
+    }
+
+    if (isPlanSwitchCheckout(subscriptionStatus, selectedPlan.id)) {
+      showStatus('pending', 'Voce esta trocando de plano. A alteracao sera confirmada apos o pagamento.');
     }
 
     await selectPaymentMethod(selectedPaymentMethod);
