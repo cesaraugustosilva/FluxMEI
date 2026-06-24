@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildSubscriptionStatus,
   buildPendingSubscriptionPayload,
   buildTrialSubscriptionPayload,
   evaluateSubscriptionAccess
@@ -63,4 +64,24 @@ test('assinatura ativa retorna acesso liberado', () => {
 
   assert.equal(access.allowed, true);
   assert.equal(access.assinatura.id, 'sub-2');
+});
+
+test('assinatura com cancelamento agendado preserva acesso ate vencimento', () => {
+  const assinatura = {
+    id: 'sub-3',
+    plano: 'pro_anual',
+    status: 'ativo',
+    bloqueado: false,
+    cancel_at_period_end: true,
+    data_vencimento: '2026-07-12'
+  };
+
+  const access = evaluateSubscriptionAccess(assinatura, '2026-06-12');
+  const status = buildSubscriptionStatus(access, '2026-06-12');
+
+  assert.equal(access.allowed, true);
+  assert.equal(status.estado, 'cancelamento_agendado');
+  assert.equal(status.ativo, true);
+  assert.equal(status.cancel_at_period_end, true);
+  assert.equal(status.dias_restantes, 30);
 });

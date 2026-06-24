@@ -43,6 +43,30 @@ function assertSelfManagedSubscriptionsEnabled() {
   throw new AppError('Alterações de assinatura estão desativadas nesta instalação.', 403);
 }
 
+async function getLatestUserSubscription(userId) {
+  const { data, error } = await supabaseAdmin
+    .from('assinaturas')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new AppError('Erro ao consultar assinatura.', 500, error.message);
+  if (!data) throw new AppError('Assinatura nao encontrada.', 404);
+  return data;
+}
+
+function hasPaidAccessUntilEnd(assinatura) {
+  return Boolean(
+    assinatura
+    && assinatura.data_vencimento
+    && assinatura.data_vencimento >= todayIso()
+    && !assinatura.bloqueado
+    && ['ativo', TRIAL_STATUS].includes(assinatura.status)
+  );
+}
+
 export async function planos(req, res) {
   res.json(Object.values(PLANOS));
 }
@@ -92,7 +116,7 @@ export async function updateAssinatura(req, res) {
   res.json(data);
 }
 
-export async function cancelarAssinatura(req, res) {
+export async function cancelarAssinaturaLegado(req, res) {
   assertSelfManagedSubscriptionsEnabled();
   const { data, error } = await supabaseAdmin
     .from('assinaturas')
@@ -104,4 +128,77 @@ export async function cancelarAssinatura(req, res) {
 
   if (error) throw new AppError('Assinatura não encontrada.', 404);
   res.json(data);
+}
+
+export async function cancelarAssinatura(req, res) {
+  const assinatura = await getLatestUserSubscription(req.user.id);
+  const preserveAccess = hasPaidAccessUntilEnd(assinatura);
+  const updates = preserveAccess
+    ? {
+        cancel_at_period_end: true,
+        cancelled_at: new Date().toISOString(),
+        reactivated_at: null,
+        renovacao_automatica: false
+      }
+    : {
+        status: 'cancelado',
+        bloqueado: true,
+        cancel_at_period_end: false,
+        cancelled_at: new Date().toISOString(),
+        reactivated_at: null,
+        renovacao_automatica: false
+      };
+
+  const { data, error } = await supabaseAdmin
+    .from('assinaturas')
+    .update(updates)
+    .eq('id', assinatura.id)
+    .eq('user_id', req.user.id)
+    .select()
+    .single();
+
+  if (error) throw new AppError('Erro ao cancelar assinatura.', 500, error.message);
+  res.json({
+    success: true,
+    message: preserveAccess
+      ? `Sua assinatura sera encerrada em ${data.data_vencimento}.`
+      : 'Sua assinatura foi cancelada.',
+    assinatura: data
+  });
+}
+
+export async function reativarAssinatura(req, res) {
+  const assinatura = await getLatestUserSubscription(req.user.id);
+  const insidePaidPeriod = hasPaidAccessUntilEnd(assinatura);
+
+  if (!insidePaidPeriod) {
+    res.json({
+      success: true,
+      action: 'checkout',
+      checkout_url: `/checkout/?plan=${encodeURIComponent(assinatura.plano && assinatura.plano !== 'gratuito' ? assinatura.plano : 'pro_mensal')}`,
+      message: 'Sua assinatura esta vencida. Reative escolhendo um plano no checkout.'
+    });
+    return;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('assinaturas')
+    .update({
+      cancel_at_period_end: false,
+      cancelled_at: null,
+      reactivated_at: new Date().toISOString(),
+      renovacao_automatica: true
+    })
+    .eq('id', assinatura.id)
+    .eq('user_id', req.user.id)
+    .select()
+    .single();
+
+  if (error) throw new AppError('Erro ao reativar assinatura.', 500, error.message);
+  res.json({
+    success: true,
+    action: 'reactivated',
+    message: 'Sua assinatura foi reativada.',
+    assinatura: data
+  });
 }

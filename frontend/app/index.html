@@ -624,12 +624,21 @@
       </div>
     </div>
 
-    <section class="account-current-plan">
-      <div>
-        <span>Plano atual</span>
+    <section class="account-subscription-hero" aria-label="Minha assinatura">
+      <div class="account-hero-copy">
+        <span>Minha assinatura</span>
         <strong id="accountCurrentPlan">Carregando...</strong>
+        <p id="accountStatusText"></p>
       </div>
       <span class="account-status-badge" id="accountStatusBadge">Status</span>
+    </section>
+
+    <section class="account-current-plan" hidden>
+      <div>
+        <span>Plano atual</span>
+        <strong id="accountCurrentPlanLegacy">Carregando...</strong>
+      </div>
+      <span class="account-status-badge" id="accountStatusBadgeLegacy">Status</span>
     </section>
     <section class="account-plan-overview">
       <div>
@@ -640,8 +649,28 @@
         <span>Proximo vencimento</span>
         <strong id="accountNextDueDate">--</strong>
       </div>
+      <div>
+        <span>Dias restantes</span>
+        <strong id="accountDaysRemaining">--</strong>
+      </div>
+      <div>
+        <span>Ultimo pagamento</span>
+        <strong id="accountLastPaymentDate">--</strong>
+      </div>
+      <div>
+        <span>Metodo</span>
+        <strong id="accountLastPaymentMethod">--</strong>
+      </div>
     </section>
-    <p class="account-status-text" id="accountStatusText"></p>
+    <p class="account-billing-notice" id="accountBillingNotice" hidden></p>
+
+    <section class="account-quick-actions" aria-label="Acoes rapidas da assinatura">
+      <button class="btn btn-outline" type="button" id="accountQuickSwitch">Trocar plano</button>
+      <button class="btn btn-outline" type="button" id="accountQuickHistory">Ver historico de pagamentos</button>
+      <a class="btn btn-primary" href="/checkout/" id="accountQuickCheckout">Ir para checkout</a>
+      <button class="btn btn-danger" type="button" id="accountCancelAction">Cancelar assinatura</button>
+      <button class="btn btn-primary" type="button" id="accountReactivateAction" hidden>Reativar assinatura</button>
+    </section>
 
     <section class="account-switch-card" id="accountSwitchCard">
       <div>
@@ -658,7 +687,7 @@
       <div class="account-plans" id="accountPlans"></div>
     </section>
 
-    <section class="account-payment-history" aria-label="Historico de pagamentos">
+    <section class="account-payment-history" id="accountPaymentHistorySection" aria-label="Historico de pagamentos">
       <div class="account-section-title">Historico de pagamentos</div>
       <div class="account-payment-list" id="accountPaymentHistory">
         <div class="account-history-state">Carregando pagamentos...</div>

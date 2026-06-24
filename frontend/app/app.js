@@ -348,8 +348,8 @@ function getPaymentPlanLabel(planId) {
 function getPaymentMethodMeta(method) {
   const normalized = String(method || '').trim().toLowerCase();
   if (normalized === 'pix') return { label: 'Pix', icon: 'Pix' };
-  if (normalized === 'boleto') return { label: 'Boleto', icon: 'Bol' };
-  if (normalized === 'cartao' || normalized === 'credit_card') return { label: 'Cartao', icon: 'Car' };
+  if (normalized === 'boleto' || normalized === 'bank_slip') return { label: 'Boleto', icon: 'Bol' };
+  if (normalized === 'cartao' || normalized === 'credit_card' || normalized === 'creditcard') return { label: 'Cartao', icon: 'Car' };
   return { label: method ? String(method) : '--', icon: 'Pay' };
 }
 
@@ -447,6 +447,7 @@ function getAccountStatusMeta(status = subscriptionStatus) {
   const estado = status?.estado || status?.status || 'teste_gratis';
   const dias = Number(status?.dias_restantes || 0);
 
+  if (estado === 'cancelamento_agendado') return { label: 'Cancelamento agendado', className: 'scheduled' };
   if (estado === 'ativo') return { label: 'Plano liberado', className: 'active' };
   if (estado === 'pendente_pagamento' || estado === 'pendente') return { label: 'Pagamento pendente', className: 'pending' };
   if (estado === 'expirado' || estado === 'vencido' || estado === 'bloqueado') return { label: 'Teste gratis expirado', className: 'blocked' };
@@ -461,6 +462,53 @@ function getCurrentPlanId(status = subscriptionStatus) {
   return status?.plano || 'gratuito';
 }
 
+function isSubscriptionEnded(status = subscriptionStatus) {
+  const estado = status?.estado || status?.status;
+  return Boolean(status?.cancel_at_period_end || ['cancelamento_agendado', 'cancelado', 'vencido', 'expirado', 'bloqueado'].includes(estado));
+}
+
+async function cancelSubscription() {
+  const status = subscriptionStatus || {};
+  const endDate = status.data_vencimento ? formatDate(status.data_vencimento) : 'fim do periodo atual';
+  const confirmed = await confirmarAcao({
+    title: 'Cancelar assinatura',
+    message: `Voce continuara com acesso ate ${endDate}. O historico de pagamentos e os dados financeiros serao mantidos.`,
+    confirmText: 'Agendar cancelamento',
+    danger: true
+  });
+
+  if (!confirmed) return;
+
+  try {
+    const response = await apiRequest('/assinaturas/cancelar', { method: 'POST' });
+    await reloadAndRender(currentPage);
+    renderAccountPanel();
+    showToast(response?.message || `Sua assinatura sera encerrada em ${endDate}.`);
+  } catch (error) {
+    showToast(error.message || 'Nao foi possivel cancelar a assinatura agora.', 'error');
+  }
+}
+
+async function reactivateSubscription() {
+  try {
+    const response = await apiRequest('/assinaturas/reativar', { method: 'POST' });
+    if (response?.action === 'checkout' && response.checkout_url) {
+      window.location.href = response.checkout_url;
+      return;
+    }
+    await reloadAndRender(currentPage);
+    renderAccountPanel();
+    showToast(response?.message || 'Sua assinatura foi reativada.');
+  } catch (error) {
+    showToast(error.message || 'Nao foi possivel reativar a assinatura agora.', 'error');
+  }
+}
+
+function scrollToPaymentHistory() {
+  const section = document.getElementById('accountPaymentHistorySection');
+  if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function renderAccountPanel() {
   const nome = state.profile?.nome || state.config.nome || state.user?.user_metadata?.nome || 'Usuario FluxMEI';
   const email = state.user?.email || 'Email nao informado';
@@ -473,8 +521,11 @@ function renderAccountPanel() {
   const statusMeta = getAccountStatusMeta(status);
   const estado = status.estado || status.status;
   const dias = Number(status.dias_restantes || 0);
-  const isActive = estado === 'ativo';
+  const isActive = estado === 'ativo' || estado === 'cancelamento_agendado';
   const isPending = estado === 'pendente_pagamento' || estado === 'pendente';
+  const isScheduledCancel = Boolean(status.cancel_at_period_end) || estado === 'cancelamento_agendado';
+  const canReactivate = isSubscriptionEnded(status);
+  const lastPaymentMethod = getPaymentMethodMeta(status.ultimo_pagamento_metodo);
 
   document.getElementById('accountName').textContent = nome;
   document.getElementById('accountEmail').textContent = email;
@@ -484,17 +535,30 @@ function renderAccountPanel() {
   document.getElementById('accountCurrentPlan').textContent = getPlanShortLabel(currentPlanId) || currentPlan?.nome || getPlanLabel(status);
   document.getElementById('accountCurrentValue').textContent = currentPlan ? formatPlanPrice(currentPlan) : '--';
   document.getElementById('accountNextDueDate').textContent = status.data_vencimento ? formatDate(status.data_vencimento) : '--';
+  document.getElementById('accountDaysRemaining').textContent = status.dias_restantes != null ? `${Number(status.dias_restantes || 0)} dia(s)` : '--';
+  document.getElementById('accountLastPaymentDate').textContent = status.ultimo_pagamento_em ? formatDate(status.ultimo_pagamento_em) : '--';
+  document.getElementById('accountLastPaymentMethod').textContent = status.ultimo_pagamento_metodo ? lastPaymentMethod.label : '--';
 
   const badge = document.getElementById('accountStatusBadge');
   badge.textContent = statusMeta.label;
   badge.className = `account-status-badge ${statusMeta.className}`;
 
-  const statusText = estado === 'ativo'
-    ? 'Acesso completo habilitado.'
+  const statusText = estado === 'cancelamento_agendado'
+    ? `Voce continuara com acesso ate ${status.data_vencimento ? formatDate(status.data_vencimento) : 'o fim do periodo ja pago'}.`
+    : (estado === 'ativo'
+      ? 'Acesso completo habilitado.'
     : (status.mensagem || (estado === 'teste_gratis'
       ? `Faltam ${dias} dia(s) para o fim do teste.`
-      : 'Acompanhe seu plano e assinatura por aqui.'));
+      : 'Acompanhe seu plano e assinatura por aqui.')));
   document.getElementById('accountStatusText').textContent = statusText;
+
+  const billingNotice = document.getElementById('accountBillingNotice');
+  if (billingNotice) {
+    billingNotice.hidden = !isScheduledCancel;
+    billingNotice.textContent = isScheduledCancel
+      ? `Sua assinatura sera encerrada em ${status.data_vencimento ? formatDate(status.data_vencimento) : 'fim do ciclo atual'}.`
+      : '';
+  }
 
   const switchCard = document.getElementById('accountSwitchCard');
   const switchTitle = document.getElementById('accountSwitchTitle');
@@ -559,10 +623,28 @@ function renderAccountPanel() {
 
   const subscribeAction = document.getElementById('accountSubscribeAction');
   const manageAction = document.getElementById('accountManageAction');
+  const quickSwitch = document.getElementById('accountQuickSwitch');
+  const quickHistory = document.getElementById('accountQuickHistory');
+  const quickCheckout = document.getElementById('accountQuickCheckout');
+  const cancelAction = document.getElementById('accountCancelAction');
+  const reactivateAction = document.getElementById('accountReactivateAction');
   subscribeAction.textContent = isPending ? 'Tentar novamente' : (estado === 'expirado' || estado === 'vencido' || estado === 'bloqueado' ? 'Escolher plano' : 'Assinar agora');
   subscribeAction.style.display = isActive ? 'none' : '';
   manageAction.style.display = isActive ? '' : 'none';
   manageAction.href = switchTargetPlan ? getCheckoutUrlForPlan(switchTargetPlan.id) : '/checkout/';
+  if (quickSwitch) {
+    quickSwitch.hidden = !switchTargetPlan;
+    quickSwitch.dataset.targetPlan = switchTargetPlan?.id || '';
+  }
+  if (quickHistory) quickHistory.hidden = false;
+  if (quickCheckout) quickCheckout.href = switchTargetPlan ? getCheckoutUrlForPlan(switchTargetPlan.id) : '/checkout/';
+  if (cancelAction) {
+    cancelAction.hidden = !isActive || isScheduledCancel;
+    cancelAction.disabled = !isActive || isScheduledCancel;
+  }
+  if (reactivateAction) {
+    reactivateAction.hidden = !canReactivate;
+  }
   renderPaymentHistory();
 }
 
@@ -904,7 +986,7 @@ function parseBRL(str) {
 }
 function formatDate(iso) {
   if (!iso) return '—';
-  const [y,m,d] = iso.split('-');
+  const [y,m,d] = String(iso).slice(0, 10).split('-');
   return `${d}/${m}/${y}`;
 }
 function maskValor(el) {
@@ -2244,7 +2326,9 @@ function exposeGlobalHandlers() {
     salvarConfig,
     salvarDAS,
     limparTudo,
-    confirmPlanSwitch
+    confirmPlanSwitch,
+    cancelSubscription,
+    reactivateSubscription
   });
 }
 
@@ -2289,6 +2373,12 @@ async function init() {
   document.getElementById('accountPlanSwitchAction')?.addEventListener('click', (event) => {
     confirmPlanSwitch(event.currentTarget.dataset.targetPlan);
   });
+  document.getElementById('accountQuickSwitch')?.addEventListener('click', (event) => {
+    confirmPlanSwitch(event.currentTarget.dataset.targetPlan);
+  });
+  document.getElementById('accountQuickHistory')?.addEventListener('click', scrollToPaymentHistory);
+  document.getElementById('accountCancelAction')?.addEventListener('click', cancelSubscription);
+  document.getElementById('accountReactivateAction')?.addEventListener('click', reactivateSubscription);
   document.getElementById('accountModal')?.addEventListener('click', (event) => {
     if (event.target.id === 'accountModal') closeAccountPanel();
   });

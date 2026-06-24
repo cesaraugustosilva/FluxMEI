@@ -55,6 +55,9 @@ export function activeSubscriptionExpired(assinatura, todayIso) {
 
 export function getSubscriptionState(assinatura, allowed = true) {
   if (!assinatura) return TRIAL_STATUS;
+  if (assinatura.cancel_at_period_end && ['ativo', TRIAL_STATUS].includes(assinatura.status) && !assinatura.bloqueado) {
+    return 'cancelamento_agendado';
+  }
   if (assinatura.status === 'ativo' && !assinatura.bloqueado) return 'ativo';
   if (assinatura.status === TRIAL_STATUS && !assinatura.bloqueado && allowed) return TRIAL_STATUS;
   if (assinatura.status === 'pendente') return 'pendente_pagamento';
@@ -82,6 +85,10 @@ export function statusMessage(estado, diasRestantes = 0) {
 
   if (estado === 'ativo') {
     return 'Acesso completo habilitado.';
+  }
+
+  if (estado === 'cancelamento_agendado') {
+    return 'Sua assinatura seguira ativa ate o fim do periodo ja pago.';
   }
 
   return 'Sua assinatura nao esta ativa. Escolha um plano para continuar usando o FluxMEI.';
@@ -170,23 +177,30 @@ export function evaluateSubscriptionAccess(assinatura, todayIso) {
 export function buildSubscriptionStatus(access, todayIso) {
   const assinatura = access.assinatura;
   const trialEnd = getTrialEndDate(assinatura);
-  const diasRestantes = assinatura?.status === TRIAL_STATUS ? diffDaysUntil(trialEnd, todayIso) : 0;
+  const accessEnd = assinatura?.data_vencimento || trialEnd;
+  const diasRestantes = diffDaysUntil(accessEnd, todayIso);
   const estado = getSubscriptionState(assinatura, access.allowed);
   const providerRaw = assinatura?.provider_raw || {};
   const pendingPaymentPlan = providerRaw?.attempt?.plano_original || providerRaw?.attempt?.metadata?.plano || null;
+  const lastPaymentMethod = providerRaw?.attempt?.method || providerRaw?.attempt?.billingType || providerRaw?.payment?.billingType || null;
 
   return {
     plano: assinatura?.plano || 'gratuito',
     status: assinatura?.status || TRIAL_STATUS,
     estado,
-    ativo: estado === 'ativo',
+    ativo: estado === 'ativo' || estado === 'cancelamento_agendado',
     allowed: access.allowed,
     bloqueado: !access.allowed || Boolean(assinatura?.bloqueado),
     data_inicio: assinatura?.data_inicio || null,
     data_vencimento: assinatura?.data_vencimento || null,
     data_trial_fim: trialEnd,
+    cancel_at_period_end: Boolean(assinatura?.cancel_at_period_end),
+    cancelled_at: assinatura?.cancelled_at || null,
+    reactivated_at: assinatura?.reactivated_at || null,
     payment_provider: assinatura?.payment_provider || null,
     provider_status: assinatura?.provider_status || null,
+    ultimo_pagamento_metodo: lastPaymentMethod,
+    ultimo_pagamento_em: assinatura?.paid_at || null,
     pending_payment_plan: pendingPaymentPlan,
     teste_gratis_usado: Boolean(assinatura?.teste_gratis_usado),
     dias_restantes: diasRestantes,

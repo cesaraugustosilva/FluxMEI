@@ -47,6 +47,26 @@ test('Minha Conta renderiza historico de pagamentos', () => {
   assert.match(appJs, /Nao foi possivel carregar o historico de pagamentos agora\./);
 });
 
+test('Minha Conta renderiza gerenciamento completo da assinatura', () => {
+  assert.match(appHtml, /Minha assinatura/);
+  assert.match(appHtml, /id="accountDaysRemaining"/);
+  assert.match(appHtml, /id="accountLastPaymentMethod"/);
+  assert.match(appHtml, /id="accountLastPaymentDate"/);
+  assert.match(appHtml, /id="accountCancelAction"/);
+  assert.match(appHtml, /id="accountReactivateAction"/);
+  assert.match(appJs, /apiRequest\('\/assinaturas\/cancelar', \{ method: 'POST' \}\)/);
+  assert.match(appJs, /apiRequest\('\/assinaturas\/reativar', \{ method: 'POST' \}\)/);
+  assert.match(appJs, /cancelamento_agendado/);
+  assert.match(appJs, /accountQuickHistory/);
+});
+
+test('Historico continua visivel apos cancelamento agendado', () => {
+  assert.match(appHtml, /id="accountPaymentHistorySection"/);
+  assert.match(appJs, /renderPaymentHistory\(\)/);
+  assert.match(appJs, /cancel_at_period_end/);
+  assert.doesNotMatch(appJs, /state\.paymentHistory\s*=\s*\[\][\s\S]{0,120}cancelSubscription/);
+});
+
 test('Historico de pagamentos nao renderiza provider_raw ou documentos sensiveis', () => {
   const historyRenderer = appJs.match(/function renderPaymentHistory\(\) \{[\s\S]*?\n\}/)?.[0] || '';
   assert.doesNotMatch(historyRenderer, /provider_raw/);

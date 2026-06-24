@@ -451,6 +451,45 @@ body {
   width: 48px;
   height: 48px;
 }
+.account-subscription-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 18px 18px 0;
+  padding: 20px;
+  border: 1px solid rgba(72,213,47,.24);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(127,240,175,.34), transparent 32%),
+    linear-gradient(135deg, rgba(8, 42, 29, .96), rgba(18, 90, 54, .90));
+  color: #f2fff7;
+  box-shadow: 0 22px 52px rgba(6, 42, 26, .22);
+}
+.account-hero-copy {
+  min-width: 0;
+}
+.account-hero-copy span {
+  display: block;
+  color: rgba(242,255,247,.72);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.account-hero-copy strong {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  line-height: 1.08;
+}
+.account-hero-copy p {
+  margin-top: 8px;
+  color: rgba(242,255,247,.78);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
 .account-current-plan {
   display: flex;
   align-items: center;
@@ -510,8 +549,31 @@ body {
   background: #eef2ff;
   color: #3730a3;
 }
+.account-status-badge.scheduled {
+  background: #fff7e6;
+  color: #875a06;
+}
 .account-status-text {
   padding: 10px 18px 0;
+}
+.account-billing-notice {
+  margin: 12px 18px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(245,158,11,.24);
+  border-radius: 12px;
+  background: #fff7e6;
+  color: #875a06;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+.account-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 18px 0;
+}
+.account-quick-actions .btn {
+  min-height: 42px;
 }
 .account-switch-card {
   display: flex;
@@ -958,6 +1020,7 @@ body {
 :root[data-theme="dark"] .account-current-plan,
 :root[data-theme="dark"] .account-plan-overview div,
 :root[data-theme="dark"] .account-switch-card,
+:root[data-theme="dark"] .account-billing-notice,
 :root[data-theme="dark"] .account-plan-card,
 :root[data-theme="dark"] .account-payment-item,
 :root[data-theme="dark"] .account-history-state {
@@ -969,6 +1032,10 @@ body {
 :root[data-theme="dark"] .account-pending-warning {
   background: rgba(242,184,75,.16);
   color: var(--yellow) !important;
+}
+
+:root[data-theme="dark"] .account-billing-notice {
+  color: var(--yellow);
 }
 
 :root[data-theme="dark"] body {
@@ -1932,6 +1999,14 @@ textarea.form-input { resize: vertical; }
   .account-plan-overview,
   .account-switch-card {
     grid-template-columns: 1fr;
+  }
+
+  .account-subscription-hero {
+    flex-direction: column;
+  }
+
+  .account-quick-actions .btn {
+    width: 100%;
   }
 
   .account-switch-card {

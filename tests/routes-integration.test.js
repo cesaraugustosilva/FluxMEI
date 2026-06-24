@@ -50,3 +50,16 @@ test('rota de historico de pagamentos exige autenticacao no Express', async () =
     assert.notEqual(payload, null);
   });
 });
+
+test('rotas de gerenciamento de assinatura exigem autenticacao no Express', async () => {
+  await withTestServer(async (baseUrl) => {
+    for (const path of ['/api/assinaturas/cancelar', '/api/assinaturas/reativar']) {
+      const response = await fetch(`${baseUrl}${path}`, { method: 'POST' });
+
+      assert.equal(response.status, 401);
+      const payload = await response.json();
+      assert.equal(typeof payload, 'object');
+      assert.notEqual(payload, null);
+    }
+  });
+});

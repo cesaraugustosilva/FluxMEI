@@ -98,6 +98,9 @@ create table if not exists public.assinaturas (
   provider_raw jsonb,
   paid_at timestamptz,
   checkout_url text,
+  cancel_at_period_end boolean not null default false,
+  cancelled_at timestamptz,
+  reactivated_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
