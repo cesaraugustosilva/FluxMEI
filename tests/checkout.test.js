@@ -50,6 +50,10 @@ function createCheckoutHarness(options = {}) {
     'efiCardPanel',
     'cardHolderName',
     'cardHolderDocument',
+    'cardHolderEmail',
+    'cardHolderPhone',
+    'cardPostalCode',
+    'cardAddressNumber',
     'cardNumber',
     'cardExpiry',
     'cardCvv',
@@ -65,6 +69,15 @@ function createCheckoutHarness(options = {}) {
   elements.get('efiCardPanel').hidden = true;
   elements.get('cardMethodButton').hidden = true;
   elements.get('billingDocument').value = options.billingDocument ?? '123.456.789-01';
+  elements.get('cardHolderName').value = 'Cliente FluxMEI';
+  elements.get('cardHolderDocument').value = '123.456.789-09';
+  elements.get('cardHolderEmail').value = 'cliente@example.com';
+  elements.get('cardHolderPhone').value = '11999998888';
+  elements.get('cardPostalCode').value = '01310-000';
+  elements.get('cardAddressNumber').value = '100';
+  elements.get('cardNumber').value = '4111 1111 1111 1111';
+  elements.get('cardExpiry').value = '12/2030';
+  elements.get('cardCvv').value = '123';
   elements.get('cardInstallments').value = '1';
 
   const context = {
@@ -121,7 +134,7 @@ function createCheckoutHarness(options = {}) {
   };
   context.globalThis = context;
   vm.createContext(context);
-  vm.runInContext(`${checkoutJs}\nglobalThis.__checkoutTest = { renderPixPanel, renderBoletoPanel, checkPaymentStatus, getStatusKeyFromPayment, generatePixPayment, generateBoletoPayment, configureCardAvailability, submitEfiCardPayment, getLoginUrl };`, context);
+  vm.runInContext(`${checkoutJs}\nglobalThis.__checkoutTest = { renderPixPanel, renderBoletoPanel, checkPaymentStatus, getStatusKeyFromPayment, generatePixPayment, generateBoletoPayment, configureCardAvailability, submitCardPayment, submitAsaasCardPayment, submitEfiCardPayment, getLoginUrl };`, context);
 
   return {
     elements,
@@ -135,7 +148,7 @@ function createCheckoutHarness(options = {}) {
 
 test('checkout principal usa Asaas para Pix e boleto ativos', () => {
   assert.match(checkoutHtml, /Pagamento seguro processado pelo Asaas\./);
-  assert.match(checkoutHtml, /Cartao sera liberado em uma etapa futura/);
+  assert.match(checkoutHtml, /Pix, boleto e cartao estao ativos pelo Asaas/);
   assert.match(checkoutHtml, /id="boletoPanel"/);
   assert.match(checkoutHtml, /data-payment-method="pix"/);
   assert.match(checkoutHtml, /data-payment-method="boleto"/);
@@ -154,48 +167,53 @@ test('checkout principal usa Asaas para Pix e boleto ativos', () => {
 test('checkout principal chama rotas Asaas quando PAYMENT_GATEWAY=asaas', () => {
   assert.match(checkoutJs, /\/pagamentos\/asaas\/criar-pix/);
   assert.match(checkoutJs, /\/pagamentos\/asaas\/criar-boleto/);
+  assert.match(checkoutJs, /\/pagamentos\/asaas\/criar-cartao/);
   assert.match(checkoutJs, /\/pagamentos\/asaas\/status\/\$\{encodeURIComponent\(paymentId\)\}/);
   assert.match(checkoutJs, /generatePixPayment/);
   assert.match(checkoutJs, /generateBoletoPayment/);
-  assert.match(checkoutJs, /submitEfiCardPayment/);
+  assert.match(checkoutJs, /submitAsaasCardPayment/);
   assert.match(checkoutJs, /ACTIVE_PAYMENT_METHODS = new Set\(\['pix', 'boleto'\]\)/);
   assert.match(checkoutJs, /copyPixButton/);
 });
 
-test('checkout nao exibe Cartao mesmo com tokenizacao EFI configurada', () => {
-  const disabled = createCheckoutHarness();
-  assert.equal(disabled.api.configureCardAvailability(), false);
-  assert.equal(disabled.elements.get('cardMethodButton').hidden, true);
-
-  const CreditCard = {
-    setCardNumber() { return this; },
-    verifyCardBrand: async () => 'visa',
-    setAccount() { return this; },
-    setEnvironment() { return this; },
-    setCreditCardData() { return this; },
-    getPaymentToken: async () => ({ payment_token: 'token-seguro', card_mask: 'XXXXXXXXXXXX1111' })
-  };
-  const enabled = createCheckoutHarness({ efiPayeeCode: 'payee-1', efiPay: { CreditCard } });
-
-  assert.equal(enabled.api.configureCardAvailability(), false);
-  assert.equal(enabled.elements.get('cardMethodButton').hidden, true);
+test('checkout exibe Cartao quando gateway ativo e Asaas', () => {
+  const harness = createCheckoutHarness({ paymentGateway: 'asaas' });
+  assert.equal(harness.api.configureCardAvailability(), true);
+  assert.equal(harness.elements.get('cardMethodButton').hidden, false);
 });
 
-test('cartao permanece desativado e nao chama backend', async () => {
-  const CreditCard = {
-    setCardNumber() { return this; },
-    verifyCardBrand: async () => 'visa',
-    setAccount() { return this; },
-    setEnvironment() { return this; },
-    setCreditCardData() { return this; },
-    getPaymentToken: async () => ({ payment_token: 'token-seguro', card_mask: 'XXXXXXXXXXXX1111' })
-  };
-  const { api, elements, fetchCalls } = createCheckoutHarness({ efiPayeeCode: 'payee-1', efiPay: { CreditCard } });
+test('checkout oculta Cartao quando gateway ativo e EFI', () => {
+  const harness = createCheckoutHarness({ paymentGateway: 'efi' });
+  assert.equal(harness.api.configureCardAvailability(), false);
+  assert.equal(harness.elements.get('cardMethodButton').hidden, true);
+});
 
-  await api.submitEfiCardPayment();
+test('cartao Asaas chama backend e limpa campos sensiveis', async () => {
+  const { api, elements, fetchCalls, setFetchData } = createCheckoutHarness({ paymentGateway: 'asaas' });
+  setFetchData({
+    success: true,
+    provider: 'asaas',
+    payment_id: 'pay_card_1',
+    payment_status: 'CONFIRMED',
+    payment_method_id: 'CREDIT_CARD',
+    assinatura: { status: 'ativo' }
+  });
 
-  assert.match(elements.get('checkoutAlert').textContent, /cartao ainda nao esta disponivel/i);
-  assert.equal(fetchCalls.length, 0);
+  await api.submitAsaasCardPayment();
+
+  assert.equal(fetchCalls.at(-1).url, 'http://127.0.0.1/api/pagamentos/asaas/criar-cartao');
+  const body = JSON.parse(fetchCalls.at(-1).options.body);
+  assert.equal(body.payment.number, '4111111111111111');
+  assert.equal(body.payment.cvv, '123');
+  assert.equal(body.payment.cpfCnpj, '12345678909');
+  assert.equal(elements.get('cardNumber').value, '');
+  assert.equal(elements.get('cardCvv').value, '');
+  assert.equal(elements.get('cardExpiry').value, '');
+  assert.match(elements.get('checkoutAlert').textContent, /Pagamento aprovado/i);
+});
+
+test('checkout nao salva dados de cartao em storage', () => {
+  assert.doesNotMatch(checkoutJs, /(?:localStorage|sessionStorage)\.setItem\([^)]*(?:card|cartao|cvv|number|expiry|validade)/i);
 });
 
 test('gerar Pix chama a rota Asaas de Pix', async () => {

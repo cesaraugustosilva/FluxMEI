@@ -154,6 +154,46 @@ async function criarCobranca({ customerId, plan, method, externalReference, dueD
   });
 }
 
+async function criarCobrancaCartao({ customerId, plan, externalReference, card, holderInfo, installments = 1, remoteIp }) {
+  const payload = {
+    customer: customerId,
+    billingType: 'CREDIT_CARD',
+    dueDate: todayIso(),
+    description: plan.description,
+    externalReference,
+    creditCard: {
+      holderName: card.holderName,
+      number: card.number,
+      expiryMonth: card.expiryMonth,
+      expiryYear: card.expiryYear,
+      ccv: card.ccv
+    },
+    creditCardHolderInfo: cleanObject({
+      name: holderInfo.name,
+      email: holderInfo.email,
+      cpfCnpj: holderInfo.cpfCnpj,
+      postalCode: holderInfo.postalCode,
+      addressNumber: holderInfo.addressNumber,
+      addressComplement: holderInfo.addressComplement,
+      phone: holderInfo.phone,
+      mobilePhone: holderInfo.mobilePhone || holderInfo.phone
+    }),
+    remoteIp
+  };
+
+  if (installments > 1) {
+    payload.installmentCount = installments;
+    payload.totalValue = plan.value;
+  } else {
+    payload.value = plan.value;
+  }
+
+  return request('/payments', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
 async function obterPixQrCode(paymentId) {
   return request(`/payments/${encodeURIComponent(paymentId)}/pixQrCode`, { method: 'GET' });
 }
@@ -165,6 +205,7 @@ async function consultarPagamento(paymentId) {
 export const asaasService = {
   criarOuBuscarCliente,
   criarCobranca,
+  criarCobrancaCartao,
   consultarPagamento,
   obterPixQrCode,
   normalizeBillingType,

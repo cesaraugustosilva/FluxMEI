@@ -4,7 +4,7 @@ SaaS de gestao financeira para MEIs.
 
 O FluxMEI ajuda microempreendedores a controlar receitas, despesas, clientes, DAS, metas financeiras e assinatura em uma plataforma web simples, com teste gratis de 7 dias e checkout integrado.
 
-O gateway principal de pagamento e o Asaas, com Pix e boleto. A Efí Bank permanece no backend como fallback tecnico.
+O gateway principal de pagamento e o Asaas, com Pix, boleto e cartao. A Efí Bank permanece no backend como fallback tecnico.
 
 ## Principais Recursos
 
@@ -15,7 +15,7 @@ O gateway principal de pagamento e o Asaas, com Pix e boleto. A Efí Bank perman
 - Metas financeiras
 - Teste gratis de 7 dias
 - Assinatura
-- Checkout com Pix e boleto via Asaas
+- Checkout com Pix, boleto e cartao via Asaas
 
 ## Stack
 

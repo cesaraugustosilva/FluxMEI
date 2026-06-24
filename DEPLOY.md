@@ -79,7 +79,7 @@ FLUXMEI_API_URL=https://api.seudominio.com/api
 FLUXMEI_PAYMENT_GATEWAY=asaas
 ```
 
-`FLUXMEI_PAYMENT_GATEWAY=asaas` faz o checkout chamar as rotas Asaas. Cartao permanece oculto/desativado nesta etapa. Nunca coloque `ASAAS_API_KEY`, `EFI_CLIENT_SECRET`, certificado ou chave Pix na Vercel.
+`FLUXMEI_PAYMENT_GATEWAY=asaas` faz o checkout chamar as rotas Asaas de Pix, boleto e cartao. Nunca coloque `ASAAS_API_KEY`, `EFI_CLIENT_SECRET`, certificado ou chave Pix na Vercel.
 
 ## Supabase
 
@@ -142,7 +142,31 @@ Eventos minimos:
 - `PAYMENT_REFUNDED`
 - `PAYMENT_CHARGEBACK_REQUESTED`
 
-O Asaas deve enviar o token no header `asaas-access-token`, com o mesmo valor de `ASAAS_WEBHOOK_TOKEN`. A assinatura so e ativada depois que o backend consulta `GET /v3/payments/{id}` e confirma status `RECEIVED`, `CONFIRMED` ou `RECEIVED_IN_CASH`.
+O Asaas deve enviar o token no header `asaas-access-token`, com o mesmo valor de `ASAAS_WEBHOOK_TOKEN`. A assinatura so e ativada depois que o backend consulta `GET /v3/payments/{id}` e confirma status `RECEIVED`, `CONFIRMED` ou `RECEIVED_IN_CASH`. Para cartao, se a criacao da cobranca ja retornar status aprovado/confirmado, o backend ativa a assinatura imediatamente; se retornar pendente, aguarda webhook.
+
+Cartao Asaas:
+
+- Rota autenticada: `POST /api/pagamentos/asaas/criar-cartao`.
+- O frontend coleta os dados apenas para a tentativa atual e limpa os campos apos envio/erro.
+- O backend repassa `creditCard` e `creditCardHolderInfo` ao Asaas, sem persistir numero, CVV ou validade.
+- `provider_raw` deve conter apenas dados sanitizados de conciliacao.
+- A API de tokenizacao Asaas existe e fica habilitada em sandbox, mas em producao depende de aprovacao do gerente de contas; prefira tokenizacao/checkout hospedado quando disponivel para reduzir escopo PCI.
+
+Teste de cartao em sandbox:
+
+1. Use `ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3`.
+2. Gere `ASAAS_API_KEY` no sandbox e configure `PAYMENT_GATEWAY=asaas`.
+3. Abra `/checkout/`, escolha Cartao e use os cartoes ficticios de teste indicados pela documentacao Asaas.
+4. Confira no Supabase que `provider_raw` nao contem numero do cartao, CVV ou validade.
+5. Para pendencias, confirme pelo painel sandbox/webhook e valide que duplicidade nao estende vencimento duas vezes.
+
+Teste de cartao em producao:
+
+1. Use `ASAAS_BASE_URL=https://api.asaas.com/v3`.
+2. Garanta HTTPS ponta a ponta no dominio do checkout e backend.
+3. Execute primeiro uma compra real de baixo valor controlada.
+4. Confirme webhook `PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED`, ativacao da assinatura e ausencia de dados sensiveis em logs/Supabase.
+5. Se a tokenizacao Asaas for habilitada para a conta, planeje migrar para token/checkout hospedado para reduzir responsabilidade PCI.
 
 Para validar no Supabase, confira em `assinaturas`:
 

@@ -12,10 +12,11 @@ const PAYMENT_GATEWAYS = {
     provider: 'asaas',
     title: 'Asaas',
     secureText: 'Pagamento seguro processado pelo Asaas.',
-    helperText: 'Pix e boleto estao ativos. Cartao sera liberado em uma etapa futura.',
+    helperText: 'Pix, boleto e cartao estao ativos pelo Asaas.',
     loadingText: 'Estamos preparando o pagamento no ambiente seguro do Asaas.',
     pixPath: '/pagamentos/asaas/criar-pix',
     boletoPath: '/pagamentos/asaas/criar-boleto',
+    cardPath: '/pagamentos/asaas/criar-cartao',
     statusPath: (paymentId) => `/pagamentos/asaas/status/${encodeURIComponent(paymentId)}`
   },
   efi: {
@@ -382,11 +383,16 @@ function setBoletoGenerateVisible(isVisible) {
 }
 
 function configureCardAvailability() {
-  const enabled = false;
+  const gateway = getPaymentGateway();
+  const enabled = gateway.provider === 'asaas';
   const button = document.getElementById('cardMethodButton');
   if (enabled) {
     ACTIVE_PAYMENT_METHODS.add('cartao');
-    if (button) button.hidden = false;
+    if (button) {
+      button.hidden = false;
+      const small = typeof button.querySelector === 'function' ? button.querySelector('small') : null;
+      if (small) small.textContent = 'Credito pelo Asaas';
+    }
   } else {
     ACTIVE_PAYMENT_METHODS.delete('cartao');
     if (button) button.hidden = true;
@@ -468,6 +474,8 @@ function renderUser(data) {
   document.getElementById('userName').textContent = name;
   document.getElementById('userEmail').textContent = email;
   document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
+  const cardEmail = document.getElementById('cardHolderEmail');
+  if (cardEmail && !cardEmail.value && user.email) cardEmail.value = user.email;
 }
 
 function handleLoginRequired(planId) {
@@ -601,7 +609,7 @@ function setCardLoading(isLoading) {
   const button = document.getElementById('payCardButton');
   if (!button) return;
   button.disabled = isLoading;
-  button.textContent = isLoading ? 'Tokenizando...' : 'Pagar com cartao';
+  button.textContent = isLoading ? 'Processando...' : 'Pagar com cartao';
 }
 
 function setEfiCardVisible(isVisible) {
@@ -642,9 +650,29 @@ function formatExpiry(value) {
   return `${digits.slice(0, 2)}/${digits.slice(2)}`;
 }
 
+function isValidLuhn(value) {
+  const digits = onlyDigits(value);
+  let sum = 0;
+  let shouldDouble = false;
+  for (let index = digits.length - 1; index >= 0; index -= 1) {
+    let digit = Number(digits[index]);
+    if (shouldDouble) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    shouldDouble = !shouldDouble;
+  }
+  return digits.length >= 13 && digits.length <= 19 && sum % 10 === 0;
+}
+
 function getCardFormData() {
   const holderName = document.getElementById('cardHolderName').value.trim();
   const holderDocument = onlyDigits(document.getElementById('cardHolderDocument').value);
+  const holderEmail = document.getElementById('cardHolderEmail').value.trim();
+  const holderPhone = onlyDigits(document.getElementById('cardHolderPhone').value);
+  const postalCode = onlyDigits(document.getElementById('cardPostalCode').value);
+  const addressNumber = document.getElementById('cardAddressNumber').value.trim();
   const number = onlyDigits(document.getElementById('cardNumber').value);
   const expiry = onlyDigits(document.getElementById('cardExpiry').value);
   const cvv = onlyDigits(document.getElementById('cardCvv').value);
@@ -652,18 +680,31 @@ function getCardFormData() {
 
   if (!holderName) throw new Error('Informe o nome impresso no cartao.');
   if (![11, 14].includes(holderDocument.length)) throw new Error('Informe um CPF ou CNPJ valido.');
-  if (number.length < 13 || number.length > 19) throw new Error('Informe um numero de cartao valido.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(holderEmail)) throw new Error('Informe um e-mail valido.');
+  if (![10, 11].includes(holderPhone.length)) throw new Error('Informe um telefone valido.');
+  if (postalCode.length !== 8) throw new Error('Informe um CEP valido.');
+  if (!addressNumber) throw new Error('Informe o numero do endereco.');
+  if (!isValidLuhn(number)) throw new Error('Informe um numero de cartao valido.');
   if (expiry.length !== 6) throw new Error('Informe a validade no formato MM/AAAA.');
   const expirationMonth = expiry.slice(0, 2);
   const expirationYear = expiry.slice(2);
   const month = Number(expirationMonth);
+  const year = Number(expirationYear);
+  const now = new Date();
   if (month < 1 || month > 12) throw new Error('Mes de validade invalido.');
+  if (year < now.getFullYear() || (year === now.getFullYear() && month < now.getMonth() + 1)) {
+    throw new Error('Cartao vencido.');
+  }
   if (cvv.length < 3 || cvv.length > 4) throw new Error('Informe um CVV valido.');
   if (!Number.isInteger(installments) || installments < 1 || installments > 12) throw new Error('Parcelas invalidas.');
 
   return {
     holderName,
     holderDocument,
+    holderEmail,
+    holderPhone,
+    postalCode,
+    addressNumber,
     number,
     cvv,
     expirationMonth,
@@ -709,10 +750,90 @@ function getCurrentUserEmail() {
   return currentUserData?.user?.email || document.getElementById('userEmail')?.textContent || '';
 }
 
+function clearCardFields() {
+  [
+    'cardHolderName',
+    'cardHolderDocument',
+    'cardHolderEmail',
+    'cardHolderPhone',
+    'cardPostalCode',
+    'cardAddressNumber',
+    'cardNumber',
+    'cardExpiry',
+    'cardCvv'
+  ].forEach((id) => {
+    const input = document.getElementById(id);
+    if (input) input.value = '';
+  });
+  const installments = document.getElementById('cardInstallments');
+  if (installments) installments.value = '1';
+}
+
+async function submitAsaasCardPayment() {
+  clearAlert();
+  setCardLoading(true);
+  showStatus('pending', 'Processando cartao pelo Asaas.');
+
+  try {
+    const cardData = getCardFormData();
+    const data = await request(getPaymentGateway().cardPath, {
+      method: 'POST',
+      body: JSON.stringify({
+        plano: selectedPlan.id,
+        valor: selectedPlan.preco,
+        payment: {
+          holderName: cardData.holderName,
+          number: cardData.number,
+          expiryMonth: cardData.expirationMonth,
+          expiryYear: cardData.expirationYear,
+          cvv: cardData.cvv,
+          cpfCnpj: cardData.holderDocument,
+          name: cardData.holderName,
+          email: cardData.holderEmail,
+          phone: cardData.holderPhone,
+          postalCode: cardData.postalCode,
+          addressNumber: cardData.addressNumber,
+          installments: cardData.installments
+        }
+      })
+    });
+
+    const statusKey = getStatusKeyFromPayment(data);
+    showStatus(statusKey);
+
+    if (data.assinatura?.status === 'ativo' || data.assinatura?.estado === 'ativo') {
+      clearSubscribeIntent();
+      showStatus('active', 'Pagamento aprovado! Sua assinatura foi ativada.');
+      showAlert('Pagamento aprovado! Redirecionando para o painel...', 'success');
+      window.setTimeout(() => {
+        window.location.href = '/app/';
+      }, 1400);
+    } else if (statusKey === 'approved') {
+      showAlert('Pagamento aprovado pelo Asaas. Aguardando confirmacao final.', 'success');
+      pollSubscriptionActivation();
+    } else if (statusKey === 'pending' || statusKey === 'in_process') {
+      currentPaymentId = data.payment_id || currentPaymentId;
+      currentPaymentMethod = 'cartao';
+      showAlert('Pagamento recebido pelo Asaas e aguardando confirmacao.', 'success');
+      pollSubscriptionActivation();
+    } else {
+      showAlert('O cartao foi recusado. Revise os dados ou tente outro meio de pagamento.');
+    }
+
+    return data;
+  } catch (error) {
+    showStatus('rejected');
+    showAlert(error?.message || 'Nao foi possivel processar o cartao.');
+    return null;
+  } finally {
+    clearCardFields();
+    setCardLoading(false);
+  }
+}
+
 async function submitEfiCardPayment() {
   clearAlert();
-
-  showAlert('Pagamento por cartao ainda nao esta disponivel.');
+  showAlert('Pagamento por cartao pela EFI ainda nao esta disponivel.');
   return null;
 
   setCardLoading(true);
@@ -767,6 +888,12 @@ async function submitEfiCardPayment() {
   } finally {
     setCardLoading(false);
   }
+}
+
+async function submitCardPayment() {
+  const gateway = getPaymentGateway();
+  if (gateway.provider === 'asaas') return submitAsaasCardPayment();
+  return submitEfiCardPayment();
 }
 
 async function generatePixPayment() {
@@ -880,7 +1007,7 @@ function bindCheckoutEvents() {
   });
 
   document.getElementById('payCardButton').addEventListener('click', () => {
-    submitEfiCardPayment();
+    submitCardPayment();
   });
 
   document.getElementById('generateBoletoButton').addEventListener('click', () => {
@@ -893,6 +1020,14 @@ function bindCheckoutEvents() {
 
   document.getElementById('cardHolderDocument').addEventListener('input', (event) => {
     event.target.value = formatDocument(event.target.value);
+  });
+
+  document.getElementById('cardHolderPhone').addEventListener('input', (event) => {
+    event.target.value = onlyDigits(event.target.value).slice(0, 11);
+  });
+
+  document.getElementById('cardPostalCode').addEventListener('input', (event) => {
+    event.target.value = onlyDigits(event.target.value).slice(0, 8).replace(/(\d{5})(\d)/, '$1-$2');
   });
 
   document.getElementById('billingDocument').addEventListener('input', (event) => {

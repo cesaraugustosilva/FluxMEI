@@ -20,8 +20,8 @@ Este roteiro valida o fluxo atual de assinatura sem ativar assinatura pelo front
    - Gateway principal: `PAYMENT_GATEWAY=asaas`.
    - Pix: `POST /api/pagamentos/asaas/criar-pix`.
    - Boleto: `POST /api/pagamentos/asaas/criar-boleto`.
-   - Cartao: indisponivel nesta etapa.
-   - Consulta de status nao ativa assinatura; ativacao depende do webhook Asaas validado.
+   - Cartao: `POST /api/pagamentos/asaas/criar-cartao`.
+   - Consulta de status nao ativa assinatura; ativacao depende do webhook Asaas validado, exceto cartao aprovado imediatamente no retorno da criacao.
 
 5. Webhook e ativacao
    - Webhook: `POST /api/webhooks/asaas`.
@@ -68,11 +68,21 @@ Esperado: bloqueio e HTTP 402 nas rotas protegidas.
 ### 4. Usuario Com Pagamento Pendente
 
 1. Abra checkout logado.
-2. Crie uma cobranca Pix ou boleto.
+2. Crie uma cobranca Pix, boleto ou cartao pendente.
 3. Nao envie webhook aprovado.
 4. Clique em "Ja paguei, verificar pagamento".
 
 Esperado: assinatura continua pendente/bloqueada e o painel do meio de pagamento continua visivel.
+
+### 4.1. Cartao Asaas
+
+1. Escolha Cartao no checkout com `PAYMENT_GATEWAY=asaas`.
+2. Preencha nome impresso, numero, validade, CVV, CPF/CNPJ, telefone, e-mail, CEP, numero do endereco e parcelas.
+3. Confirme que o frontend chama `/api/pagamentos/asaas/criar-cartao`.
+4. Pagamento `CONFIRMED`, `RECEIVED` ou `RECEIVED_IN_CASH` ativa assinatura imediatamente.
+5. Pagamento pendente aguarda webhook.
+6. Pagamento recusado nao ativa assinatura.
+7. Confirme no Supabase que `provider_raw` nao contem numero de cartao, CVV ou validade.
 
 ### 5. Usuario Com Assinatura Ativa
 
@@ -131,7 +141,7 @@ Eventos minimos do webhook:
 
 ## Validacao No Supabase
 
-Apos pagar Pix ou boleto Asaas, confira em `assinaturas`:
+Apos pagar Pix, boleto ou cartao Asaas, confira em `assinaturas`:
 
 - `payment_provider = 'asaas'`
 - `provider_payment_id` preenchido com `pay_...`

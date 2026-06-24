@@ -80,12 +80,12 @@
             <span>Pagamento</span>
             <strong id="providerTitle">Asaas</strong>
           </div>
-          <span class="payment-badge">Pix e boleto</span>
+          <span class="payment-badge">Pix, boleto e cartao</span>
         </div>
 
         <section class="provider-panel" aria-label="Processador de pagamento">
           <strong id="providerSecureText">Pagamento seguro processado pelo Asaas.</strong>
-          <small id="providerHelperText">Pix e boleto estao ativos. Cartao sera liberado em uma etapa futura.</small>
+          <small id="providerHelperText">Pix, boleto e cartao estao ativos pelo Asaas.</small>
         </section>
 
         <section class="billing-document-panel" aria-label="Documento para cobranca">
@@ -104,7 +104,7 @@
           <button class="method-card" id="cardMethodButton" type="button" data-payment-method="cartao" aria-pressed="false" hidden>
             <span>Cartao</span>
             <strong>Credito seguro</strong>
-            <small>Indisponivel no momento</small>
+            <small>Credito pelo Asaas</small>
           </button>
           <button class="method-card" type="button" data-payment-method="boleto" aria-pressed="false">
             <span>Boleto</span>
@@ -139,15 +139,31 @@
 
         <section class="efi-card-panel" id="efiCardPanel" hidden aria-label="Pagamento via cartao">
           <strong>Pagamento com cartao</strong>
-          <p>Pagamento por cartao sera liberado em uma etapa futura.</p>
+          <p>Os dados sao enviados somente para processar esta cobranca e nao ficam salvos no FluxMEI.</p>
           <div class="card-form-grid">
             <label>
-              <span>Nome no cartao</span>
+              <span>Nome impresso no cartao</span>
               <input id="cardHolderName" type="text" autocomplete="cc-name" maxlength="120" />
             </label>
             <label>
               <span>CPF/CNPJ</span>
               <input id="cardHolderDocument" type="text" autocomplete="off" inputmode="numeric" maxlength="18" />
+            </label>
+            <label>
+              <span>E-mail</span>
+              <input id="cardHolderEmail" type="email" autocomplete="email" maxlength="254" />
+            </label>
+            <label>
+              <span>Telefone</span>
+              <input id="cardHolderPhone" type="text" autocomplete="tel" inputmode="numeric" maxlength="11" />
+            </label>
+            <label>
+              <span>CEP</span>
+              <input id="cardPostalCode" type="text" autocomplete="postal-code" inputmode="numeric" maxlength="9" />
+            </label>
+            <label>
+              <span>Numero do endereco</span>
+              <input id="cardAddressNumber" type="text" autocomplete="address-line2" maxlength="20" />
             </label>
             <label class="card-number-field">
               <span>Numero do cartao</span>

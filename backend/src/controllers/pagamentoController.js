@@ -46,6 +46,43 @@ const FORBIDDEN_CARD_FIELDS = new Set([
 ]);
 const CARD_TOP_LEVEL_FIELDS = ['plano', 'payment', 'card', 'valor', 'parcelas', 'installments', 'nome', 'email', 'cpf', 'cnpj', 'documento'];
 const CARD_PAYMENT_FIELDS = ['payment_token', 'paymentToken', 'token', 'installments', 'parcelas', 'nome', 'holder_name', 'holderName', 'email', 'cpf', 'cnpj', 'documento'];
+const ASAAS_CARD_TOP_LEVEL_FIELDS = ['plano', 'valor', 'payment', 'card', 'cartao'];
+const ASAAS_CARD_PAYMENT_FIELDS = [
+  'holderName',
+  'holder_name',
+  'nomeCartao',
+  'number',
+  'cardNumber',
+  'numero',
+  'expiryMonth',
+  'expiryYear',
+  'expirationMonth',
+  'expirationYear',
+  'expiry',
+  'validade',
+  'ccv',
+  'cvv',
+  'cpfCnpj',
+  'cpf_cnpj',
+  'documento',
+  'cpf',
+  'cnpj',
+  'name',
+  'nome',
+  'email',
+  'phone',
+  'telefone',
+  'mobilePhone',
+  'celular',
+  'postalCode',
+  'cep',
+  'addressNumber',
+  'numeroEndereco',
+  'addressComplement',
+  'complemento',
+  'installments',
+  'parcelas'
+];
 
 function sanitizeLogId(value) {
   if (!value) return null;
@@ -115,6 +152,133 @@ function sanitizeInstallments(value) {
     throw new AppError('Parcelas invalidas.');
   }
   return number;
+}
+
+function isValidLuhn(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  let sum = 0;
+  let shouldDouble = false;
+
+  for (let index = digits.length - 1; index >= 0; index -= 1) {
+    let digit = Number(digits[index]);
+    if (shouldDouble) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    shouldDouble = !shouldDouble;
+  }
+
+  return digits.length >= 13 && digits.length <= 19 && sum % 10 === 0;
+}
+
+function sanitizeEmail(value, field = 'E-mail') {
+  const email = sanitizeText(value, { field, required: true, max: 254, rejectDangerous: true });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new AppError(`${field} invalido.`);
+  return email;
+}
+
+function sanitizeRequiredDigits(value, { field, lengths }) {
+  const text = sanitizeText(value, { field, required: true, max: 32, rejectDangerous: true });
+  const digits = text.replace(/\D/g, '');
+  if (!lengths.includes(digits.length)) throw new AppError(`${field} invalido.`);
+  return digits;
+}
+
+function sanitizeCardExpiry(payment = {}) {
+  const expiry = String(payment.expiry || payment.validade || '').replace(/\D/g, '');
+  const month = sanitizeRequiredDigits(payment.expiryMonth || payment.expirationMonth || expiry.slice(0, 2), {
+    field: 'Mes de validade',
+    lengths: [1, 2]
+  }).padStart(2, '0');
+  let year = sanitizeRequiredDigits(payment.expiryYear || payment.expirationYear || expiry.slice(2), {
+    field: 'Ano de validade',
+    lengths: [2, 4]
+  });
+  if (year.length === 2) year = `20${year}`;
+
+  const numericMonth = Number(month);
+  const numericYear = Number(year);
+  const now = new Date();
+  const currentYear = now.getUTCFullYear();
+  const currentMonth = now.getUTCMonth() + 1;
+
+  if (numericMonth < 1 || numericMonth > 12) throw new AppError('Mes de validade invalido.');
+  if (numericYear < currentYear || (numericYear === currentYear && numericMonth < currentMonth)) {
+    throw new AppError('Cartao vencido.');
+  }
+
+  return { expiryMonth: month, expiryYear: year };
+}
+
+function validateAsaasCardPayload(body = {}, plan) {
+  assertAllowedFields(body, ASAAS_CARD_TOP_LEVEL_FIELDS, 'body');
+  const payment = body.payment || body.card || body.cartao;
+  assertAllowedFields(payment, ASAAS_CARD_PAYMENT_FIELDS, body.payment ? 'payment' : body.card ? 'card' : 'cartao');
+
+  if (body.valor !== undefined && Math.round(Number(body.valor) * 100) !== Math.round(Number(plan.value) * 100)) {
+    throw new AppError('Valor informado nao corresponde ao plano selecionado.');
+  }
+
+  const number = sanitizeRequiredDigits(payment.number || payment.cardNumber || payment.numero, {
+    field: 'Numero do cartao',
+    lengths: [13, 14, 15, 16, 17, 18, 19]
+  });
+  if (!isValidLuhn(number)) throw new AppError('Numero do cartao invalido.');
+
+  const { expiryMonth, expiryYear } = sanitizeCardExpiry(payment);
+  const holderName = sanitizeText(payment.holderName || payment.holder_name || payment.nomeCartao, {
+    field: 'Nome impresso no cartao',
+    required: true,
+    max: 120,
+    rejectDangerous: true
+  });
+  const ccv = sanitizeRequiredDigits(payment.ccv || payment.cvv, { field: 'CVV', lengths: [3, 4] });
+  const cpfCnpj = sanitizeDocument(payment.cpfCnpj || payment.cpf_cnpj || payment.documento || payment.cpf || payment.cnpj);
+  if (!cpfCnpj) throw new AppError('CPF/CNPJ do titular invalido.');
+
+  const phone = sanitizeRequiredDigits(payment.phone || payment.telefone, { field: 'Telefone do titular', lengths: [10, 11] });
+  const mobilePhone = payment.mobilePhone || payment.celular
+    ? sanitizeRequiredDigits(payment.mobilePhone || payment.celular, { field: 'Celular do titular', lengths: [10, 11] })
+    : null;
+  const postalCode = sanitizeRequiredDigits(payment.postalCode || payment.cep, { field: 'CEP', lengths: [8] });
+  const addressNumber = sanitizeText(payment.addressNumber || payment.numeroEndereco, {
+    field: 'Numero do endereco',
+    required: true,
+    max: 20,
+    rejectDangerous: true
+  });
+
+  return {
+    card: {
+      holderName,
+      number,
+      expiryMonth,
+      expiryYear,
+      ccv
+    },
+    holderInfo: {
+      name: sanitizeText(payment.name || payment.nome || holderName, {
+        field: 'Nome do titular',
+        required: true,
+        max: 120,
+        rejectDangerous: true
+      }),
+      email: sanitizeEmail(payment.email),
+      cpfCnpj,
+      postalCode,
+      addressNumber,
+      addressComplement: sanitizeText(payment.addressComplement || payment.complemento, {
+        field: 'Complemento',
+        required: false,
+        max: 80,
+        rejectDangerous: true
+      }),
+      phone,
+      mobilePhone
+    },
+    installments: sanitizeInstallments(payment.installments || payment.parcelas)
+  };
 }
 
 function validateEfiCardPayload(body = {}, plan) {
@@ -553,6 +717,11 @@ function logAsaasPaymentCreated({ method, payment, plan, assinatura }) {
   });
 }
 
+function getRequestIp(req) {
+  const forwardedFor = String(req.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
+  return forwardedFor || req.ip || req.socket?.remoteAddress || '127.0.0.1';
+}
+
 async function registerEfiPaymentAttempt(assinatura, plan, payment, { idempotencyKey = null, method = null, qrcode = null } = {}) {
   const attempt = buildEfiBankPaymentAttempt({
     plan,
@@ -692,9 +861,10 @@ async function criarPagamentoEfi(req, res, method) {
 async function criarPagamentoAsaas(req, res, method) {
   const { plano, plan } = validatePlanId(req.body?.plano);
   if (!req.user?.email) throw new AppError('Usuario autenticado sem e-mail cadastrado.', 400);
+  const cardPayload = method === 'cartao' ? validateAsaasCardPayload(req.body || {}, plan) : null;
 
   const profile = await getProfile(req.user.id);
-  const cpfCnpj = validateAsaasCustomerDocument(req.body, profile);
+  const cpfCnpj = cardPayload?.holderInfo?.cpfCnpj || validateAsaasCustomerDocument(req.body, profile);
   const assinatura = await ensureUserSubscription(req.user.id, plano);
   const reusable = assertNoRecentPendingAsaasAttempt(assinatura, plan, { allowReusablePix: method === 'pix' });
   if (reusable) return res.status(200).json(reusable);
@@ -722,12 +892,22 @@ async function criarPagamentoAsaas(req, res, method) {
       cpfCnpj,
       existingCustomerId: lockedAssinatura.payment_provider === 'asaas' ? lockedAssinatura.provider_customer_id : null
     });
-    const payment = await asaasService.criarCobranca({
-      customerId: customer.id,
-      plan,
-      method,
-      externalReference: `${req.user.id}:${lockedAssinatura.id}:${plan.id}`
-    });
+    const payment = method === 'cartao'
+      ? await asaasService.criarCobrancaCartao({
+        customerId: customer.id,
+        plan,
+        externalReference: `${req.user.id}:${lockedAssinatura.id}:${plan.id}`,
+        card: cardPayload.card,
+        holderInfo: cardPayload.holderInfo,
+        installments: cardPayload.installments,
+        remoteIp: getRequestIp(req)
+      })
+      : await asaasService.criarCobranca({
+        customerId: customer.id,
+        plan,
+        method,
+        externalReference: `${req.user.id}:${lockedAssinatura.id}:${plan.id}`
+      });
     paymentCreated = true;
     shouldReleaseLock = false;
 
@@ -736,10 +916,13 @@ async function criarPagamentoAsaas(req, res, method) {
       pixQrCode = await asaasService.obterPixQrCode(payment.id);
     }
 
-    const updatedAssinatura = await registerAsaasPaymentAttempt(lockedAssinatura, plan, customer, payment, {
+    let updatedAssinatura = await registerAsaasPaymentAttempt(lockedAssinatura, plan, customer, payment, {
       method,
       pixQrCode
     });
+    if (method === 'cartao' && ASAAS_PAID_STATUSES.includes(String(payment?.status || '').trim().toLowerCase())) {
+      updatedAssinatura = await aplicarPagamentoAsaasNaAssinatura(payment, updatedAssinatura);
+    }
     logAsaasPaymentCreated({ method, payment, plan, assinatura: updatedAssinatura });
     shouldReleaseLock = true;
 
@@ -748,7 +931,11 @@ async function criarPagamentoAsaas(req, res, method) {
       provider: 'asaas',
       ...asaasPaymentResponsePayload(payment, method, pixQrCode),
       assinatura: updatedAssinatura,
-      message: method === 'pix' ? 'Pix gerado com sucesso' : 'Boleto gerado com sucesso'
+      message: method === 'pix'
+        ? 'Pix gerado com sucesso'
+        : method === 'cartao'
+          ? 'Pagamento com cartao enviado ao Asaas'
+          : 'Boleto gerado com sucesso'
     });
   } catch (error) {
     if (attemptLock?.acquired && attemptLock.lockId && !paymentCreated) {
@@ -769,6 +956,10 @@ export async function criarPixAsaas(req, res) {
 
 export async function criarBoletoAsaas(req, res) {
   return criarPagamentoAsaas(req, res, 'boleto');
+}
+
+export async function criarCartaoAsaas(req, res) {
+  return criarPagamentoAsaas(req, res, 'cartao');
 }
 
 export async function criarPixEfi(req, res) {

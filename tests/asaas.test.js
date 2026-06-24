@@ -140,9 +140,20 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
   const originalRpc = supabaseAdmin.rpc;
   const originalCriarOuBuscarCliente = asaasService.criarOuBuscarCliente;
   const originalCriarCobranca = asaasService.criarCobranca;
+  const originalCriarCobrancaCartao = asaasService.criarCobrancaCartao;
   const originalObterPixQrCode = asaasService.obterPixQrCode;
   const originalConsultarPagamento = asaasService.consultarPagamento;
-  const stats = { pixCreated: 0, boletoCreated: 0, updated: 0, locksAcquired: 0, locksReleased: 0, lastUpdate: null, customerCpfCnpj: null };
+  const stats = {
+    pixCreated: 0,
+    boletoCreated: 0,
+    cardCreated: 0,
+    updated: 0,
+    locksAcquired: 0,
+    locksReleased: 0,
+    lastUpdate: null,
+    customerCpfCnpj: null,
+    lastCardPayload: null
+  };
   const profile = options.profile ?? { nome: 'Cliente FluxMEI', cpf: '12345678901' };
 
   supabaseAdmin.from = (table) => {
@@ -203,6 +214,24 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
       externalReference: 'user-1:sub-1:pro_mensal'
     };
   };
+  asaasService.criarCobrancaCartao = async (payload) => {
+    stats.cardCreated += 1;
+    stats.lastCardPayload = payload;
+    const status = options.cardStatus || 'CONFIRMED';
+    return {
+      id: 'pay_card_1',
+      customer: payload.customerId,
+      status,
+      billingType: 'CREDIT_CARD',
+      value: 49.9,
+      dueDate: '2026-06-23',
+      externalReference: 'user-1:sub-1:pro_mensal',
+      creditCard: {
+        creditCardNumber: '1111',
+        creditCardBrand: 'VISA'
+      }
+    };
+  };
   asaasService.obterPixQrCode = async () => ({ payload: '000201-asaas-pix', encodedImage: 'base64-pix' });
   asaasService.consultarPagamento = async () => options.consultarPagamento || {
     id: 'pay_pix_1',
@@ -220,6 +249,7 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
     supabaseAdmin.rpc = originalRpc;
     asaasService.criarOuBuscarCliente = originalCriarOuBuscarCliente;
     asaasService.criarCobranca = originalCriarCobranca;
+    asaasService.criarCobrancaCartao = originalCriarCobrancaCartao;
     asaasService.obterPixQrCode = originalObterPixQrCode;
     asaasService.consultarPagamento = originalConsultarPagamento;
   }
@@ -261,6 +291,112 @@ test('Boleto Asaas criado retorna link linha e vencimento', async () => {
     assert.equal(response.payload.due_date, '2026-06-26');
     assert.equal(stats.boletoCreated, 1);
     assert.equal(stats.customerCpfCnpj, '12345678000190');
+  });
+});
+
+test('Cartao Asaas aprovado registra tentativa saneada e ativa assinatura', async () => {
+  await withMockedAsaasEnvironment(assinaturaBase(), async ({ criarCartaoAsaas, stats }) => {
+    const response = createMockResponse();
+    await criarCartaoAsaas({
+      headers: { 'x-forwarded-for': '203.0.113.10' },
+      ip: '127.0.0.1',
+      body: {
+        plano: 'pro_mensal',
+        payment: {
+          holderName: 'Cliente FluxMEI',
+          number: '4111111111111111',
+          expiryMonth: '12',
+          expiryYear: '2030',
+          cvv: '123',
+          cpfCnpj: '123.456.789-09',
+          name: 'Cliente FluxMEI',
+          email: 'cliente@example.com',
+          phone: '11999998888',
+          postalCode: '01310-000',
+          addressNumber: '100',
+          installments: 1
+        }
+      },
+      user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
+    }, response);
+
+    assert.equal(response.statusCode, 201);
+    assert.equal(response.payload.provider, 'asaas');
+    assert.equal(response.payload.payment_id, 'pay_card_1');
+    assert.equal(response.payload.payment_method_id, 'credit_card');
+    assert.equal(stats.cardCreated, 1);
+    assert.equal(stats.customerCpfCnpj, '12345678909');
+    assert.equal(stats.lastCardPayload.remoteIp, '203.0.113.10');
+    assert.equal(stats.lastUpdate.status, 'ativo');
+    assert.equal(stats.lastUpdate.bloqueado, false);
+    assert.ok(stats.lastUpdate.paid_at);
+    const raw = JSON.stringify(stats.lastUpdate.provider_raw);
+    assert.doesNotMatch(raw, /4111111111111111|123|2030|12/);
+    assert.doesNotMatch(raw, /creditCard|ccv|cvv|holderName|number/);
+  });
+});
+
+test('Cartao Asaas pendente nao ativa assinatura antes do webhook', async () => {
+  await withMockedAsaasEnvironment(assinaturaBase(), async ({ criarCartaoAsaas, stats }) => {
+    const response = createMockResponse();
+    await criarCartaoAsaas({
+      headers: {},
+      ip: '127.0.0.1',
+      body: {
+        plano: 'pro_mensal',
+        payment: {
+          holderName: 'Cliente FluxMEI',
+          number: '4111111111111111',
+          expiryMonth: '12',
+          expiryYear: '2030',
+          cvv: '123',
+          cpfCnpj: '12345678909',
+          name: 'Cliente FluxMEI',
+          email: 'cliente@example.com',
+          phone: '11999998888',
+          postalCode: '01310000',
+          addressNumber: '100'
+        }
+      },
+      user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
+    }, response);
+
+    assert.equal(response.statusCode, 201);
+    assert.equal(stats.lastUpdate.status, 'pendente');
+    assert.equal(stats.lastUpdate.bloqueado, true);
+  }, { cardStatus: 'PENDING' });
+});
+
+test('Cartao Asaas com dados invalidos retorna erro claro antes do gateway', async () => {
+  await withMockedAsaasEnvironment(assinaturaBase(), async ({ criarCartaoAsaas, stats }) => {
+    const response = createMockResponse();
+
+    await assert.rejects(
+      () => criarCartaoAsaas({
+        headers: {},
+        body: {
+          plano: 'pro_mensal',
+          payment: {
+            holderName: 'Cliente FluxMEI',
+            number: '4111111111111112',
+            expiryMonth: '12',
+            expiryYear: '2030',
+            cvv: '123',
+            cpfCnpj: '12345678909',
+            name: 'Cliente FluxMEI',
+            email: 'cliente@example.com',
+            phone: '11999998888',
+            postalCode: '01310000',
+            addressNumber: '100'
+          }
+        },
+        user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
+      }, response),
+      /Numero do cartao invalido/
+    );
+
+    assert.equal(stats.cardCreated, 0);
+    assert.equal(stats.updated, 0);
   });
 });
 

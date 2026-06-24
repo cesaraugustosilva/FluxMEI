@@ -23,17 +23,19 @@ async function withTestServer(fn) {
   }
 }
 
-test('POST /api/pagamentos/asaas/criar-pix esta registrado no app Express', async () => {
+test('rotas Asaas de pagamento estao registradas no app Express', async () => {
   await withTestServer(async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/api/pagamentos/asaas/criar-pix`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ plano: 'pro_mensal' })
-    });
+    for (const path of ['/api/pagamentos/asaas/criar-pix', '/api/pagamentos/asaas/criar-boleto', '/api/pagamentos/asaas/criar-cartao']) {
+      const response = await fetch(`${baseUrl}${path}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ plano: 'pro_mensal' })
+      });
 
-    assert.equal(response.status, 401);
-    const payload = await response.json();
-    assert.equal(typeof payload, 'object');
-    assert.notEqual(payload, null);
+      assert.equal(response.status, 401);
+      const payload = await response.json();
+      assert.equal(typeof payload, 'object');
+      assert.notEqual(payload, null);
+    }
   });
 });

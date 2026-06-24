@@ -4,6 +4,7 @@ import { asyncHandler } from '../middlewares/errorMiddleware.js';
 import { paymentRateLimiter } from '../middlewares/rateLimitMiddleware.js';
 import {
   criarBoletoAsaas,
+  criarCartaoAsaas,
   criarPixAsaas,
   statusPagamentoAsaas,
   statusPagamentoEfi
@@ -18,6 +19,7 @@ const router = Router();
 
 router.post('/asaas/criar-pix', paymentRateLimiter, authMiddleware, asyncHandler(criarPixAsaas));
 router.post('/asaas/criar-boleto', paymentRateLimiter, authMiddleware, asyncHandler(criarBoletoAsaas));
+router.post('/asaas/criar-cartao', paymentRateLimiter, authMiddleware, asyncHandler(criarCartaoAsaas));
 router.get('/asaas/status/:paymentId', paymentRateLimiter, authMiddleware, asyncHandler(statusPagamentoAsaas));
 
 router.post('/efi/criar-pix', paymentRateLimiter, authMiddleware, asyncHandler(criarPixEfi));

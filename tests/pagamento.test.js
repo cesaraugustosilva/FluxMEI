@@ -277,6 +277,34 @@ test('pagamento Asaas recebido ativa assinatura com plano e valor validos', () =
   assert.equal(updates.paid_at, baseDate.toISOString());
 });
 
+test('webhook Asaas de cartao confirmado ativa assinatura', () => {
+  const baseDate = new Date('2026-06-21T12:00:00.000Z');
+  const assinatura = assinaturaAsaasBase({
+    provider_raw: {
+      attempt: {
+        plano_original: 'pro_mensal',
+        valor_original: 49.9,
+        tipo_cobranca_original: 'mensal',
+        payment_id: 'pay_asaas_1',
+        payment_method_id: 'CREDIT_CARD',
+        created_at: '2026-06-21T10:00:00.000Z',
+        metadata: { user_id: 'user-1', assinatura_id: 'sub-1', plano: 'pro_mensal' }
+      }
+    }
+  });
+  const updates = buildAsaasSubscriptionUpdates(
+    asaasPayment('CONFIRMED', { billingType: 'CREDIT_CARD' }),
+    assinatura,
+    baseDate,
+    'PAYMENT_CONFIRMED'
+  );
+
+  assert.equal(updates.status, 'ativo');
+  assert.equal(updates.bloqueado, false);
+  assert.equal(updates.provider_status, 'CONFIRMED');
+  assert.equal(updates.data_vencimento, todayPlusDays(30, baseDate));
+});
+
 test('webhook Asaas duplicado aprovado nao avanca vencimento de novo', () => {
   const updates = buildAsaasSubscriptionUpdates(asaasPayment('RECEIVED'), assinaturaAsaasBase({
     status: 'ativo',

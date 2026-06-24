@@ -71,6 +71,7 @@ Todas exigem usuario autenticado:
 ```http
 POST /api/pagamentos/asaas/criar-pix
 POST /api/pagamentos/asaas/criar-boleto
+POST /api/pagamentos/asaas/criar-cartao
 GET  /api/pagamentos/asaas/status/:paymentId
 POST /api/webhooks/asaas
 
@@ -94,7 +95,7 @@ O roteiro completo de validacao manual esta em `../docs/assinatura-fluxo-testes.
 
 ## Asaas
 
-Gateway principal do FluxMEI para Pix e boleto:
+Gateway principal do FluxMEI para Pix, boleto e cartao:
 
 ```env
 PAYMENT_GATEWAY=asaas
@@ -106,6 +107,8 @@ ASAAS_WEBHOOK_URL=https://fluxmei.onrender.com/api/webhooks/asaas
 
 Em producao, use `ASAAS_BASE_URL=https://api.asaas.com/v3`.
 
+O cartao Asaas usa o fluxo documentado de `billingType=CREDIT_CARD` com `creditCard` e `creditCardHolderInfo` enviados somente no request backend -> Asaas. O FluxMEI nao salva numero, CVV, validade nem titular completo em `provider_raw`, e nao expoe `ASAAS_API_KEY` no frontend. A tokenizacao Asaas existe via API/token por cliente, mas depende de habilitacao em producao; quando disponivel, prefira token/checkout hospedado do Asaas para reduzir escopo PCI.
+
 Configure o webhook Asaas em:
 
 ```text
@@ -114,7 +117,7 @@ https://fluxmei.onrender.com/api/webhooks/asaas
 
 Eventos minimos: `PAYMENT_RECEIVED`, `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED_IN_CASH`, `PAYMENT_OVERDUE`, `PAYMENT_DELETED`, `PAYMENT_REFUNDED` e `PAYMENT_CHARGEBACK_REQUESTED`.
 
-O backend valida o header `asaas-access-token` com `ASAAS_WEBHOOK_TOKEN` e consulta o Asaas antes de ativar assinatura.
+O backend valida o header `asaas-access-token` com `ASAAS_WEBHOOK_TOKEN` e consulta o Asaas antes de ativar assinatura. Cartao aprovado imediatamente tambem ativa a assinatura no retorno da criacao; pagamentos pendentes aguardam webhook.
 
 ## Efí Bank
 
@@ -132,7 +135,7 @@ EFI_WEBHOOK_SECRET=seu_token_webhook_efi
 EFI_WEBHOOK_URL=https://seudominio.com/api/webhooks/efi
 ```
 
-Cartao permanece indisponivel no checkout nesta etapa. Quando for reativado, deve usar tokenizacao segura no navegador; numero, CVV e validade nunca devem ser enviados ao backend.
+Cartao Efí permanece indisponivel no checkout; nao remova as rotas enquanto Efí existir como fallback tecnico.
 
 A assinatura so e liberada pelo webhook validado do gateway, apos consulta do pagamento e validacao de plano/valor.
 
