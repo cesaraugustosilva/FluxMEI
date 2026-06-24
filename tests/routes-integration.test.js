@@ -39,3 +39,14 @@ test('rotas Asaas de pagamento estao registradas no app Express', async () => {
     }
   });
 });
+
+test('rota de historico de pagamentos exige autenticacao no Express', async () => {
+  await withTestServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/pagamentos/historico`);
+
+    assert.equal(response.status, 401);
+    const payload = await response.json();
+    assert.equal(typeof payload, 'object');
+    assert.notEqual(payload, null);
+  });
+});

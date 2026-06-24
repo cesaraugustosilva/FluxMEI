@@ -6,6 +6,7 @@ import {
   criarBoletoAsaas,
   criarCartaoAsaas,
   criarPixAsaas,
+  historicoPagamentos,
   statusPagamentoAsaas,
   statusPagamentoEfi
 } from '../controllers/pagamentoController.js';
@@ -16,6 +17,8 @@ import {
 } from '../controllers/efiController.js';
 
 const router = Router();
+
+router.get('/historico', authMiddleware, asyncHandler(historicoPagamentos));
 
 router.post('/asaas/criar-pix', paymentRateLimiter, authMiddleware, asyncHandler(criarPixAsaas));
 router.post('/asaas/criar-boleto', paymentRateLimiter, authMiddleware, asyncHandler(criarBoletoAsaas));

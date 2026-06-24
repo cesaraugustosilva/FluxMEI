@@ -38,6 +38,21 @@ test('Minha Conta mostra aviso de pagamento pendente para troca de plano', () =>
   assert.match(assinaturaRules, /pending_payment_plan: pendingPaymentPlan/);
 });
 
+test('Minha Conta renderiza historico de pagamentos', () => {
+  assert.match(appHtml, /Hist[oó]rico de pagamentos|Historico de pagamentos/);
+  assert.match(appHtml, /id="accountPaymentHistory"/);
+  assert.match(appJs, /apiRequest\('\/pagamentos\/historico'\)/);
+  assert.match(appJs, /function renderPaymentHistory\(\)/);
+  assert.match(appJs, /Nenhum pagamento encontrado ainda\./);
+  assert.match(appJs, /Nao foi possivel carregar o historico de pagamentos agora\./);
+});
+
+test('Historico de pagamentos nao renderiza provider_raw ou documentos sensiveis', () => {
+  const historyRenderer = appJs.match(/function renderPaymentHistory\(\) \{[\s\S]*?\n\}/)?.[0] || '';
+  assert.doesNotMatch(historyRenderer, /provider_raw/);
+  assert.doesNotMatch(historyRenderer, /cpfCnpj|cpf_cnpj|documento|cpf|cnpj/i);
+});
+
 test('Checkout respeita parametro plan e permite troca com assinatura ativa', () => {
   assert.match(checkoutJs, /function getSelectedPlanId\(\)/);
   assert.match(checkoutJs, /params\.get\('plan'\)/);

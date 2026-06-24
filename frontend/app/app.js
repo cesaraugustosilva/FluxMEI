@@ -57,6 +57,8 @@ let state = {
   movimentacoes: [],
   clientes: [],
   das: [],
+  paymentHistory: [],
+  paymentHistoryError: '',
   user: null,
   profile: null,
   planos: DEFAULT_ACCOUNT_PLANS,
@@ -336,6 +338,31 @@ function getPlanShortLabel(planId) {
   return 'Plano';
 }
 
+function getPaymentPlanLabel(planId) {
+  if (planId === 'pro_anual' || planId === 'anual') return 'Pro Anual';
+  if (planId === 'pro_mensal' || planId === 'mensal') return 'Pro Mensal';
+  if (planId === 'gratuito') return 'Trial';
+  return planId ? String(planId) : '--';
+}
+
+function getPaymentMethodMeta(method) {
+  const normalized = String(method || '').trim().toLowerCase();
+  if (normalized === 'pix') return { label: 'Pix', icon: 'Pix' };
+  if (normalized === 'boleto') return { label: 'Boleto', icon: 'Bol' };
+  if (normalized === 'cartao' || normalized === 'credit_card') return { label: 'Cartao', icon: 'Car' };
+  return { label: method ? String(method) : '--', icon: 'Pay' };
+}
+
+function getPaymentStatusMeta(status) {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (['received', 'confirmed', 'paid', 'pago', 'concluida', 'settled'].includes(normalized)) return { label: 'Pago', className: 'paid' };
+  if (['pending', 'awaiting_risk_analysis', 'ativa', 'waiting', 'new', 'processing', 'em_processamento'].includes(normalized)) return { label: 'Pendente', className: 'pending' };
+  if (['overdue', 'expired', 'vencido'].includes(normalized)) return { label: 'Vencido', className: 'overdue' };
+  if (['refunded', 'estornado'].includes(normalized)) return { label: 'Estornado', className: 'refunded' };
+  if (['canceled', 'cancelled', 'deleted', 'deleted_payment'].includes(normalized)) return { label: 'Cancelado', className: 'canceled' };
+  return { label: status ? String(status) : '--', className: 'pending' };
+}
+
 function getPlanById(planId) {
   return state.planos.find((plan) => plan.id === planId) || DEFAULT_ACCOUNT_PLANS.find((plan) => plan.id === planId) || null;
 }
@@ -403,6 +430,17 @@ async function loadAvailablePlans() {
     // Keep local fallback plans when the public plans endpoint is unavailable.
   }
   state.planos = DEFAULT_ACCOUNT_PLANS;
+}
+
+async function loadPaymentHistory() {
+  try {
+    const historico = await apiRequest('/pagamentos/historico');
+    state.paymentHistory = Array.isArray(historico?.payments) ? historico.payments : [];
+    state.paymentHistoryError = '';
+  } catch {
+    state.paymentHistory = [];
+    state.paymentHistoryError = 'Nao foi possivel carregar o historico de pagamentos agora.';
+  }
 }
 
 function getAccountStatusMeta(status = subscriptionStatus) {
@@ -525,6 +563,50 @@ function renderAccountPanel() {
   subscribeAction.style.display = isActive ? 'none' : '';
   manageAction.style.display = isActive ? '' : 'none';
   manageAction.href = switchTargetPlan ? getCheckoutUrlForPlan(switchTargetPlan.id) : '/checkout/';
+  renderPaymentHistory();
+}
+
+function renderPaymentHistory() {
+  const root = document.getElementById('accountPaymentHistory');
+  if (!root) return;
+
+  if (state.paymentHistoryError) {
+    root.innerHTML = `<div class="account-history-state error">${esc(state.paymentHistoryError)}</div>`;
+    return;
+  }
+
+  const payments = Array.isArray(state.paymentHistory) ? state.paymentHistory : [];
+  if (!payments.length) {
+    root.innerHTML = '<div class="account-history-state">Nenhum pagamento encontrado ainda.</div>';
+    return;
+  }
+
+  root.innerHTML = payments.map((payment) => {
+    const method = getPaymentMethodMeta(payment.payment_method);
+    const status = getPaymentStatusMeta(payment.status);
+    const date = payment.paid_at || payment.created_at;
+    const provider = payment.provider ? String(payment.provider).toUpperCase() : '--';
+    const action = payment.link
+      ? `<a class="account-payment-action" href="${esc(payment.link)}" target="_blank" rel="noopener">Abrir</a>`
+      : '<span class="account-payment-action muted">--</span>';
+
+    return `
+      <article class="account-payment-item">
+        <div class="account-payment-method">
+          <span class="account-payment-icon">${esc(method.icon)}</span>
+          <div>
+            <strong>${esc(method.label)}</strong>
+            <span>${esc(provider)}</span>
+          </div>
+        </div>
+        <div><span>Data</span><strong>${date ? formatDate(date) : '--'}</strong></div>
+        <div><span>Plano</span><strong>${esc(getPaymentPlanLabel(payment.plano))}</strong></div>
+        <div><span>Valor</span><strong>${formatBRL(payment.valor || 0)}</strong></div>
+        <div><span>Status</span><strong class="account-payment-status ${status.className}">${esc(status.label)}</strong></div>
+        <div><span>Acao</span>${action}</div>
+      </article>
+    `;
+  }).join('');
 }
 
 function openAccountPanel() {
@@ -690,6 +772,7 @@ async function loadState() {
   state.user = me.user;
   renderSubscriptionNotice(assinaturaStatus);
   await loadAvailablePlans();
+  await loadPaymentHistory();
 
   if (assinaturaStatus?.bloqueado) {
     state.profile = me.profile;

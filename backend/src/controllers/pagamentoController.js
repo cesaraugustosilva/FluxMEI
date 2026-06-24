@@ -102,6 +102,37 @@ function validatePaymentId(value) {
   return sanitizeText(value, { field: 'payment_id', required: true, max: 120, rejectDangerous: true });
 }
 
+function normalizeHistoryPaymentMethod(assinatura = {}) {
+  const raw = assinatura.provider_raw || {};
+  const method = raw?.attempt?.method
+    || raw?.attempt?.payment_method_id
+    || raw?.payment?.payment_method_id
+    || raw?.payment?.payment_type_id
+    || raw?.payment?.billingType
+    || raw?.payment?.payment_method
+    || null;
+  const normalized = String(method || '').trim().toLowerCase();
+  if (normalized === 'pix') return 'pix';
+  if (normalized === 'boleto' || normalized === 'bank_slip') return 'boleto';
+  if (normalized === 'credit_card' || normalized === 'cartao' || normalized === 'card') return 'cartao';
+  return normalized || null;
+}
+
+function normalizeHistoryPayment(assinatura = {}) {
+  const raw = assinatura.provider_raw || {};
+  return {
+    id: assinatura.provider_payment_id || raw?.attempt?.payment_id || assinatura.id,
+    created_at: assinatura.created_at || null,
+    paid_at: assinatura.paid_at || null,
+    plano: raw?.attempt?.plano_original || assinatura.plano || null,
+    payment_method: normalizeHistoryPaymentMethod(assinatura),
+    provider: assinatura.payment_provider || null,
+    status: assinatura.provider_status || raw?.payment?.status || assinatura.status || null,
+    valor: raw?.attempt?.valor_original ?? assinatura.valor ?? null,
+    link: assinatura.checkout_url || raw?.payment?.invoice_url || raw?.payment?.bank_slip_url || null
+  };
+}
+
 function normalizeFieldName(field) {
   return String(field || '').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
 }
@@ -1044,6 +1075,23 @@ export async function statusPagamentoEfi(req, res) {
     ...efiPaymentResponsePayload(payment, payment.payment_method_id || payment.method),
     assinatura,
     message: 'Status consultado. A assinatura sera alterada somente apos webhook valido da EFI Bank.'
+  });
+}
+
+export async function historicoPagamentos(req, res) {
+  const { data, error } = await supabaseAdmin
+    .from('assinaturas')
+    .select('id,created_at,paid_at,plano,valor,status,payment_provider,provider_payment_id,provider_status,provider_raw,checkout_url')
+    .eq('user_id', req.user.id)
+    .not('provider_payment_id', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  if (error) throw new AppError('Erro ao consultar historico de pagamentos.', 500, error.message);
+
+  res.json({
+    success: true,
+    payments: (data || []).map(normalizeHistoryPayment)
   });
 }
 
