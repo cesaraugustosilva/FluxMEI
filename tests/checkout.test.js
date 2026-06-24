@@ -60,6 +60,12 @@ function createCheckoutHarness(options = {}) {
 
   [
     'checkoutAlert',
+    'planName',
+    'planPrice',
+    'planCycle',
+    'planEconomyBadge',
+    'planEconomyText',
+    'planRenewalText',
     'billingDocument',
     'pixPanel',
     'pixQrImage',
@@ -151,7 +157,7 @@ function createCheckoutHarness(options = {}) {
         EFI_ENVIRONMENT: options.efiEnvironment || 'sandbox'
       },
       EfiPay: options.efiPay || null,
-      location: { origin: 'http://127.0.0.1', hostname: '127.0.0.1', search: '', href: '' },
+      location: { origin: 'http://127.0.0.1', hostname: '127.0.0.1', search: options.search || '', href: '' },
       addEventListener() {},
       setTimeout() {},
       setInterval() { return 1; },
@@ -160,7 +166,7 @@ function createCheckoutHarness(options = {}) {
   };
   context.globalThis = context;
   vm.createContext(context);
-  vm.runInContext(`${checkoutJs}\nglobalThis.__checkoutTest = { renderPixPanel, renderBoletoPanel, checkPaymentStatus, getStatusKeyFromPayment, generatePixPayment, generateBoletoPayment, configureCardAvailability, renderCardInstallments, isPlanSwitchCheckout, submitCardPayment, submitAsaasCardPayment, submitEfiCardPayment, getLoginUrl };`, context);
+  vm.runInContext(`${checkoutJs}\nglobalThis.__checkoutTest = { renderPlan, getSelectedPlanId, renderPixPanel, renderBoletoPanel, checkPaymentStatus, getStatusKeyFromPayment, generatePixPayment, generateBoletoPayment, configureCardAvailability, renderCardInstallments, isPlanSwitchCheckout, submitCardPayment, submitAsaasCardPayment, submitEfiCardPayment, getLoginUrl };`, context);
 
   return {
     elements,
@@ -200,6 +206,51 @@ test('checkout principal chama rotas Asaas quando PAYMENT_GATEWAY=asaas', () => 
   assert.match(checkoutJs, /submitAsaasCardPayment/);
   assert.match(checkoutJs, /ACTIVE_PAYMENT_METHODS = new Set\(\['pix', 'boleto'\]\)/);
   assert.match(checkoutJs, /copyPixButton/);
+});
+
+test('checkout exibe metodos com cards, descricoes e confianca', () => {
+  assert.match(checkoutHtml, /class="method-icon"/);
+  assert.match(checkoutHtml, /Aprovacao rapida/);
+  assert.match(checkoutHtml, /Pagamento em ate 3 dias/);
+  assert.match(checkoutHtml, /Ate 12x/);
+  assert.match(checkoutHtml, /Pagamento seguro/);
+  assert.match(checkoutHtml, /Ambiente protegido/);
+  assert.match(checkoutHtml, /Liberacao automatica/);
+});
+
+test('checkout exibe resumo premium do plano anual', () => {
+  const { api, elements } = createCheckoutHarness();
+
+  api.renderPlan({
+    id: 'pro_anual',
+    nome: 'Plano FluxMEI Anual',
+    preco: 478.8,
+    tipo_cobranca: 'anual'
+  });
+
+  assert.equal(elements.get('planName').textContent, 'Plano FluxMEI Anual');
+  assert.match(elements.get('planPrice').textContent, /478,80/);
+  assert.equal(elements.get('planCycle').textContent, 'por ano');
+  assert.equal(elements.get('planEconomyBadge').hidden, false);
+  assert.match(elements.get('planEconomyText').textContent, /12x de R\$ 39,90/);
+  assert.equal(elements.get('planRenewalText').textContent, 'Anual apos confirmacao');
+});
+
+test('checkout respeita plano informado na URL', () => {
+  const anual = createCheckoutHarness({ search: '?plan=pro_anual' });
+  const mensal = createCheckoutHarness({ search: '?plan=pro_mensal' });
+
+  assert.equal(anual.api.getSelectedPlanId(), 'pro_anual');
+  assert.equal(mensal.api.getSelectedPlanId(), 'pro_mensal');
+});
+
+test('checkout destaca a experiencia de Pix e boleto', () => {
+  assert.match(checkoutHtml, /Gere o QR Code/);
+  assert.match(checkoutHtml, /Copiar codigo Pix/);
+  assert.match(checkoutHtml, /id="pixQrImage"/);
+  assert.match(checkoutHtml, /Abrir boleto/);
+  assert.match(checkoutHtml, /Copiar linha digitavel/);
+  assert.match(checkoutHtml, /id="boletoDueDate"/);
 });
 
 test('checkout permite pagamento de troca quando assinatura ativa usa outro plano', () => {

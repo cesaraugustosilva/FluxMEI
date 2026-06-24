@@ -470,6 +470,20 @@ function renderPlan(plan) {
   document.getElementById('planName').textContent = plan.nome;
   document.getElementById('planPrice').textContent = formatBRL(plan.preco);
   document.getElementById('planCycle').textContent = getPlanCycle(plan);
+  const economyBadge = document.getElementById('planEconomyBadge');
+  const economyText = document.getElementById('planEconomyText');
+  const renewalText = document.getElementById('planRenewalText');
+  const isAnnual = plan.id === 'pro_anual' || plan.tipo_cobranca === 'anual';
+
+  if (economyBadge) economyBadge.hidden = !isAnnual;
+  if (economyText) {
+    economyText.textContent = isAnnual
+      ? 'Economia de R$ 120,00 por ano. Equivalente a R$ 39,90 por mes ou 12x de R$ 39,90.'
+      : 'Renovacao mensal. Ideal para comecar com flexibilidade.';
+  }
+  if (renewalText) {
+    renewalText.textContent = isAnnual ? 'Anual apos confirmacao' : 'Mensal apos confirmacao';
+  }
 }
 
 function renderCardInstallments(plan = selectedPlan) {

@@ -24,15 +24,22 @@
       <span class="secure-pill">Pagamento seguro</span>
     </header>
 
+    <section class="checkout-hero" aria-label="Resumo do checkout">
+      <p class="eyebrow">Ambiente protegido</p>
+      <h1>Finalize sua assinatura FluxMEI</h1>
+      <p>Escolha Pix, boleto ou cartao. A liberacao acontece automaticamente apos a confirmacao do Asaas.</p>
+    </section>
+
     <section class="checkout-layout">
       <aside class="checkout-card summary-card" aria-label="Resumo da assinatura">
         <div class="checkout-intro">
           <p class="eyebrow">Checkout FluxMEI</p>
-          <h1>Finalize sua assinatura</h1>
-          <p class="checkout-lead">Plano, conta e beneficios reunidos antes do pagamento.</p>
+          <h2>Resumo do plano</h2>
+          <p class="checkout-lead">Confira o plano selecionado antes de escolher a forma de pagamento.</p>
         </div>
 
         <section class="selected-plan" aria-label="Plano escolhido">
+          <span class="plan-economy-badge" id="planEconomyBadge" hidden>Mais economico</span>
           <div>
             <span>Plano escolhido</span>
             <strong id="planName">Plano FluxMEI Mensal</strong>
@@ -40,6 +47,11 @@
           <div class="plan-price">
             <strong id="planPrice">R$ 49,90</strong>
             <span id="planCycle">por mes</span>
+          </div>
+          <p class="plan-economy" id="planEconomyText">Renovacao mensal. Voce pode trocar de plano quando quiser.</p>
+          <div class="plan-renewal">
+            <span>Renovacao</span>
+            <strong id="planRenewalText">Mensal apos confirmacao</strong>
           </div>
         </section>
 
@@ -67,6 +79,12 @@
         <section class="security-box" aria-label="Seguranca">
           <strong id="securityProviderText">O pagamento e processado com seguranca pelo Asaas.</strong>
           <span>O FluxMEI nao armazena dados de cartao.</span>
+        </section>
+
+        <section class="trust-grid" aria-label="Confianca">
+          <span>Pagamento seguro</span>
+          <span>Ambiente protegido</span>
+          <span>Liberacao automatica</span>
         </section>
 
         <div class="checkout-actions">
@@ -97,19 +115,22 @@
 
         <section class="payment-methods" aria-label="Forma de pagamento">
           <button class="method-card is-selected" type="button" data-payment-method="pix" aria-pressed="true">
+            <span class="method-icon" aria-hidden="true">P</span>
             <span>Pix</span>
-            <strong>QR Code na tela</strong>
-            <small>Sem pedir e-mail</small>
+            <strong>Aprovacao rapida</strong>
+            <small>QR Code e copia e cola</small>
           </button>
           <button class="method-card" id="cardMethodButton" type="button" data-payment-method="cartao" aria-pressed="false" hidden>
+            <span class="method-icon" aria-hidden="true">C</span>
             <span>Cartao</span>
-            <strong>Credito seguro</strong>
-            <small>Credito pelo Asaas</small>
+            <strong>Ate 12x</strong>
+            <small>Dados protegidos</small>
           </button>
           <button class="method-card" type="button" data-payment-method="boleto" aria-pressed="false">
+            <span class="method-icon" aria-hidden="true">B</span>
             <span>Boleto</span>
-            <strong>Linha digitavel</strong>
-            <small>Pagamento bancario</small>
+            <strong>Pagamento em ate 3 dias</strong>
+            <small>Link e linha digitavel</small>
           </button>
         </section>
 
@@ -123,7 +144,11 @@
 
         <section class="pix-generate-panel" id="pixGeneratePanel" aria-label="Gerar Pix">
           <strong>Gerar Pix para o plano escolhido</strong>
-          <p>Escaneie o QR Code ou copie o codigo Pix abaixo. Apos o pagamento, a confirmacao pode levar alguns instantes.</p>
+          <ol class="payment-steps">
+            <li>Gere o QR Code.</li>
+            <li>Pague no app do seu banco.</li>
+            <li>Aguarde a liberacao automatica.</li>
+          </ol>
           <button class="pix-button" type="button" id="generatePixButton">Gerar Pix</button>
         </section>
 
@@ -138,8 +163,13 @@
         </div>
 
         <section class="efi-card-panel" id="efiCardPanel" hidden aria-label="Pagamento via cartao">
-          <strong>Pagamento com cartao</strong>
-          <p>Os dados sao enviados somente para processar esta cobranca e nao ficam salvos no FluxMEI.</p>
+          <div class="card-panel-head">
+            <div>
+              <strong>Pagamento com cartao</strong>
+              <p>Os dados sao enviados somente para processar esta cobranca e nao ficam salvos no FluxMEI.</p>
+            </div>
+            <span class="secure-mini">Dados protegidos</span>
+          </div>
           <div class="card-form-grid">
             <label>
               <span>Nome impresso no cartao</span>
@@ -195,12 +225,13 @@
               </select>
             </label>
           </div>
+          <p class="card-security-note">Ambiente protegido. O FluxMEI nunca salva numero, CVV ou validade do cartao.</p>
           <button class="pix-button" type="button" id="payCardButton">Pagar com cartao</button>
         </section>
 
         <section class="boleto-generate-panel" id="boletoGeneratePanel" hidden aria-label="Gerar boleto">
           <strong>Gerar boleto para o plano escolhido</strong>
-          <p>Depois de gerar, use o link ou a linha digitavel retornada pelo processador.</p>
+          <p>O boleto vence em ate 3 dias. A assinatura sera liberada automaticamente apos a confirmacao.</p>
           <button class="pix-button" type="button" id="generateBoletoButton">Gerar boleto</button>
         </section>
 
@@ -231,6 +262,11 @@
             <span class="pix-status">Pix gerado</span>
           </div>
           <p>Escaneie o QR Code ou copie o codigo Pix abaixo.</p>
+          <ol class="payment-steps compact">
+            <li>Abra o app do banco.</li>
+            <li>Escaneie ou cole o codigo.</li>
+            <li>Volte para conferir a liberacao.</li>
+          </ol>
           <div class="pix-qr-wrap">
             <img id="pixQrImage" alt="QR Code Pix" />
           </div>
