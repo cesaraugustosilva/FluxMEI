@@ -33,6 +33,9 @@ function createMockFrom({ profiles = [], subscriptions = [] } = {}) {
       order() {
         return Promise.resolve({ data: rows, error: null });
       },
+      limit(value) {
+        return Promise.resolve({ data: rows.slice(0, value), error: null });
+      },
       eq(column, value) {
         this.filters.push([column, value]);
         return this;
@@ -65,12 +68,50 @@ async function withAdminMocks({ users, profiles, subscriptions }, fn) {
   }
 }
 
+async function withAdminAuditMocks({ users, profiles, logs }, fn) {
+  const [{ supabaseAdmin }, controller] = await Promise.all([
+    import('../backend/src/config/supabase.js'),
+    import('../backend/src/controllers/adminController.js?admin-audit-tests')
+  ]);
+
+  const originalFrom = supabaseAdmin.from;
+  const originalListUsers = supabaseAdmin.auth.admin.listUsers;
+  const stats = { tables: [], order: null, limit: null };
+  supabaseAdmin.from = (table) => {
+    stats.tables.push(table);
+    const rows = table === 'profiles' ? profiles : logs;
+    return {
+      select() {
+        return this;
+      },
+      order(column, options) {
+        stats.order = [column, options];
+        if (table === 'profiles') return Promise.resolve({ data: rows, error: null });
+        return this;
+      },
+      limit(value) {
+        stats.limit = value;
+        return Promise.resolve({ data: rows.slice(0, value), error: null });
+      }
+    };
+  };
+  supabaseAdmin.auth.admin.listUsers = () => Promise.resolve({ data: { users }, error: null });
+
+  try {
+    await fn({ adminAuditLogs: controller.adminAuditLogs, stats });
+  } finally {
+    supabaseAdmin.from = originalFrom;
+    supabaseAdmin.auth.admin.listUsers = originalListUsers;
+  }
+}
+
 test('rotas admin exigem autenticacao e middleware administrativo', () => {
   assert.match(adminRoutes, /router\.use\(authMiddleware, adminMiddleware\)/);
   assert.match(adminRoutes, /router\.get\('\/dashboard', asyncHandler\(adminDashboard\)\)/);
   assert.match(adminRoutes, /router\.get\('\/users', asyncHandler\(adminUsers\)\)/);
   assert.match(adminRoutes, /router\.get\('\/subscriptions', asyncHandler\(adminSubscriptions\)\)/);
   assert.match(adminRoutes, /router\.get\('\/payments', asyncHandler\(adminPayments\)\)/);
+  assert.match(adminRoutes, /router\.get\('\/audit-logs', asyncHandler\(adminAuditLogs\)\)/);
   assert.match(serverSource, /apiRouter\.use\('\/admin', adminRoutes\)/);
 });
 
@@ -201,6 +242,38 @@ test('listas admin retornam dados sanitizados', async () => {
   });
 });
 
+test('admin consegue listar audit logs limitados e sanitizados', async () => {
+  const users = [{ id: 'u1', email: 'ana@fluxmei.com', user_metadata: { nome: 'Ana' } }];
+  const profiles = [{ id: 'u1', nome: 'Ana MEI', created_at: '2026-06-01T10:00:00Z' }];
+  const logs = Array.from({ length: 120 }, (_, index) => ({
+    id: `log-${index}`,
+    user_id: 'u1',
+    actor_user_id: 'u1',
+    action: index === 0 ? 'payment.created' : 'auth.login',
+    entity_type: 'payment',
+    entity_id: `pay-${index}`,
+    metadata: index === 0 ? { provider: 'asaas', method: 'pix' } : { ok: true },
+    ip_address: '127.0.0.1',
+    user_agent: 'node-test',
+    created_at: `2026-06-${String(24 - Math.min(index, 20)).padStart(2, '0')}T10:00:00.000Z`
+  }));
+
+  await withAdminAuditMocks({ users, profiles, logs }, async ({ adminAuditLogs, stats }) => {
+    const res = createRes();
+    await adminAuditLogs({}, res);
+
+    assert.ok(stats.tables.includes('audit_logs'));
+    assert.deepEqual(stats.order, ['created_at', { ascending: false }]);
+    assert.equal(stats.limit, 100);
+    assert.equal(res.payload.success, true);
+    assert.equal(res.payload.logs.length, 100);
+    assert.equal(res.payload.logs[0].user_name, 'Ana MEI');
+    assert.equal(res.payload.logs[0].action, 'payment.created');
+    assert.doesNotMatch(JSON.stringify(res.payload), /provider_raw|cpfCnpj|4111111111111111|cvv/);
+  });
+});
+
+
 test('frontend admin possui busca, filtro e nao referencia dados sensiveis', () => {
   assert.match(adminHtml, /id="userSearch"/);
   assert.match(adminHtml, /id="paymentMethodFilter"/);
@@ -209,5 +282,7 @@ test('frontend admin possui busca, filtro e nao referencia dados sensiveis', () 
   assert.match(adminJs, /apiRequest\('\/admin\/users'\)/);
   assert.match(adminJs, /apiRequest\('\/admin\/subscriptions'\)/);
   assert.match(adminJs, /apiRequest\('\/admin\/payments'\)/);
+  assert.match(adminJs, /apiRequest\('\/admin\/audit-logs'\)/);
+  assert.match(adminHtml, /id="auditTableBody"/);
   assert.doesNotMatch(adminHtml + adminJs, /provider_raw|cpfCnpj|cardNumber|cvv|ASAAS_API_KEY|SUPABASE_SERVICE_ROLE_KEY/);
 });

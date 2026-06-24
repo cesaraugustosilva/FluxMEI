@@ -39,6 +39,7 @@ async function withMockedSubscription(assinatura, fn) {
   const originalFrom = supabaseAdmin.from;
   const stats = {
     table: null,
+    tables: [],
     eq: [],
     order: null,
     limit: null,
@@ -46,6 +47,20 @@ async function withMockedSubscription(assinatura, fn) {
   };
 
   supabaseAdmin.from = (table) => {
+    stats.tables.push(table);
+    if (table === 'audit_logs') {
+      return {
+        insert() {
+          return this;
+        },
+        select() {
+          return this;
+        },
+        single() {
+          return Promise.resolve({ data: { id: 'audit-1' }, error: null });
+        }
+      };
+    }
     stats.table = table;
     return {
       select() {
@@ -103,6 +118,7 @@ test('cancelar assinatura ativa agenda cancelamento sem bloquear acesso', async 
     await controller.cancelarAssinatura({ user: { id: 'user-1' } }, res);
 
     assert.ok(stats.table === 'assinaturas' || stats.table === 'notification_events');
+    assert.ok(stats.tables.includes('audit_logs'));
     assert.deepEqual(stats.eq, [['user_id', 'user-1'], ['id', 'sub-1'], ['user_id', 'user-1']]);
     assert.equal(stats.update.cancel_at_period_end, true);
     assert.equal(stats.update.renovacao_automatica, false);

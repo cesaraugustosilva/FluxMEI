@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../config/supabase.js';
+import { safelyRecordAuditLog } from '../services/auditLogService.js';
 import { AppError } from './errorMiddleware.js';
 
 function parseAdminEmails() {
@@ -39,6 +40,15 @@ export async function adminMiddleware(req, res, next) {
       return next();
     }
 
+    await safelyRecordAuditLog({
+      req,
+      userId: req.user.id,
+      actorUserId: req.user.id,
+      action: 'admin.access_denied',
+      entityType: 'admin',
+      entityId: 'admin_panel',
+      metadata: { email: req.user.email || null }
+    });
     throw new AppError('Acesso administrativo restrito.', 403);
   } catch (error) {
     next(error);

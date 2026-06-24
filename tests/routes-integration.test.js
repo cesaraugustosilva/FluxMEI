@@ -77,11 +77,13 @@ test('rotas de gerenciamento de assinatura exigem autenticacao no Express', asyn
 
 test('rotas administrativas exigem autenticacao no Express', async () => {
   await withTestServer(async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/api/admin/dashboard`);
+    for (const path of ['/api/admin/dashboard', '/api/admin/audit-logs']) {
+      const response = await fetch(`${baseUrl}${path}`);
 
-    assert.equal(response.status, 401);
-    const payload = await response.json();
-    assert.equal(typeof payload, 'object');
-    assert.notEqual(payload, null);
+      assert.equal(response.status, 401);
+      const payload = await response.json();
+      assert.equal(typeof payload, 'object');
+      assert.notEqual(payload, null);
+    }
   });
 });

@@ -133,6 +133,19 @@ create table if not exists public.notification_events (
   constraint notification_events_user_type_event_key unique (user_id, type, event_key)
 );
 
+create table if not exists public.audit_logs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  actor_user_id uuid references auth.users(id) on delete set null,
+  action text not null,
+  entity_type text,
+  entity_id text,
+  metadata jsonb not null default '{}'::jsonb,
+  ip_address text,
+  user_agent text,
+  created_at timestamptz not null default now()
+);
+
 create index if not exists idx_profiles_id on public.profiles(id);
 create index if not exists idx_movimentacoes_user_data on public.movimentacoes(user_id, data);
 create index if not exists idx_movimentacoes_user_tipo on public.movimentacoes(user_id, tipo);
@@ -147,6 +160,9 @@ create index if not exists idx_assinaturas_provider_payment on public.assinatura
 create index if not exists idx_assinaturas_provider_subscription on public.assinaturas(payment_provider, provider_subscription_id);
 create index if not exists idx_payment_attempt_locks_expires on public.payment_attempt_locks(provider, plano, status, expires_at);
 create index if not exists idx_notification_events_user_created on public.notification_events(user_id, created_at desc);
+create index if not exists idx_audit_logs_created_at on public.audit_logs(created_at desc);
+create index if not exists idx_audit_logs_user_created_at on public.audit_logs(user_id, created_at desc);
+create index if not exists idx_audit_logs_action_created_at on public.audit_logs(action, created_at desc);
 
 drop trigger if exists set_profiles_updated_at on public.profiles;
 create trigger set_profiles_updated_at before update on public.profiles
@@ -180,6 +196,7 @@ alter table public.relatorios_ia enable row level security;
 alter table public.assinaturas enable row level security;
 alter table public.payment_attempt_locks enable row level security;
 alter table public.notification_events enable row level security;
+alter table public.audit_logs enable row level security;
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own" on public.profiles
@@ -262,6 +279,10 @@ drop policy if exists "assinaturas_delete_own" on public.assinaturas;
 drop policy if exists "notification_events_select_own" on public.notification_events;
 create policy "notification_events_select_own" on public.notification_events
 for select using (auth.uid() = user_id);
+
+drop policy if exists "audit_logs_no_client_access" on public.audit_logs;
+create policy "audit_logs_no_client_access" on public.audit_logs
+for all using (false) with check (false);
 
 create or replace function public.acquire_payment_attempt_lock(
   p_user_id uuid,

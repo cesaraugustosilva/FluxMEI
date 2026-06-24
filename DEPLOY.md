@@ -102,6 +102,7 @@ Banco existente:
 4. Execute `backend/database/migrate_payment_attempt_locks.sql`.
 5. Execute `backend/database/migrate_subscription_management.sql`.
 6. Execute `backend/database/migrate_admin_panel.sql`.
+7. Execute `backend/database/migrate_audit_logs.sql`.
 
 Tabelas esperadas:
 
@@ -113,6 +114,7 @@ Tabelas esperadas:
 - `assinaturas`
 - `payment_attempt_locks`
 - `notification_events`
+- `audit_logs`
 
 Auth:
 

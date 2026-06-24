@@ -24,9 +24,23 @@ async function withMockedReceipt(row, fn) {
 
   const originalFrom = supabaseAdmin.from;
   const originalAuth = supabaseAdmin.auth;
-  const stats = { table: null, select: null, eq: [] };
+  const stats = { table: null, tables: [], select: null, eq: [] };
 
   supabaseAdmin.from = (table) => {
+    stats.tables.push(table);
+    if (table === 'audit_logs') {
+      return {
+        insert() {
+          return this;
+        },
+        select() {
+          return this;
+        },
+        single() {
+          return Promise.resolve({ data: { id: 'audit-1' }, error: null });
+        }
+      };
+    }
     stats.table = table;
     return {
       select(columns) {
@@ -83,6 +97,7 @@ test('pagamento aprovado gera recibo seguro', async () => {
     await reciboPagamento({ params: { paymentId: 'pay-1' }, user: { id: 'user-1' } }, res);
 
     assert.equal(stats.table, 'assinaturas');
+    assert.ok(stats.tables.includes('audit_logs'));
     assert.deepEqual(stats.eq, [['user_id', 'user-1'], ['provider_payment_id', 'pay-1']]);
     assert.equal(res.payload.success, true);
     assert.deepEqual(res.payload.receipt, {

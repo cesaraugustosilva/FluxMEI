@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  adminAuditLogs,
   adminDashboard,
   adminPayments,
   adminSubscriptions,
@@ -17,5 +18,6 @@ router.get('/dashboard', asyncHandler(adminDashboard));
 router.get('/users', asyncHandler(adminUsers));
 router.get('/subscriptions', asyncHandler(adminSubscriptions));
 router.get('/payments', asyncHandler(adminPayments));
+router.get('/audit-logs', asyncHandler(adminAuditLogs));
 
 export default router;

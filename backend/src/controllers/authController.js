@@ -1,6 +1,7 @@
 import { createUserSupabaseClient, supabase, supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
 import { assinaturaService } from '../services/assinaturaService.js';
+import { safelyRecordAuditLog } from '../services/auditLogService.js';
 import { rejectUnexpectedFields, sanitizeText, validateEmail } from '../utils/validation.js';
 
 function shouldAutoConfirmEmail() {
@@ -229,6 +230,15 @@ export async function login(req, res) {
   }
 
   if (error) throw new AppError('Email ou senha inválidos.', 401);
+  await safelyRecordAuditLog({
+    req,
+    userId: data.user?.id,
+    actorUserId: data.user?.id,
+    action: 'auth.login',
+    entityType: 'user',
+    entityId: data.user?.id,
+    metadata: { email: data.user?.email || email }
+  });
   res.json(data);
 }
 

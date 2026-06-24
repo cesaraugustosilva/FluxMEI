@@ -105,6 +105,17 @@ async function fetchSubscriptions() {
   return data || [];
 }
 
+async function fetchAuditLogs() {
+  const { data, error } = await supabaseAdmin
+    .from('audit_logs')
+    .select('id,user_id,actor_user_id,action,entity_type,entity_id,metadata,ip_address,user_agent,created_at')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error) throw new AppError('Erro ao consultar auditoria.', 500, error.message);
+  return data || [];
+}
+
 function buildDirectories(users, profiles, subscriptions) {
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
   const usersById = new Map(users.map((user) => [user.id, user]));
@@ -157,6 +168,26 @@ function serializePayment(assinatura, user, profile) {
     date: assinatura.paid_at || assinatura.created_at || null,
     provider: normalizeProvider(assinatura),
     plano: assinatura.plano || null
+  };
+}
+
+function serializeAuditLog(log, usersById, profilesById) {
+  const user = usersById.get(log.user_id) || usersById.get(log.actor_user_id);
+  const profile = profilesById.get(log.user_id) || profilesById.get(log.actor_user_id);
+
+  return {
+    id: log.id,
+    user_id: log.user_id || null,
+    actor_user_id: log.actor_user_id || null,
+    user_name: user || profile ? normalizeName(profile, user) : null,
+    user_email: user?.email || null,
+    action: log.action,
+    entity_type: log.entity_type || null,
+    entity_id: log.entity_id || null,
+    metadata: log.metadata || {},
+    ip_address: log.ip_address || null,
+    user_agent: log.user_agent || null,
+    created_at: log.created_at
   };
 }
 
@@ -243,5 +274,20 @@ export async function adminPayments(req, res) {
   res.json({
     success: true,
     payments
+  });
+}
+
+export async function adminAuditLogs(req, res) {
+  const [users, profiles, logs] = await Promise.all([
+    listAllAuthUsers(),
+    fetchProfiles(),
+    fetchAuditLogs()
+  ]);
+  const usersById = new Map(users.map((user) => [user.id, user]));
+  const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
+
+  res.json({
+    success: true,
+    logs: logs.map((log) => serializeAuditLog(log, usersById, profilesById))
   });
 }

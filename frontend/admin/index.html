@@ -22,6 +22,7 @@
         <a href="#users" data-admin-nav="users">Usuarios</a>
         <a href="#subscriptions" data-admin-nav="subscriptions">Assinaturas</a>
         <a href="#payments" data-admin-nav="payments">Pagamentos</a>
+        <a href="#audit" data-admin-nav="audit">Auditoria</a>
       </nav>
       <div class="sidebar-note">
         <strong>Area restrita</strong>
@@ -124,6 +125,29 @@
               </tr>
             </thead>
             <tbody id="paymentsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="admin-panel" id="audit">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Auditoria</p>
+            <h2>Eventos recentes</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Usuario</th>
+                <th>Acao</th>
+                <th>Entidade</th>
+                <th>Detalhes</th>
+              </tr>
+            </thead>
+            <tbody id="auditTableBody"></tbody>
           </table>
         </div>
       </section>

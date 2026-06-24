@@ -6,7 +6,8 @@ const state = {
   metrics: null,
   users: [],
   subscriptions: [],
-  payments: []
+  payments: [],
+  auditLogs: []
 };
 
 function normalizeApiUrl(url) {
@@ -232,26 +233,64 @@ function renderPayments() {
   }).join('');
 }
 
+function summarizeMetadata(metadata = {}) {
+  const entries = Object.entries(metadata || {})
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .slice(0, 4);
+  if (!entries.length) return '--';
+  return entries
+    .map(([key, value]) => `${key}: ${typeof value === 'object' ? JSON.stringify(value) : String(value)}`)
+    .join(' | ');
+}
+
+function renderAuditLogs() {
+  const body = document.getElementById('auditTableBody');
+  if (!body) return;
+
+  if (!state.auditLogs.length) {
+    body.innerHTML = '<tr><td colspan="5" class="cell-muted">Nenhum evento de auditoria encontrado.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = state.auditLogs.map((log) => `
+    <tr>
+      <td>${formatDate(log.created_at)}</td>
+      <td>
+        <div class="user-cell">
+          <strong>${esc(log.user_name || 'Sistema')}</strong>
+          <span class="cell-muted">${esc(log.user_email || log.user_id || '--')}</span>
+        </div>
+      </td>
+      <td><span class="badge info">${esc(log.action)}</span></td>
+      <td>${esc(log.entity_type || '--')}${log.entity_id ? `<br><span class="cell-muted">${esc(log.entity_id)}</span>` : ''}</td>
+      <td class="cell-muted">${esc(summarizeMetadata(log.metadata))}</td>
+    </tr>
+  `).join('');
+}
+
 function renderAll() {
   renderMetrics();
   renderUsers();
   renderSubscriptions();
   renderPayments();
+  renderAuditLogs();
 }
 
 async function loadAdminData() {
   showState('Carregando dados administrativos...');
-  const [dashboard, users, subscriptions, payments] = await Promise.all([
+  const [dashboard, users, subscriptions, payments, auditLogs] = await Promise.all([
     apiRequest('/admin/dashboard'),
     apiRequest('/admin/users'),
     apiRequest('/admin/subscriptions'),
-    apiRequest('/admin/payments')
+    apiRequest('/admin/payments'),
+    apiRequest('/admin/audit-logs')
   ]);
 
   state.metrics = dashboard.metrics || {};
   state.users = Array.isArray(users.users) ? users.users : [];
   state.subscriptions = Array.isArray(subscriptions.subscriptions) ? subscriptions.subscriptions : [];
   state.payments = Array.isArray(payments.payments) ? payments.payments : [];
+  state.auditLogs = Array.isArray(auditLogs.logs) ? auditLogs.logs : [];
   showState('');
   renderAll();
 }

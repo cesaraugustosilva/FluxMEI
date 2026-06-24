@@ -7,6 +7,7 @@ import {
   notifySubscriptionReactivated,
   safelyNotify
 } from '../services/notificationService.js';
+import { safelyRecordAuditLog } from '../services/auditLogService.js';
 
 const TRIAL_DAYS = assinaturaService.TRIAL_DAYS;
 const TRIAL_STATUS = assinaturaService.TRIAL_STATUS;
@@ -167,6 +168,21 @@ export async function cancelarAssinatura(req, res) {
 
   if (error) throw new AppError('Erro ao cancelar assinatura.', 500, error.message);
   await safelyNotify(notifyCancellationScheduled, { assinatura: data });
+  await safelyRecordAuditLog({
+    req,
+    userId: req.user.id,
+    actorUserId: req.user.id,
+    action: 'subscription.cancel_scheduled',
+    entityType: 'subscription',
+    entityId: data.id,
+    metadata: {
+      plan: data.plano,
+      status: data.status,
+      cancel_at_period_end: data.cancel_at_period_end,
+      preserve_access: preserveAccess,
+      data_vencimento: data.data_vencimento
+    }
+  });
   res.json({
     success: true,
     message: preserveAccess
@@ -205,6 +221,19 @@ export async function reativarAssinatura(req, res) {
 
   if (error) throw new AppError('Erro ao reativar assinatura.', 500, error.message);
   await safelyNotify(notifySubscriptionReactivated, { assinatura: data });
+  await safelyRecordAuditLog({
+    req,
+    userId: req.user.id,
+    actorUserId: req.user.id,
+    action: 'subscription.reactivated',
+    entityType: 'subscription',
+    entityId: data.id,
+    metadata: {
+      plan: data.plano,
+      status: data.status,
+      data_vencimento: data.data_vencimento
+    }
+  });
   res.json({
     success: true,
     action: 'reactivated',

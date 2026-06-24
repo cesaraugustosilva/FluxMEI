@@ -25,6 +25,7 @@ import {
   notifySubscriptionCreated,
   safelyNotify
 } from '../services/notificationService.js';
+import { safelyRecordAuditLog } from '../services/auditLogService.js';
 import { sanitizeText } from '../utils/validation.js';
 
 const PENDING_PAYMENT_MESSAGE = 'Voce ja possui um pagamento pendente. Conclua ou aguarde a expiracao antes de gerar outro.';
@@ -888,6 +889,38 @@ async function criarPagamentoEfi(req, res, method) {
       await safelyNotify(notifyPaymentPending, { assinatura: updatedAssinatura, payment, method });
     }
     logEfiPaymentCreated({ method, payment, plan, assinatura: updatedAssinatura, idempotencyKey });
+    await safelyRecordAuditLog({
+      req,
+      userId: req.user.id,
+      actorUserId: req.user.id,
+      action: 'payment.created',
+      entityType: 'payment',
+      entityId: getPaymentId(payment),
+      metadata: {
+        provider: 'efi',
+        method,
+        plan: plan.id,
+        status: payment?.status || null,
+        value: plan.value,
+        subscription_id: updatedAssinatura.id
+      }
+    });
+    if (lockedAssinatura.plano && lockedAssinatura.plano !== plan.id) {
+      await safelyRecordAuditLog({
+        req,
+        userId: req.user.id,
+        actorUserId: req.user.id,
+        action: 'plan_switch.initiated',
+        entityType: 'subscription',
+        entityId: updatedAssinatura.id,
+        metadata: {
+          provider: 'efi',
+          payment_id: getPaymentId(payment),
+          from_plan: lockedAssinatura.plano,
+          to_plan: plan.id
+        }
+      });
+    }
     shouldReleaseLock = true;
 
     const messages = {
@@ -984,6 +1017,38 @@ async function criarPagamentoAsaas(req, res, method) {
       await safelyNotify(notifyPaymentPending, { assinatura: updatedAssinatura, payment, method });
     }
     logAsaasPaymentCreated({ method, payment, plan, assinatura: updatedAssinatura });
+    await safelyRecordAuditLog({
+      req,
+      userId: req.user.id,
+      actorUserId: req.user.id,
+      action: 'payment.created',
+      entityType: 'payment',
+      entityId: payment?.id,
+      metadata: {
+        provider: 'asaas',
+        method,
+        plan: plan.id,
+        status: payment?.status || null,
+        value: plan.value,
+        subscription_id: updatedAssinatura.id
+      }
+    });
+    if (lockedAssinatura.plano && lockedAssinatura.plano !== plan.id) {
+      await safelyRecordAuditLog({
+        req,
+        userId: req.user.id,
+        actorUserId: req.user.id,
+        action: 'plan_switch.initiated',
+        entityType: 'subscription',
+        entityId: updatedAssinatura.id,
+        metadata: {
+          provider: 'asaas',
+          payment_id: payment?.id || null,
+          from_plan: lockedAssinatura.plano,
+          to_plan: plan.id
+        }
+      });
+    }
     shouldReleaseLock = true;
 
     return res.status(201).json({
@@ -1050,6 +1115,49 @@ async function aplicarPagamentoEfiNaAssinatura(payment, assinatura) {
   if (updated.status === 'ativo' && updated.bloqueado === false) {
     await safelyNotify(notifyPaymentConfirmed, { assinatura: updated, payment });
     await safelyNotify(notifySubscriptionCreated, { assinatura: updated });
+    await safelyRecordAuditLog({
+      userId: updated.user_id,
+      actorUserId: updated.user_id,
+      action: 'payment.confirmed',
+      entityType: 'payment',
+      entityId: getPaymentId(payment),
+      metadata: {
+        provider: 'efi',
+        status: payment?.status || null,
+        plan: updated.plano,
+        value: updated.valor,
+        subscription_id: updated.id
+      }
+    });
+    await safelyRecordAuditLog({
+      userId: updated.user_id,
+      actorUserId: updated.user_id,
+      action: 'subscription.activated',
+      entityType: 'subscription',
+      entityId: updated.id,
+      metadata: {
+        provider: 'efi',
+        payment_id: getPaymentId(payment),
+        plan: updated.plano,
+        status: updated.status,
+        data_vencimento: updated.data_vencimento
+      }
+    });
+    if (assinatura.plano && assinatura.plano !== updated.plano) {
+      await safelyRecordAuditLog({
+        userId: updated.user_id,
+        actorUserId: updated.user_id,
+        action: 'plan_switch.completed',
+        entityType: 'subscription',
+        entityId: updated.id,
+        metadata: {
+          provider: 'efi',
+          payment_id: getPaymentId(payment),
+          from_plan: assinatura.plano,
+          to_plan: updated.plano
+        }
+      });
+    }
   }
   return updated;
 }
@@ -1070,6 +1178,52 @@ async function aplicarPagamentoAsaasNaAssinatura(payment, assinatura, event = nu
   if (updated.status === 'ativo' && updated.bloqueado === false) {
     await safelyNotify(notifyPaymentConfirmed, { assinatura: updated, payment });
     await safelyNotify(notifySubscriptionCreated, { assinatura: updated });
+    await safelyRecordAuditLog({
+      userId: updated.user_id,
+      actorUserId: updated.user_id,
+      action: 'payment.confirmed',
+      entityType: 'payment',
+      entityId: payment?.id,
+      metadata: {
+        provider: 'asaas',
+        event,
+        status: payment?.status || null,
+        plan: updated.plano,
+        value: updated.valor,
+        subscription_id: updated.id
+      }
+    });
+    await safelyRecordAuditLog({
+      userId: updated.user_id,
+      actorUserId: updated.user_id,
+      action: 'subscription.activated',
+      entityType: 'subscription',
+      entityId: updated.id,
+      metadata: {
+        provider: 'asaas',
+        event,
+        payment_id: payment?.id || null,
+        plan: updated.plano,
+        status: updated.status,
+        data_vencimento: updated.data_vencimento
+      }
+    });
+    if (assinatura.plano && assinatura.plano !== updated.plano) {
+      await safelyRecordAuditLog({
+        userId: updated.user_id,
+        actorUserId: updated.user_id,
+        action: 'plan_switch.completed',
+        entityType: 'subscription',
+        entityId: updated.id,
+        metadata: {
+          provider: 'asaas',
+          event,
+          payment_id: payment?.id || null,
+          from_plan: assinatura.plano,
+          to_plan: updated.plano
+        }
+      });
+    }
   }
   return updated;
 }
@@ -1150,6 +1304,21 @@ export async function reciboPagamento(req, res) {
   if (!isPaidReceiptStatus(historyPayment.status)) {
     throw new AppError('Recibo disponivel apenas para pagamentos confirmados.', 400);
   }
+
+  await safelyRecordAuditLog({
+    req,
+    userId: req.user.id,
+    actorUserId: req.user.id,
+    action: 'receipt.viewed',
+    entityType: 'payment',
+    entityId: historyPayment.id,
+    metadata: {
+      provider: assinatura.payment_provider || null,
+      method: historyPayment.payment_method,
+      plan: historyPayment.plano,
+      value: historyPayment.valor
+    }
+  });
 
   res.json({
     success: true,
@@ -1245,6 +1414,19 @@ export async function webhookEfi(req, res) {
     charge_id: sanitizeLogId(info.charge_id),
     outcome: info.lookupId ? 'received' : 'ignored_no_payment_id'
   });
+  await safelyRecordAuditLog({
+    req,
+    action: 'webhook.received',
+    entityType: 'webhook',
+    entityId: info.lookupId || null,
+    metadata: {
+      provider: 'efi',
+      event: info.event,
+      method: info.method,
+      lookup_type: info.lookupType,
+      outcome: info.lookupId ? 'received' : 'ignored_no_payment_id'
+    }
+  });
 
   if (!info.lookupId) {
     logWebhookEvent({ provider: 'efi', event: info.event, outcome: 'ignored_no_payment_id' });
@@ -1319,6 +1501,17 @@ export async function webhookAsaas(req, res) {
     event,
     payment_id: sanitizeLogId(paymentId),
     outcome: paymentId ? 'received' : 'ignored_no_payment_id'
+  });
+  await safelyRecordAuditLog({
+    req,
+    action: 'webhook.received',
+    entityType: 'webhook',
+    entityId: paymentId || null,
+    metadata: {
+      provider: 'asaas',
+      event,
+      outcome: paymentId ? 'received' : 'ignored_no_payment_id'
+    }
   });
 
   if (!paymentId) {
