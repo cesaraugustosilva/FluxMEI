@@ -686,6 +686,22 @@
       <button class="btn btn-primary" type="button" id="accountPlanSwitchAction">Trocar plano</button>
     </section>
 
+    <section class="account-referral-card" id="accountReferralCard" aria-label="Indique e ganhe">
+      <div class="account-referral-copy">
+        <span class="account-section-title inline">Indique e ganhe</span>
+        <strong>Indique outro MEI e ganhe 15 dias gratis</strong>
+        <p>Quando a pessoa indicada assinar o FluxMEI, voce ganha 15 dias extras de assinatura.</p>
+      </div>
+      <div class="account-referral-box">
+        <label for="accountReferralLink">Seu link de convite</label>
+        <div class="account-referral-input">
+          <input id="accountReferralLink" type="text" readonly value="Carregando..." />
+          <button class="btn btn-primary" type="button" id="accountReferralCopy">Copiar link</button>
+        </div>
+        <div class="account-referral-code">Codigo: <strong id="accountReferralCode">--</strong></div>
+      </div>
+    </section>
+
     <section>
       <div class="account-section-title">Planos disponiveis</div>
       <div class="account-plans" id="accountPlans"></div>

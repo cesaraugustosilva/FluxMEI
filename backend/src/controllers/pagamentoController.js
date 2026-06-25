@@ -31,6 +31,7 @@ import {
   incrementCouponUsage,
   validateCouponForPlan
 } from '../services/couponService.js';
+import { rewardReferralForPaidUser } from '../services/referralService.js';
 import { sanitizeText } from '../utils/validation.js';
 
 const PENDING_PAYMENT_MESSAGE = 'Voce ja possui um pagamento pendente. Conclua ou aguarde a expiracao antes de gerar outro.';
@@ -153,6 +154,20 @@ async function recordCouponUsed({ req, coupon, plan, paymentId, provider, method
       final_value: coupon.final_value
     }
   });
+}
+
+async function safelyRewardReferral(userId, options = {}) {
+  try {
+    return await rewardReferralForPaidUser(userId, options);
+  } catch (error) {
+    console.warn('[referral]', {
+      outcome: 'reward_failed',
+      user_id: sanitizeLogId(userId),
+      provider: options.provider || null,
+      message: error?.message || 'unknown_error'
+    });
+    return null;
+  }
 }
 
 function validatePaymentId(value) {
@@ -1228,6 +1243,10 @@ async function aplicarPagamentoEfiNaAssinatura(payment, assinatura) {
         }
       });
     }
+    await safelyRewardReferral(updated.user_id, {
+      paymentId: getPaymentId(payment),
+      provider: 'efi'
+    });
   }
   return updated;
 }
@@ -1294,6 +1313,10 @@ async function aplicarPagamentoAsaasNaAssinatura(payment, assinatura, event = nu
         }
       });
     }
+    await safelyRewardReferral(updated.user_id, {
+      paymentId: payment?.id || null,
+      provider: 'asaas'
+    });
   }
   return updated;
 }

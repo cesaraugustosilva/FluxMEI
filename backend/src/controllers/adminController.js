@@ -116,6 +116,16 @@ async function fetchAuditLogs() {
   return data || [];
 }
 
+async function fetchReferralMetricsRows() {
+  const { data, error } = await supabaseAdmin
+    .from('referrals')
+    .select('status')
+    .order('created_at', { ascending: false });
+
+  if (error) throw new AppError('Erro ao consultar indicacoes.', 500, error.message);
+  return data || [];
+}
+
 function buildDirectories(users, profiles, subscriptions) {
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
   const usersById = new Map(users.map((user) => [user.id, user]));
@@ -191,7 +201,7 @@ function serializeAuditLog(log, usersById, profilesById) {
   };
 }
 
-function buildMetrics(users, subscriptions) {
+function buildMetrics(users, subscriptions, referrals = []) {
   const paidPayments = subscriptions.filter((assinatura) => assinatura.provider_payment_id && isPaidStatus(getPaymentStatus(assinatura)));
   const activeSubscriptions = subscriptions.filter((assinatura) => assinatura.status === 'ativo' && !assinatura.bloqueado);
   const monthlyActive = activeSubscriptions.filter((assinatura) => getPlanBillingType(assinatura.plano, assinatura.tipo_cobranca) === 'mensal' && assinatura.plano !== 'gratuito');
@@ -205,6 +215,9 @@ function buildMetrics(users, subscriptions) {
     assinaturas_ativas: activeSubscriptions.length,
     assinaturas_canceladas: subscriptions.filter((assinatura) => assinatura.status === 'cancelado' || assinatura.cancel_at_period_end).length,
     pagamentos_pendentes: subscriptions.filter((assinatura) => assinatura.provider_payment_id && isPendingStatus(getPaymentStatus(assinatura))).length,
+    indicacoes_pendentes: referrals.filter((referral) => referral.status === 'pending').length,
+    indicacoes_convertidas: referrals.filter((referral) => referral.status === 'converted').length,
+    indicacoes_recompensadas: referrals.filter((referral) => referral.status === 'rewarded').length,
     receita_total: roundMoney(paidPayments.reduce((sum, assinatura) => sum + getPaymentValue(assinatura), 0)),
     mrr: roundMoney(mrr),
     arr: roundMoney((mrr * 12) + annualRevenueProjection)
@@ -227,11 +240,14 @@ async function getAdminData() {
 }
 
 export async function adminDashboard(req, res) {
-  const { users, subscriptions } = await getAdminData();
+  const [{ users, subscriptions }, referrals] = await Promise.all([
+    getAdminData(),
+    fetchReferralMetricsRows()
+  ]);
 
   res.json({
     success: true,
-    metrics: buildMetrics(users, subscriptions)
+    metrics: buildMetrics(users, subscriptions, referrals)
   });
 }
 

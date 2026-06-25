@@ -59,6 +59,8 @@ let state = {
   das: [],
   paymentHistory: [],
   paymentHistoryError: '',
+  referral: null,
+  referralError: '',
   user: null,
   profile: null,
   planos: DEFAULT_ACCOUNT_PLANS,
@@ -575,6 +577,17 @@ async function loadPaymentHistory() {
   }
 }
 
+async function loadReferralSummary() {
+  try {
+    const response = await apiRequest('/referrals/me');
+    state.referral = response?.referral || null;
+    state.referralError = '';
+  } catch (error) {
+    state.referral = null;
+    state.referralError = error.message || 'Nao foi possivel carregar seu link de indicacao.';
+  }
+}
+
 function getAccountStatusMeta(status = subscriptionStatus) {
   const estado = status?.estado || status?.status || 'teste_gratis';
   const dias = Number(status?.dias_restantes || 0);
@@ -639,6 +652,29 @@ async function reactivateSubscription() {
 function scrollToPaymentHistory() {
   const section = document.getElementById('accountPaymentHistorySection');
   if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function copyReferralLink() {
+  const input = document.getElementById('accountReferralLink');
+  const button = document.getElementById('accountReferralCopy');
+  const link = input?.value || '';
+  if (!link || state.referralError) return;
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(link);
+    } else {
+      input.select();
+      document.execCommand('copy');
+    }
+    if (button) {
+      button.textContent = 'Copiado';
+      window.setTimeout(() => { button.textContent = 'Copiar link'; }, 1400);
+    }
+    showToast('Link de indicacao copiado.');
+  } catch {
+    showToast('Nao foi possivel copiar o link agora.', 'error');
+  }
 }
 
 function handleSmartAlertClick(event) {
@@ -817,7 +853,28 @@ function renderAccountPanel() {
     reactivateAction.hidden = !canReactivate;
   }
   renderSmartAlerts('accountSmartAlerts', { includeActive: true });
+  renderReferralCard();
   renderPaymentHistory();
+}
+
+function getReferralInviteLink(code) {
+  if (!code) return '';
+  const url = new URL('/auth/register.html', window.location.origin);
+  url.searchParams.set('ref', code);
+  return url.href;
+}
+
+function renderReferralCard() {
+  const codeEl = document.getElementById('accountReferralCode');
+  const linkEl = document.getElementById('accountReferralLink');
+  const copyButton = document.getElementById('accountReferralCopy');
+  if (!codeEl || !linkEl || !copyButton) return;
+
+  const code = state.referral?.referral_code || '';
+  const link = getReferralInviteLink(code);
+  codeEl.textContent = code || '--';
+  linkEl.value = state.referralError || link || 'Gerando seu link de indicacao...';
+  copyButton.disabled = !link;
 }
 
 function renderPaymentHistory() {
@@ -1116,8 +1173,11 @@ async function loadState() {
   ]);
 
   state.user = me.user;
-  await loadAvailablePlans();
-  await loadPaymentHistory();
+  await Promise.all([
+    loadAvailablePlans(),
+    loadPaymentHistory(),
+    loadReferralSummary()
+  ]);
   renderSubscriptionNotice(assinaturaStatus);
 
   if (assinaturaStatus?.bloqueado) {
@@ -2642,6 +2702,7 @@ async function init() {
     confirmPlanSwitch(event.currentTarget.dataset.targetPlan);
   });
   document.getElementById('accountQuickHistory')?.addEventListener('click', scrollToPaymentHistory);
+  document.getElementById('accountReferralCopy')?.addEventListener('click', copyReferralLink);
   document.getElementById('accountCancelAction')?.addEventListener('click', cancelSubscription);
   document.getElementById('accountReactivateAction')?.addEventListener('click', reactivateSubscription);
   document.getElementById('receiptClose')?.addEventListener('click', closeReceiptModal);

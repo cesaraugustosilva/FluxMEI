@@ -308,6 +308,8 @@ async function register(payload) {
     tipo_negocio: payload.businessType,
     password: payload.password
   };
+  const referralCode = getReferralCodeFromUrl();
+  if (referralCode) body.ref = referralCode;
 
   if (hasSubscribeIntent()) {
     body.subscription_intent = SUBSCRIBE_INTENT;
@@ -318,6 +320,12 @@ async function register(payload) {
     method: 'POST',
     body: JSON.stringify(body)
   });
+}
+
+function getReferralCodeFromUrl() {
+  const query = new URLSearchParams(window.location.search);
+  const code = String(query.get('ref') || '').trim();
+  return /^[A-Za-z0-9_-]{4,40}$/.test(code) ? code : null;
 }
 
 async function resetPassword(email) {

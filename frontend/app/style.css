@@ -627,6 +627,64 @@ body {
   font-size: 0.88rem;
   line-height: 1.45;
 }
+.account-referral-card {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(260px, 1.1fr);
+  gap: 16px;
+  margin: 14px 18px 0;
+  padding: 18px;
+  border: 1px solid rgba(72,213,47,.24);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at top left, rgba(72,213,47,.18), transparent 34%),
+    linear-gradient(135deg, rgba(16,43,31,.96), rgba(23,70,48,.92));
+  color: #fff;
+  box-shadow: 0 18px 44px rgba(16,43,31,.18);
+}
+.account-referral-copy strong {
+  display: block;
+  margin-top: 7px;
+  font-size: 1.05rem;
+}
+.account-referral-copy p {
+  margin-top: 8px;
+  color: rgba(255,255,255,.76);
+  line-height: 1.5;
+}
+.account-referral-box label {
+  display: block;
+  margin-bottom: 8px;
+  color: rgba(255,255,255,.74);
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+.account-referral-input {
+  display: flex;
+  gap: 8px;
+}
+.account-referral-input input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 10px;
+  padding: 0 12px;
+  background: rgba(255,255,255,.12);
+  color: #fff;
+  font-weight: 800;
+}
+.account-referral-input input:focus {
+  outline: 2px solid rgba(127,240,175,.42);
+  outline-offset: 2px;
+}
+.account-referral-code {
+  margin-top: 10px;
+  color: rgba(255,255,255,.74);
+  font-size: 0.86rem;
+}
+.account-referral-code strong {
+  color: #9ff17d;
+  letter-spacing: 0.04em;
+}
 .account-section-title.inline {
   padding: 0;
   letter-spacing: 0.04em;
@@ -2186,7 +2244,8 @@ textarea.form-input { resize: vertical; }
   }
 
   .account-plan-overview,
-  .account-switch-card {
+  .account-switch-card,
+  .account-referral-card {
     grid-template-columns: 1fr;
   }
 
@@ -2219,6 +2278,16 @@ textarea.form-input { resize: vertical; }
   .account-switch-card {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .account-referral-input {
+    flex-direction: column;
+  }
+
+  .account-referral-input input,
+  .account-referral-input .btn {
+    min-height: 44px;
+    width: 100%;
   }
 
   .account-payment-item {

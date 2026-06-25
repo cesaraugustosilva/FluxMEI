@@ -2,6 +2,7 @@ import { createUserSupabaseClient, supabase, supabaseAdmin } from '../config/sup
 import { AppError } from '../middlewares/errorMiddleware.js';
 import { assinaturaService } from '../services/assinaturaService.js';
 import { safelyRecordAuditLog } from '../services/auditLogService.js';
+import { createReferralFromCode } from '../services/referralService.js';
 import { rejectUnexpectedFields, sanitizeText, validateEmail } from '../utils/validation.js';
 
 function shouldAutoConfirmEmail() {
@@ -148,7 +149,9 @@ export async function register(req, res) {
     'whatsapp',
     'tipo_negocio',
     'subscription_intent',
-    'plano'
+    'plano',
+    'ref',
+    'referral_code'
   ]);
   requireFields(req.body, ['email', 'password', 'nome', 'whatsapp', 'tipo_negocio']);
 
@@ -190,6 +193,12 @@ export async function register(req, res) {
     .upsert(profilePayload, { onConflict: 'id' });
 
   if (profileError) throw new AppError('Usuário criado, mas houve erro ao salvar o perfil.', 500, profileError.message);
+  await createReferralFromCode({
+    referralCode: req.body.ref || req.body.referral_code,
+    referredUserId: data.user.id,
+    req
+  });
+
   if (isDirectSubscriptionIntent(req.body)) {
     await assinaturaService.createPendingSubscription(data.user.id, directSubscriptionPlan);
   } else {

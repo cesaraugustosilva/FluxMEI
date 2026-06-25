@@ -146,6 +146,9 @@ function renderMetrics() {
   setMetric('metricActiveSubscriptions', metrics.assinaturas_ativas ?? 0);
   setMetric('metricCanceledSubscriptions', metrics.assinaturas_canceladas ?? 0);
   setMetric('metricPendingPayments', metrics.pagamentos_pendentes ?? 0);
+  setMetric('metricPendingReferrals', metrics.indicacoes_pendentes ?? 0);
+  setMetric('metricConvertedReferrals', metrics.indicacoes_convertidas ?? 0);
+  setMetric('metricRewardedReferrals', metrics.indicacoes_recompensadas ?? 0);
   setMetric('metricTotalRevenue', formatBRL(metrics.receita_total || 0));
   setMetric('metricMrr', formatBRL(metrics.mrr || 0));
   setMetric('metricArr', formatBRL(metrics.arr || 0));
