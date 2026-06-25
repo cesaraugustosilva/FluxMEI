@@ -100,6 +100,19 @@ function requireFields(body, fields) {
   if (missing.length) throw new AppError(`Campos obrigatórios: ${missing.join(', ')}.`);
 }
 
+function validateOnboardingStep(value) {
+  const step = Number(value);
+  if (!Number.isInteger(step) || step < 0 || step > 6) {
+    throw new AppError('Etapa de onboarding invalida.');
+  }
+  return step;
+}
+
+function validateBoolean(value, field) {
+  if (typeof value !== 'boolean') throw new AppError(`${field} deve ser booleano.`);
+  return value;
+}
+
 function isDirectSubscriptionIntent(body) {
   return body.subscription_intent === 'subscribe';
 }
@@ -303,6 +316,63 @@ export async function updateProfile(req, res) {
 
   if (error) throw new AppError('Erro ao atualizar perfil.', 500, error.message);
   res.json(data);
+}
+
+export async function updateOnboarding(req, res) {
+  rejectUnexpectedFields(req.body, ['onboarding_step', 'onboarding_completed']);
+
+  const payload = {};
+  if (req.body.onboarding_step !== undefined) {
+    payload.onboarding_step = validateOnboardingStep(req.body.onboarding_step);
+  }
+  if (req.body.onboarding_completed !== undefined) {
+    payload.onboarding_completed = validateBoolean(req.body.onboarding_completed, 'onboarding_completed');
+    if (payload.onboarding_completed) payload.onboarding_step = 6;
+  }
+  if (!Object.keys(payload).length) throw new AppError('Nenhum campo valido informado.');
+
+  const { data: current, error: currentError } = await supabaseAdmin
+    .from('profiles')
+    .select('id,onboarding_step,onboarding_completed')
+    .eq('id', req.user.id)
+    .maybeSingle();
+
+  if (currentError) throw new AppError('Erro ao consultar onboarding.', 500, currentError.message);
+
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .update(payload)
+    .eq('id', req.user.id)
+    .select('id,onboarding_step,onboarding_completed')
+    .single();
+
+  if (error) throw new AppError('Erro ao salvar onboarding.', 500, error.message);
+
+  if (!current?.onboarding_step && data.onboarding_step > 0) {
+    await safelyRecordAuditLog({
+      req,
+      userId: req.user.id,
+      actorUserId: req.user.id,
+      action: 'onboarding.started',
+      entityType: 'profile',
+      entityId: req.user.id,
+      metadata: { onboarding_step: data.onboarding_step }
+    });
+  }
+
+  if (!current?.onboarding_completed && data.onboarding_completed) {
+    await safelyRecordAuditLog({
+      req,
+      userId: req.user.id,
+      actorUserId: req.user.id,
+      action: 'onboarding.completed',
+      entityType: 'profile',
+      entityId: req.user.id,
+      metadata: { onboarding_step: data.onboarding_step }
+    });
+  }
+
+  res.json({ success: true, profile: data });
 }
 
 export async function resetPassword(req, res) {

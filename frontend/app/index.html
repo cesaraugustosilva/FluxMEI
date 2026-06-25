@@ -761,6 +761,26 @@
   </div>
 </div>
 
+<!-- Modal Onboarding -->
+<div class="modal-backdrop onboarding-backdrop" id="onboardingModal" hidden>
+  <div class="modal onboarding-modal" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
+    <button class="modal-close onboarding-close" type="button" id="onboardingClose" aria-label="Fechar onboarding">x</button>
+    <div class="onboarding-progress">
+      <span id="onboardingProgressText">Passo 1 de 6</span>
+      <div class="onboarding-progress-track"><div id="onboardingProgressBar"></div></div>
+    </div>
+    <div class="onboarding-visual" id="onboardingVisual" aria-hidden="true"></div>
+    <div class="onboarding-content">
+      <h2 id="onboardingTitle">👋 Bem-vindo ao FluxMEI!</h2>
+      <p id="onboardingText">Vamos configurar sua conta em menos de 2 minutos.</p>
+    </div>
+    <div class="onboarding-actions">
+      <button class="btn btn-outline" type="button" id="onboardingBack" hidden>Voltar</button>
+      <button class="btn btn-primary" type="button" id="onboardingNext">Começar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 

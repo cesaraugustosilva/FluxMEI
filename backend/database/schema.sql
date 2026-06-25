@@ -308,9 +308,26 @@ for all using (false) with check (false);
 alter table public.profiles
   add column if not exists referral_code text;
 
+alter table public.profiles
+  add column if not exists onboarding_completed boolean not null default false;
+
+alter table public.profiles
+  add column if not exists onboarding_step integer not null default 0;
+
+alter table public.profiles
+  add constraint profiles_onboarding_step_check
+  check (onboarding_step between 0 and 6)
+  not valid;
+
+alter table public.profiles
+  validate constraint profiles_onboarding_step_check;
+
 create unique index if not exists idx_profiles_referral_code
 on public.profiles(referral_code)
 where referral_code is not null;
+
+create index if not exists idx_profiles_onboarding_completed
+on public.profiles(onboarding_completed);
 
 create table if not exists public.referrals (
   id uuid primary key default gen_random_uuid(),

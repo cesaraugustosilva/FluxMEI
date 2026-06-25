@@ -1975,6 +1975,92 @@ textarea.form-input { resize: vertical; }
 .modal-confirm {
   max-width: 440px;
 }
+.onboarding-backdrop {
+  background:
+    radial-gradient(circle at top left, rgba(72,213,47,.18), transparent 30%),
+    rgba(6,21,15,.62);
+}
+.modal-backdrop.active,
+.modal-backdrop:not([hidden]).active {
+  display: flex;
+}
+.onboarding-modal {
+  position: relative;
+  max-width: 520px;
+  overflow: hidden;
+  border: 1px solid rgba(72,213,47,.20);
+  background:
+    radial-gradient(circle at top right, rgba(72,213,47,.18), transparent 32%),
+    linear-gradient(180deg, #ffffff, #f7fbf8);
+}
+.onboarding-backdrop.active .onboarding-modal {
+  animation: onboardingFade .24s ease both;
+}
+.onboarding-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+}
+.onboarding-progress {
+  padding: 22px 24px 0;
+}
+.onboarding-progress span {
+  display: block;
+  color: var(--text-light);
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.onboarding-progress-track {
+  height: 8px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(16,43,31,.10);
+}
+.onboarding-progress-track div {
+  width: 16%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), #7ff0af);
+  transition: width .25s ease;
+}
+.onboarding-visual {
+  display: grid;
+  place-items: center;
+  min-height: 154px;
+  padding: 8px 24px 0;
+}
+.onboarding-visual svg {
+  width: min(250px, 78vw);
+  height: auto;
+  filter: drop-shadow(0 18px 26px rgba(16,43,31,.10));
+}
+.onboarding-content {
+  padding: 6px 32px 0;
+  text-align: center;
+}
+.onboarding-content h2 {
+  color: var(--text);
+  font-size: clamp(1.5rem, 2.6vw, 2rem);
+}
+.onboarding-content p {
+  max-width: 390px;
+  margin: 10px auto 0;
+  color: var(--text-light);
+  line-height: 1.6;
+}
+.onboarding-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px 32px 30px;
+}
+.onboarding-actions .btn {
+  min-width: 140px;
+  min-height: 46px;
+}
 .confirm-visual {
   display: flex;
   align-items: flex-start;
@@ -1992,6 +2078,10 @@ textarea.form-input { resize: vertical; }
 @keyframes modalIn {
   from { transform: scale(.92); opacity: 0; }
   to   { transform: scale(1);   opacity: 1; }
+}
+@keyframes onboardingFade {
+  from { opacity: 0; transform: translateY(14px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .modal-header {
   display: flex; justify-content: space-between; align-items: center;
@@ -2287,6 +2377,23 @@ textarea.form-input { resize: vertical; }
   .account-referral-input input,
   .account-referral-input .btn {
     min-height: 44px;
+    width: 100%;
+  }
+
+  .onboarding-modal {
+    max-width: 100%;
+  }
+
+  .onboarding-content {
+    padding-inline: 22px;
+  }
+
+  .onboarding-actions {
+    flex-direction: column-reverse;
+    padding-inline: 22px;
+  }
+
+  .onboarding-actions .btn {
     width: 100%;
   }
 

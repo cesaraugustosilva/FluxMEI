@@ -88,7 +88,7 @@ async function listAllAuthUsers() {
 async function fetchProfiles() {
   const { data, error } = await supabaseAdmin
     .from('profiles')
-    .select('id,nome,nome_negocio,created_at,is_admin')
+    .select('id,nome,nome_negocio,created_at,is_admin,onboarding_completed,onboarding_step')
     .order('created_at', { ascending: false });
 
   if (error) throw new AppError('Erro ao consultar perfis.', 500, error.message);
@@ -201,7 +201,7 @@ function serializeAuditLog(log, usersById, profilesById) {
   };
 }
 
-function buildMetrics(users, subscriptions, referrals = []) {
+function buildMetrics(users, subscriptions, referrals = [], profiles = []) {
   const paidPayments = subscriptions.filter((assinatura) => assinatura.provider_payment_id && isPaidStatus(getPaymentStatus(assinatura)));
   const activeSubscriptions = subscriptions.filter((assinatura) => assinatura.status === 'ativo' && !assinatura.bloqueado);
   const monthlyActive = activeSubscriptions.filter((assinatura) => getPlanBillingType(assinatura.plano, assinatura.tipo_cobranca) === 'mensal' && assinatura.plano !== 'gratuito');
@@ -218,6 +218,8 @@ function buildMetrics(users, subscriptions, referrals = []) {
     indicacoes_pendentes: referrals.filter((referral) => referral.status === 'pending').length,
     indicacoes_convertidas: referrals.filter((referral) => referral.status === 'converted').length,
     indicacoes_recompensadas: referrals.filter((referral) => referral.status === 'rewarded').length,
+    onboarding_concluidos: profiles.filter((profile) => profile.onboarding_completed === true).length,
+    onboarding_pendentes: profiles.filter((profile) => profile.onboarding_completed !== true).length,
     receita_total: roundMoney(paidPayments.reduce((sum, assinatura) => sum + getPaymentValue(assinatura), 0)),
     mrr: roundMoney(mrr),
     arr: roundMoney((mrr * 12) + annualRevenueProjection)
@@ -240,14 +242,14 @@ async function getAdminData() {
 }
 
 export async function adminDashboard(req, res) {
-  const [{ users, subscriptions }, referrals] = await Promise.all([
+  const [{ users, subscriptions, profiles }, referrals] = await Promise.all([
     getAdminData(),
     fetchReferralMetricsRows()
   ]);
 
   res.json({
     success: true,
-    metrics: buildMetrics(users, subscriptions, referrals)
+    metrics: buildMetrics(users, subscriptions, referrals, profiles)
   });
 }
 

@@ -51,6 +51,45 @@ const DEFAULT_ACCOUNT_PLANS = [
     recursos: ['Controle financeiro', 'DAS', 'Metas', 'Relatorios']
   }
 ];
+const ONBOARDING_TOTAL_STEPS = 6;
+const ONBOARDING_STEPS = [
+  {
+    title: '👋 Bem-vindo ao FluxMEI!',
+    text: 'Vamos configurar sua conta em menos de 2 minutos.',
+    button: 'Começar',
+    visual: 'welcome'
+  },
+  {
+    title: 'Cadastre sua primeira receita',
+    text: 'Registre qualquer entrada de dinheiro para acompanhar o que entra no seu MEI.',
+    button: 'Próximo',
+    visual: 'revenue'
+  },
+  {
+    title: 'Cadastre sua primeira despesa',
+    text: 'Agora registre um gasto para acompanhar seu fluxo de caixa com clareza.',
+    button: 'Próximo',
+    visual: 'expense'
+  },
+  {
+    title: 'Conheça o Dashboard',
+    text: 'Veja saldo, receitas e despesas em uma visão simples para decidir melhor.',
+    button: 'Próximo',
+    visual: 'dashboard'
+  },
+  {
+    title: 'Metas Financeiras',
+    text: 'Crie metas para organizar reservas, investimentos e próximos passos do seu negócio.',
+    button: 'Próximo',
+    visual: 'goals'
+  },
+  {
+    title: 'Tudo pronto!',
+    text: 'Agora você já pode usar todos os recursos do FluxMEI.',
+    button: 'Ir para Dashboard',
+    visual: 'done'
+  }
+];
 
 // ===== STATE =====
 let state = {
@@ -61,6 +100,8 @@ let state = {
   paymentHistoryError: '',
   referral: null,
   referralError: '',
+  onboardingStep: 1,
+  onboardingSaving: false,
   user: null,
   profile: null,
   planos: DEFAULT_ACCOUNT_PLANS,
@@ -1245,6 +1286,123 @@ function renderPage(page) {
 function closeMobileMenu() {
   document.getElementById('sidebar').classList.remove('mobile-open');
   document.getElementById('mobileOverlay').classList.remove('active');
+}
+
+// ===== ONBOARDING =====
+function clampOnboardingStep(step) {
+  const value = Number(step || 1);
+  if (!Number.isInteger(value)) return 1;
+  return Math.min(Math.max(value, 1), ONBOARDING_TOTAL_STEPS);
+}
+
+function shouldShowOnboarding() {
+  return state.profile && state.profile.onboarding_completed !== true;
+}
+
+function getOnboardingVisual(type) {
+  const common = 'viewBox="0 0 180 130" fill="none" xmlns="http://www.w3.org/2000/svg"';
+  const visuals = {
+    welcome: `<svg ${common}><rect x="24" y="20" width="132" height="90" rx="22" fill="#E8FBEA"/><circle cx="90" cy="64" r="28" fill="#48D52F"/><path d="M76 66h28M90 52v28" stroke="#08351F" stroke-width="8" stroke-linecap="round"/></svg>`,
+    revenue: `<svg ${common}><rect x="26" y="26" width="128" height="78" rx="18" fill="#ECFDF3"/><path d="M50 82l28-26 22 18 30-34" stroke="#10B981" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="132" cy="40" r="10" fill="#48D52F"/></svg>`,
+    expense: `<svg ${common}><rect x="36" y="22" width="108" height="86" rx="18" fill="#FFF7E6"/><path d="M58 50h64M58 70h44M58 90h56" stroke="#875A06" stroke-width="7" stroke-linecap="round"/><circle cx="128" cy="32" r="14" fill="#F59E0B"/></svg>`,
+    dashboard: `<svg ${common}><rect x="22" y="20" width="136" height="90" rx="18" fill="#EEF2FF"/><rect x="42" y="42" width="36" height="40" rx="8" fill="#48D52F"/><rect x="86" y="34" width="24" height="48" rx="8" fill="#6366F1"/><rect x="118" y="56" width="20" height="26" rx="8" fill="#10B981"/></svg>`,
+    goals: `<svg ${common}><circle cx="90" cy="66" r="46" fill="#ECFDF3"/><circle cx="90" cy="66" r="28" stroke="#10B981" stroke-width="8"/><circle cx="90" cy="66" r="10" fill="#48D52F"/><path d="M120 36l24-12-10 26" stroke="#08351F" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    done: `<svg ${common}><rect x="24" y="20" width="132" height="90" rx="24" fill="#E8FBEA"/><path d="M58 68l22 22 46-52" stroke="#10B981" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+  };
+  return visuals[type] || visuals.welcome;
+}
+
+function renderOnboardingStep() {
+  const step = clampOnboardingStep(state.onboardingStep);
+  const data = ONBOARDING_STEPS[step - 1];
+  const progress = Math.round((step / ONBOARDING_TOTAL_STEPS) * 100);
+
+  document.getElementById('onboardingProgressText').textContent = `Passo ${step} de ${ONBOARDING_TOTAL_STEPS}`;
+  document.getElementById('onboardingProgressBar').style.width = `${progress}%`;
+  document.getElementById('onboardingTitle').textContent = data.title;
+  document.getElementById('onboardingText').textContent = data.text;
+  document.getElementById('onboardingVisual').innerHTML = getOnboardingVisual(data.visual);
+  document.getElementById('onboardingNext').textContent = data.button;
+  document.getElementById('onboardingBack').hidden = step <= 1;
+}
+
+async function saveOnboardingProgress({ step = state.onboardingStep, completed = false } = {}) {
+  state.onboardingSaving = true;
+  try {
+    const payload = completed
+      ? { onboarding_completed: true, onboarding_step: ONBOARDING_TOTAL_STEPS }
+      : { onboarding_completed: false, onboarding_step: clampOnboardingStep(step) };
+    const response = await apiRequest('/auth/me/onboarding', {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+    state.profile = { ...(state.profile || {}), ...(response?.profile || payload) };
+  } finally {
+    state.onboardingSaving = false;
+  }
+}
+
+async function openOnboarding() {
+  if (!shouldShowOnboarding()) return;
+  state.onboardingStep = clampOnboardingStep(state.profile.onboarding_step || 1);
+  renderOnboardingStep();
+  const modal = document.getElementById('onboardingModal');
+  if (modal) {
+    modal.hidden = false;
+    modal.classList.add('active');
+  }
+  if (!state.profile.onboarding_step) {
+    await saveOnboardingProgress({ step: state.onboardingStep, completed: false });
+  }
+}
+
+async function closeOnboarding() {
+  const modal = document.getElementById('onboardingModal');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.hidden = true;
+  }
+  if (shouldShowOnboarding()) {
+    try {
+      await saveOnboardingProgress({ step: state.onboardingStep, completed: false });
+    } catch {
+      // Progress can be retried on the next access.
+    }
+  }
+}
+
+async function nextOnboardingStep() {
+  if (state.onboardingSaving) return;
+  if (state.onboardingStep >= ONBOARDING_TOTAL_STEPS) {
+    try {
+      await saveOnboardingProgress({ completed: true });
+      await closeOnboarding();
+      showToast('Onboarding concluido. Bem-vindo ao FluxMEI!');
+      navigate('dashboard');
+    } catch (error) {
+      showToast(error.message || 'Nao foi possivel concluir o onboarding agora.', 'error');
+    }
+    return;
+  }
+
+  state.onboardingStep = clampOnboardingStep(state.onboardingStep + 1);
+  renderOnboardingStep();
+  try {
+    await saveOnboardingProgress({ step: state.onboardingStep, completed: false });
+  } catch (error) {
+    showToast(error.message || 'Nao foi possivel salvar o progresso agora.', 'error');
+  }
+}
+
+async function previousOnboardingStep() {
+  if (state.onboardingSaving || state.onboardingStep <= 1) return;
+  state.onboardingStep = clampOnboardingStep(state.onboardingStep - 1);
+  renderOnboardingStep();
+  try {
+    await saveOnboardingProgress({ step: state.onboardingStep, completed: false });
+  } catch (error) {
+    showToast(error.message || 'Nao foi possivel salvar o progresso agora.', 'error');
+  }
 }
 
 // ===== MODALS =====
@@ -2712,6 +2870,9 @@ async function init() {
     const button = event.target.closest('[data-receipt-id]');
     if (button) openPaymentReceipt(button.dataset.receiptId);
   });
+  document.getElementById('onboardingNext')?.addEventListener('click', nextOnboardingStep);
+  document.getElementById('onboardingBack')?.addEventListener('click', previousOnboardingStep);
+  document.getElementById('onboardingClose')?.addEventListener('click', closeOnboarding);
   document.addEventListener('click', handleSmartAlertClick);
   document.getElementById('accountModal')?.addEventListener('click', (event) => {
     if (event.target.id === 'accountModal') closeAccountPanel();
@@ -2723,6 +2884,10 @@ async function init() {
   // Modal backdrops close on outside click
   document.querySelectorAll('.modal-backdrop').forEach(bd => {
     bd.addEventListener('click', e => {
+      if (e.target === bd && bd.id === 'onboardingModal') {
+        closeOnboarding();
+        return;
+      }
       if (e.target === bd) closeModal(bd.id);
     });
   });
@@ -2802,6 +2967,7 @@ async function init() {
   // Render initial page
   navigate('dashboard');
   updateSidebarUser();
+  window.setTimeout(openOnboarding, 180);
 }
 
 document.addEventListener('DOMContentLoaded', init);
