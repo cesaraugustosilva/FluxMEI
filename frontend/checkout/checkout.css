@@ -173,6 +173,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 .selected-plan,
+.coupon-panel,
 .user-box,
 .benefits-panel,
 .security-box,
@@ -296,6 +297,62 @@ a { color: inherit; text-decoration: none; }
   gap: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
+}
+
+.coupon-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 15px;
+}
+
+.coupon-panel label {
+  color: var(--muted-2);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.05rem;
+  text-transform: uppercase;
+}
+
+.coupon-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.coupon-row input {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  font: inherit;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.coupon-row button {
+  border: 0;
+  border-radius: 8px;
+  padding: 0 16px;
+  color: #041008;
+  background: linear-gradient(135deg, var(--green), var(--green-2));
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.coupon-result {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 8px;
+  color: #e6ffec;
+  background: rgba(72, 213, 47, 0.1);
+}
+
+.coupon-result[hidden] {
+  display: none;
 }
 
 .user-box {
@@ -1018,8 +1075,13 @@ a { color: inherit; text-decoration: none; }
   .payment-steps.compact,
   .card-form-grid,
   .pix-actions,
+  .coupon-row,
   .trust-grid {
     grid-template-columns: 1fr;
+  }
+
+  .coupon-row button {
+    min-height: 44px;
   }
 
   .method-card {

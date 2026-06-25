@@ -7,6 +7,7 @@ const state = {
   users: [],
   subscriptions: [],
   payments: [],
+  coupons: [],
   auditLogs: []
 };
 
@@ -31,7 +32,7 @@ function clearAuthStorage() {
   sessionStorage.removeItem('fluxmei_user');
 }
 
-async function apiRequest(path) {
+async function apiRequest(path, options = {}) {
   const token = getToken();
   if (!token) {
     window.location.href = '/auth/login/';
@@ -39,9 +40,11 @@ async function apiRequest(path) {
   }
 
   const response = await fetch(`${getApiUrl()}${path}`, {
+    ...options,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`
+      Authorization: `Bearer ${token}`,
+      ...(options.headers || {})
     }
   });
 
@@ -233,6 +236,33 @@ function renderPayments() {
   }).join('');
 }
 
+function renderCoupons() {
+  const body = document.getElementById('couponsTableBody');
+  if (!body) return;
+
+  if (!state.coupons.length) {
+    body.innerHTML = '<tr><td colspan="7" class="cell-muted">Nenhum cupom cadastrado.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = state.coupons.map((coupon) => {
+    const type = coupon.discount_type === 'FIXED' ? 'Valor fixo' : 'Percentual';
+    const value = coupon.discount_type === 'FIXED' ? formatBRL(coupon.discount_value) : `${Number(coupon.discount_value)}%`;
+    const validity = coupon.valid_until ? formatDate(coupon.valid_until) : 'Sem validade';
+    return `
+      <tr>
+        <td><strong>${esc(coupon.code)}</strong><br><span class="cell-muted">${esc(coupon.description || '--')}</span></td>
+        <td>${esc(type)}</td>
+        <td>${esc(value)}</td>
+        <td>${Number(coupon.current_uses || 0)}${coupon.max_uses ? ` / ${Number(coupon.max_uses)}` : ''}</td>
+        <td>${esc(validity)}</td>
+        <td><span class="badge ${coupon.active ? 'active' : 'canceled'}">${coupon.active ? 'Ativo' : 'Inativo'}</span></td>
+        <td><button class="badge info" type="button" data-coupon-toggle="${esc(coupon.id)}">${coupon.active ? 'Desativar' : 'Ativar'}</button></td>
+      </tr>
+    `;
+  }).join('');
+}
+
 function summarizeMetadata(metadata = {}) {
   const entries = Object.entries(metadata || {})
     .filter(([, value]) => value !== undefined && value !== null && value !== '')
@@ -273,16 +303,18 @@ function renderAll() {
   renderUsers();
   renderSubscriptions();
   renderPayments();
+  renderCoupons();
   renderAuditLogs();
 }
 
 async function loadAdminData() {
   showState('Carregando dados administrativos...');
-  const [dashboard, users, subscriptions, payments, auditLogs] = await Promise.all([
+  const [dashboard, users, subscriptions, payments, coupons, auditLogs] = await Promise.all([
     apiRequest('/admin/dashboard'),
     apiRequest('/admin/users'),
     apiRequest('/admin/subscriptions'),
     apiRequest('/admin/payments'),
+    apiRequest('/admin/coupons'),
     apiRequest('/admin/audit-logs')
   ]);
 
@@ -290,6 +322,7 @@ async function loadAdminData() {
   state.users = Array.isArray(users.users) ? users.users : [];
   state.subscriptions = Array.isArray(subscriptions.subscriptions) ? subscriptions.subscriptions : [];
   state.payments = Array.isArray(payments.payments) ? payments.payments : [];
+  state.coupons = Array.isArray(coupons.coupons) ? coupons.coupons : [];
   state.auditLogs = Array.isArray(auditLogs.logs) ? auditLogs.logs : [];
   showState('');
   renderAll();
@@ -298,6 +331,8 @@ async function loadAdminData() {
 function setupEvents() {
   document.getElementById('userSearch')?.addEventListener('input', renderUsers);
   document.getElementById('paymentMethodFilter')?.addEventListener('change', renderPayments);
+  document.getElementById('couponForm')?.addEventListener('submit', createCouponFromForm);
+  document.getElementById('couponsTableBody')?.addEventListener('click', toggleCouponStatus);
 
   document.querySelectorAll('[data-admin-nav]').forEach((link) => {
     link.addEventListener('click', () => {
@@ -305,6 +340,48 @@ function setupEvents() {
       link.classList.add('active');
     });
   });
+}
+
+async function createCouponFromForm(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const validUntil = document.getElementById('couponValidUntil')?.value || '';
+  const payload = {
+    code: document.getElementById('couponCode')?.value || '',
+    discount_type: document.getElementById('couponType')?.value || 'PERCENTAGE',
+    discount_value: Number(document.getElementById('couponValue')?.value || 0),
+    max_uses: document.getElementById('couponMaxUses')?.value ? Number(document.getElementById('couponMaxUses').value) : null,
+    valid_until: validUntil ? `${validUntil}T23:59:59.000Z` : null,
+    active: true
+  };
+
+  try {
+    await apiRequest('/admin/coupons', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    form.reset();
+    await loadAdminData();
+  } catch (error) {
+    showState(error.message || 'Nao foi possivel criar o cupom.', 'error');
+  }
+}
+
+async function toggleCouponStatus(event) {
+  const button = event.target.closest('[data-coupon-toggle]');
+  if (!button) return;
+  const coupon = state.coupons.find((item) => item.id === button.dataset.couponToggle);
+  if (!coupon) return;
+
+  try {
+    await apiRequest(`/admin/coupons/${encodeURIComponent(coupon.id)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...coupon, active: !coupon.active })
+    });
+    await loadAdminData();
+  } catch (error) {
+    showState(error.message || 'Nao foi possivel atualizar o cupom.', 'error');
+  }
 }
 
 async function init() {

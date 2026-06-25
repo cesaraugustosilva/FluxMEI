@@ -26,6 +26,11 @@ import {
   safelyNotify
 } from '../services/notificationService.js';
 import { safelyRecordAuditLog } from '../services/auditLogService.js';
+import {
+  buildDiscountedPlan,
+  incrementCouponUsage,
+  validateCouponForPlan
+} from '../services/couponService.js';
 import { sanitizeText } from '../utils/validation.js';
 
 const PENDING_PAYMENT_MESSAGE = 'Voce ja possui um pagamento pendente. Conclua ou aguarde a expiracao antes de gerar outro.';
@@ -51,9 +56,9 @@ const FORBIDDEN_CARD_FIELDS = new Set([
   'raw_card',
   'rawcard'
 ]);
-const CARD_TOP_LEVEL_FIELDS = ['plano', 'payment', 'card', 'valor', 'parcelas', 'installments', 'nome', 'email', 'cpf', 'cnpj', 'documento'];
+const CARD_TOP_LEVEL_FIELDS = ['plano', 'payment', 'card', 'valor', 'parcelas', 'installments', 'nome', 'email', 'cpf', 'cnpj', 'documento', 'coupon_code', 'couponCode'];
 const CARD_PAYMENT_FIELDS = ['payment_token', 'paymentToken', 'token', 'installments', 'parcelas', 'nome', 'holder_name', 'holderName', 'email', 'cpf', 'cnpj', 'documento'];
-const ASAAS_CARD_TOP_LEVEL_FIELDS = ['plano', 'valor', 'payment', 'card', 'cartao'];
+const ASAAS_CARD_TOP_LEVEL_FIELDS = ['plano', 'valor', 'payment', 'card', 'cartao', 'coupon_code', 'couponCode'];
 const ASAAS_CARD_PAYMENT_FIELDS = [
   'holderName',
   'holder_name',
@@ -103,6 +108,51 @@ function validatePlanId(value, fallback = null) {
   const plan = PAYMENT_PLANS[plano];
   if (!plan || !PLANOS[plano]) throw new AppError('Plano invalido.');
   return { plano, plan };
+}
+
+function getCouponCode(body = {}) {
+  const value = body.coupon_code || body.couponCode || null;
+  return value ? sanitizeText(value, { field: 'Cupom', required: false, max: 60, rejectDangerous: true }) : null;
+}
+
+async function applyCouponIfPresent(body, plan) {
+  const couponCode = getCouponCode(body);
+  if (!couponCode) return { plan, coupon: null };
+  const coupon = await validateCouponForPlan(couponCode, plan.id);
+  return { plan: buildDiscountedPlan(plan, coupon), coupon };
+}
+
+async function recordCouponUsed({ req, coupon, plan, paymentId, provider, method, assinatura }) {
+  if (!coupon?.coupon?.id) return;
+  try {
+    await incrementCouponUsage(coupon.coupon.id);
+  } catch (error) {
+    console.warn('[coupon]', {
+      outcome: 'usage_increment_failed',
+      code: coupon.coupon.code,
+      message: error?.message || 'unknown_error'
+    });
+  }
+
+  await safelyRecordAuditLog({
+    req,
+    userId: req.user?.id,
+    actorUserId: req.user?.id,
+    action: 'coupon.used',
+    entityType: 'coupon',
+    entityId: coupon.coupon.id,
+    metadata: {
+      code: coupon.coupon.code,
+      provider,
+      method,
+      payment_id: paymentId || null,
+      subscription_id: assinatura?.id || null,
+      plan: plan.id,
+      original_value: coupon.original_value,
+      discount_amount: coupon.discount_amount,
+      final_value: coupon.final_value
+    }
+  });
 }
 
 function validatePaymentId(value) {
@@ -827,7 +877,8 @@ function logEfiPaymentCreated({ method, payment, plan, assinatura, idempotencyKe
 }
 
 async function criarPagamentoEfi(req, res, method) {
-  const { plano, plan } = validatePlanId(req.body?.plano);
+  const { plano, plan: basePlan } = validatePlanId(req.body?.plano);
+  const { plan, coupon } = await applyCouponIfPresent(req.body || {}, basePlan);
   if (!req.user?.email) throw new AppError('Usuario autenticado sem e-mail cadastrado.', 400);
   const cardPayload = method === 'cartao' ? validateEfiCardPayload(req.body || {}, plan) : null;
 
@@ -889,6 +940,15 @@ async function criarPagamentoEfi(req, res, method) {
       await safelyNotify(notifyPaymentPending, { assinatura: updatedAssinatura, payment, method });
     }
     logEfiPaymentCreated({ method, payment, plan, assinatura: updatedAssinatura, idempotencyKey });
+    await recordCouponUsed({
+      req,
+      coupon,
+      plan,
+      paymentId: getPaymentId(payment),
+      provider: 'efi',
+      method,
+      assinatura: updatedAssinatura
+    });
     await safelyRecordAuditLog({
       req,
       userId: req.user.id,
@@ -950,7 +1010,8 @@ async function criarPagamentoEfi(req, res, method) {
 }
 
 async function criarPagamentoAsaas(req, res, method) {
-  const { plano, plan } = validatePlanId(req.body?.plano);
+  const { plano, plan: basePlan } = validatePlanId(req.body?.plano);
+  const { plan, coupon } = await applyCouponIfPresent(req.body || {}, basePlan);
   if (!req.user?.email) throw new AppError('Usuario autenticado sem e-mail cadastrado.', 400);
   const cardPayload = method === 'cartao' ? validateAsaasCardPayload(req.body || {}, plan) : null;
 
@@ -1017,6 +1078,15 @@ async function criarPagamentoAsaas(req, res, method) {
       await safelyNotify(notifyPaymentPending, { assinatura: updatedAssinatura, payment, method });
     }
     logAsaasPaymentCreated({ method, payment, plan, assinatura: updatedAssinatura });
+    await recordCouponUsed({
+      req,
+      coupon,
+      plan,
+      paymentId: payment?.id,
+      provider: 'asaas',
+      method,
+      assinatura: updatedAssinatura
+    });
     await safelyRecordAuditLog({
       req,
       userId: req.user.id,

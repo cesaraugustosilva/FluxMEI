@@ -93,6 +93,7 @@ let currentPaymentMethod = null;
 let currentBoletoPayment = null;
 let selectedPaymentMethod = 'pix';
 let currentUserData = null;
+let appliedCoupon = null;
 
 function normalizeApiUrl(url) {
   return String(url || '').replace(/\/$/, '');
@@ -197,6 +198,14 @@ function formatBRL(value) {
     style: 'currency',
     currency: 'BRL'
   });
+}
+
+function getPayableAmount(plan = selectedPlan) {
+  return Number(appliedCoupon?.final_value ?? plan?.preco ?? 0);
+}
+
+function getCouponPayload() {
+  return appliedCoupon?.coupon?.code ? { coupon_code: appliedCoupon.coupon.code } : {};
 }
 
 function getPlanCycle(plan) {
@@ -493,7 +502,7 @@ async function loadPlan(planId) {
 
 function renderPlan(plan) {
   document.getElementById('planName').textContent = getPlanDisplayName(plan);
-  document.getElementById('planPrice').textContent = formatBRL(plan.preco);
+  document.getElementById('planPrice').textContent = formatBRL(appliedCoupon?.final_value ?? plan.preco);
   document.getElementById('planCycle').textContent = getPlanCycle(plan);
   const economyBadge = document.getElementById('planEconomyBadge');
   const savingsBadge = document.getElementById('planSavingsBadge');
@@ -515,11 +524,68 @@ function renderPlan(plan) {
   }
 }
 
+function renderCoupon() {
+  const result = document.getElementById('couponResult');
+  if (!result) return;
+
+  if (!appliedCoupon) {
+    result.hidden = true;
+    document.getElementById('couponAppliedCode').textContent = '--';
+    document.getElementById('couponDiscountText').textContent = '--';
+    document.getElementById('couponFinalValue').textContent = '--';
+    return;
+  }
+
+  result.hidden = false;
+  document.getElementById('couponAppliedCode').textContent = appliedCoupon.coupon.code;
+  document.getElementById('couponDiscountText').textContent = appliedCoupon.discount_type === 'PERCENTAGE'
+    ? `-${Number(appliedCoupon.discount_value)}%`
+    : `-${formatBRL(appliedCoupon.discount_amount)}`;
+  document.getElementById('couponFinalValue').textContent = formatBRL(appliedCoupon.final_value);
+}
+
+async function applyCoupon() {
+  clearAlert();
+  const input = document.getElementById('couponCode');
+  const code = input?.value.trim();
+  if (!code) {
+    showAlert('Informe um cupom para aplicar.');
+    return;
+  }
+
+  const button = document.getElementById('applyCouponButton');
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Aplicando...';
+  }
+
+  try {
+    const response = await request(`/coupons/validate/${encodeURIComponent(code)}?plan=${encodeURIComponent(selectedPlan.id)}`, {}, { auth: false });
+    appliedCoupon = response.coupon;
+    if (input) input.value = appliedCoupon.coupon.code;
+    renderPlan(selectedPlan);
+    renderCoupon();
+    renderCardInstallments(selectedPlan);
+    showAlert('Cupom aplicado com sucesso.', 'success');
+  } catch (error) {
+    appliedCoupon = null;
+    renderPlan(selectedPlan);
+    renderCoupon();
+    renderCardInstallments(selectedPlan);
+    showAlert(error.message || 'Cupom invalido.');
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'Aplicar';
+    }
+  }
+}
+
 function renderCardInstallments(plan = selectedPlan) {
   const select = document.getElementById('cardInstallments');
   if (!select) return;
 
-  const total = Number(plan?.preco || 0);
+  const total = getPayableAmount(plan) || Number(plan?.preco || 0);
   const currentValue = Number(select.value || 1);
   select.innerHTML = '';
 
@@ -854,7 +920,8 @@ async function submitAsaasCardPayment() {
       method: 'POST',
       body: JSON.stringify({
         plano: selectedPlan.id,
-        valor: selectedPlan.preco,
+        valor: getPayableAmount(),
+        ...getCouponPayload(),
         payment: {
           holderName: cardData.holderName,
           number: cardData.number,
@@ -923,7 +990,8 @@ async function submitEfiCardPayment() {
       method: 'POST',
       body: JSON.stringify({
         plano: selectedPlan.id,
-        valor: selectedPlan.preco,
+        valor: getPayableAmount(),
+        ...getCouponPayload(),
         payment: {
           payment_token: tokenized.payment_token,
           installments: cardData.installments,
@@ -981,6 +1049,7 @@ async function generatePixPayment() {
       method: 'POST',
       body: JSON.stringify({
         plano: selectedPlan.id,
+        ...getCouponPayload(),
         cpfCnpj: getBillingDocument()
       })
     });
@@ -1012,6 +1081,7 @@ async function generateBoletoPayment() {
       method: 'POST',
       body: JSON.stringify({
         plano: selectedPlan.id,
+        ...getCouponPayload(),
         cpfCnpj: getBillingDocument()
       })
     });
@@ -1086,6 +1156,14 @@ function bindCheckoutEvents() {
 
   document.getElementById('generateBoletoButton').addEventListener('click', () => {
     generateBoletoPayment();
+  });
+
+  document.getElementById('applyCouponButton')?.addEventListener('click', () => {
+    applyCoupon();
+  });
+
+  document.getElementById('couponCode')?.addEventListener('input', (event) => {
+    event.target.value = event.target.value.toUpperCase();
   });
 
   document.getElementById('cardNumber').addEventListener('input', (event) => {
@@ -1174,7 +1252,9 @@ async function initCheckout() {
   const planId = getSelectedPlanId();
   if (isSubscribeIntentUrl()) saveSubscribeIntent(planId);
   selectedPlan = await loadPlan(planId);
+  appliedCoupon = null;
   renderPlan(selectedPlan);
+  renderCoupon();
   renderCardInstallments(selectedPlan);
 
   if (!getToken()) {

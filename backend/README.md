@@ -40,6 +40,7 @@ Banco existente:
 5. Execute `database/migrate_subscription_management.sql` para cancelamento/reativacao e deduplicacao de notificacoes.
 6. Execute `database/migrate_admin_panel.sql` para habilitar o campo `profiles.is_admin`.
 7. Execute `database/migrate_audit_logs.sql` para criar a auditoria administrativa.
+8. Execute `database/migrate_coupons.sql` para criar cupons promocionais.
 
 ## Rodar
 
@@ -106,6 +107,9 @@ GET /api/admin/users
 GET /api/admin/subscriptions
 GET /api/admin/payments
 GET /api/admin/audit-logs
+GET /api/admin/coupons
+POST /api/admin/coupons
+PUT /api/admin/coupons/:id
 ```
 
 Defina administradores de uma das formas:
@@ -117,6 +121,8 @@ ADMIN_EMAILS=admin@seudominio.com,outro@seudominio.com
 Ou marque `profiles.is_admin = true` no Supabase para o usuario desejado. Usuarios comuns recebem HTTP `403`. As respostas administrativas nao retornam `provider_raw`, CPF/CNPJ, dados de cartao nem secrets.
 
 A aba "Auditoria" mostra os ultimos 100 eventos registrados em `audit_logs`, incluindo login, pagamentos, webhooks, ativacao/troca de plano, cancelamento, reativacao, recibos e acessos admin negados.
+
+A aba "Cupons" permite criar e ativar/desativar cupons. O checkout valida cupons em `GET /api/coupons/validate/:code?plan=pro_mensal` e envia `coupon_code` para as rotas de pagamento. O backend recalcula o valor final antes de chamar o gateway e registra `coupon.used` na auditoria.
 
 ## Asaas
 

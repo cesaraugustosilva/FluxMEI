@@ -346,6 +346,19 @@ a {
   background: rgba(189, 47, 47, 0.08);
 }
 
+.coupon-form {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr 0.8fr 0.9fr 0.9fr auto;
+  gap: 12px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.coupon-submit {
+  border: 0;
+  cursor: pointer;
+}
+
 @media (max-width: 1020px) {
   .admin-shell {
     grid-template-columns: 1fr;
@@ -358,7 +371,7 @@ a {
   }
 
   .admin-nav {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
   .admin-nav a {
@@ -371,6 +384,10 @@ a {
   }
 
   .metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .coupon-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -402,5 +419,9 @@ a {
   .admin-input {
     width: 100%;
     text-align: center;
+  }
+
+  .coupon-form {
+    grid-template-columns: 1fr;
   }
 }

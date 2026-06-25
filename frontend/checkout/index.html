@@ -59,6 +59,19 @@
           </div>
         </section>
 
+        <section class="coupon-panel" aria-label="Cupom de desconto">
+          <label for="couponCode">Cupom de desconto</label>
+          <div class="coupon-row">
+            <input id="couponCode" type="text" autocomplete="off" placeholder="Digite seu cupom" />
+            <button id="applyCouponButton" type="button">Aplicar</button>
+          </div>
+          <div class="coupon-result" id="couponResult" hidden>
+            <span>Cupom aplicado: <strong id="couponAppliedCode">--</strong></span>
+            <span>Desconto: <strong id="couponDiscountText">--</strong></span>
+            <span>Novo valor: <strong id="couponFinalValue">--</strong></span>
+          </div>
+        </section>
+
         <section class="user-box" aria-label="Dados do usuario">
           <div class="avatar" id="userAvatar">F</div>
           <div>

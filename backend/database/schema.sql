@@ -146,6 +146,20 @@ create table if not exists public.audit_logs (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.coupons (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  description text,
+  discount_type text not null check (discount_type in ('PERCENTAGE', 'FIXED')),
+  discount_value numeric(12,2) not null check (discount_value > 0),
+  max_uses integer check (max_uses is null or max_uses > 0),
+  current_uses integer not null default 0 check (current_uses >= 0),
+  active boolean not null default true,
+  valid_from timestamptz,
+  valid_until timestamptz,
+  created_at timestamptz not null default now()
+);
+
 create index if not exists idx_profiles_id on public.profiles(id);
 create index if not exists idx_movimentacoes_user_data on public.movimentacoes(user_id, data);
 create index if not exists idx_movimentacoes_user_tipo on public.movimentacoes(user_id, tipo);
@@ -163,6 +177,8 @@ create index if not exists idx_notification_events_user_created on public.notifi
 create index if not exists idx_audit_logs_created_at on public.audit_logs(created_at desc);
 create index if not exists idx_audit_logs_user_created_at on public.audit_logs(user_id, created_at desc);
 create index if not exists idx_audit_logs_action_created_at on public.audit_logs(action, created_at desc);
+create unique index if not exists idx_coupons_code_upper on public.coupons(upper(code));
+create index if not exists idx_coupons_active_validity on public.coupons(active, valid_from, valid_until);
 
 drop trigger if exists set_profiles_updated_at on public.profiles;
 create trigger set_profiles_updated_at before update on public.profiles
@@ -197,6 +213,7 @@ alter table public.assinaturas enable row level security;
 alter table public.payment_attempt_locks enable row level security;
 alter table public.notification_events enable row level security;
 alter table public.audit_logs enable row level security;
+alter table public.coupons enable row level security;
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own" on public.profiles
@@ -282,6 +299,10 @@ for select using (auth.uid() = user_id);
 
 drop policy if exists "audit_logs_no_client_access" on public.audit_logs;
 create policy "audit_logs_no_client_access" on public.audit_logs
+for all using (false) with check (false);
+
+drop policy if exists "coupons_no_client_write" on public.coupons;
+create policy "coupons_no_client_write" on public.coupons
 for all using (false) with check (false);
 
 create or replace function public.acquire_payment_attempt_lock(
