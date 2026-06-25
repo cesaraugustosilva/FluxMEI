@@ -169,6 +169,12 @@
       </div>
       <div class="dashboard-actions">
         <input type="month" id="dashboardMes" class="filter-select" aria-label="Mês do dashboard" />
+        <select id="dashboardPeriodo" class="filter-select" aria-label="Período do dashboard">
+          <option value="month">Este mês</option>
+          <option value="3m">Últimos 3 meses</option>
+          <option value="6m">Últimos 6 meses</option>
+          <option value="year">Este ano</option>
+        </select>
         <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">
         + Nova Movimentação
         </button>
@@ -179,6 +185,15 @@
 
     <!-- DAS Alert -->
     <div class="das-alert" id="dasAlert" style="display:none"></div>
+
+    <section class="dashboard-empty-state" id="dashboardEmptyState" hidden>
+      <div>
+        <span class="empty-kicker">Primeiro passo</span>
+        <h2>Comece cadastrando sua primeira receita ou despesa.</h2>
+        <p>Com alguns lançamentos, o FluxMEI monta gráficos, insights e acompanha seu saldo automaticamente.</p>
+      </div>
+      <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">Adicionar movimentação</button>
+    </section>
 
     <!-- KPI Cards -->
     <div class="kpi-grid">
@@ -216,6 +231,50 @@
       </div>
     </div>
 
+    <section class="dashboard-insights" id="dashboardInsights" aria-label="Insights financeiros"></section>
+
+    <section class="dashboard-analytics-grid" aria-label="Gráficos financeiros">
+      <article class="dash-card analytics-card analytics-card-wide">
+        <div class="card-header">
+          <div>
+            <h3>Receitas x Despesas</h3>
+            <p id="revenueExpenseSubtitle">Comparativo do período</p>
+          </div>
+        </div>
+        <div class="dashboard-svg-chart" id="revenueExpenseChart"></div>
+      </article>
+
+      <article class="dash-card analytics-card">
+        <div class="card-header">
+          <div>
+            <h3>Evolução do saldo</h3>
+            <p>Saldo acumulado mês a mês</p>
+          </div>
+        </div>
+        <div class="dashboard-svg-chart compact" id="balanceEvolutionChart"></div>
+      </article>
+
+      <article class="dash-card analytics-card">
+        <div class="card-header">
+          <div>
+            <h3>Categorias de despesas</h3>
+            <p>Onde o dinheiro saiu</p>
+          </div>
+        </div>
+        <div class="category-chart" id="expenseCategoryChart"></div>
+      </article>
+
+      <article class="dash-card analytics-card">
+        <div class="card-header">
+          <div>
+            <h3>Top 5 maiores despesas</h3>
+            <p>Maiores gastos do período</p>
+          </div>
+        </div>
+        <div class="top-expenses-list" id="topExpensesList"></div>
+      </article>
+    </section>
+
     <!-- DAS Card + Ultimas -->
     <div class="dash-grid">
       <div class="dash-card">
@@ -241,15 +300,6 @@
       </div>
     </div>
 
-    <!-- Mini chart -->
-    <div class="dash-card chart-card">
-      <div class="card-header">
-        <h3>Entradas x Saídas — Últimos 6 Meses</h3>
-      </div>
-      <div class="chart-wrapper">
-        <canvas id="dashChart"></canvas>
-      </div>
-    </div>
   </section>
 
   <!-- ====== MOVIMENTAÇÕES ====== -->

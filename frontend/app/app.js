@@ -22,6 +22,7 @@ function resolveApiUrls() {
 const API_URLS = resolveApiUrls();
 const TOKEN_KEY = 'fluxmei_access_token';
 const DASHBOARD_MONTH_KEY = 'fluxmei_dashboard_mes';
+const DASHBOARD_PERIOD_KEY = 'fluxmei_dashboard_periodo';
 const CUSTOM_CATEGORIES_KEY = 'fluxmei_custom_categories';
 const MOV_CLIENT_LINKS_KEY = 'fluxmei_mov_client_links';
 const THEME_KEY = 'fluxmei_theme';
@@ -116,6 +117,7 @@ let editingClienteId = null;
 let dashChart = null;
 let relChart = null;
 let dashboardMes = localStorage.getItem(DASHBOARD_MONTH_KEY) || '';
+let dashboardPeriodo = localStorage.getItem(DASHBOARD_PERIOD_KEY) || 'month';
 let subscriptionStatus = null;
 
 function getSavedTheme() {
@@ -1569,6 +1571,67 @@ function filtrarMes(movs, anoMes) {
 }
 
 // ===== DASHBOARD =====
+function getPreviousAnoMes(anoMes) {
+  const [ano, mes] = anoMes.split('-').map(Number);
+  const date = new Date(ano, mes - 2, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function getDashboardPeriodMonths(anoMesFinal = getDashboardMes(), period = dashboardPeriodo) {
+  const [ano, mes] = anoMesFinal.split('-').map(Number);
+  const end = new Date(ano, mes - 1, 1);
+  const months = [];
+  const count = period === '3m' ? 3 : period === '6m' ? 6 : 1;
+
+  if (period === 'year') {
+    for (let month = 0; month <= end.getMonth(); month += 1) {
+      months.push(`${end.getFullYear()}-${String(month + 1).padStart(2, '0')}`);
+    }
+    return months;
+  }
+
+  for (let index = count - 1; index >= 0; index -= 1) {
+    const date = new Date(end.getFullYear(), end.getMonth() - index, 1);
+    months.push(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return months;
+}
+
+function getDashboardPeriodLabel(period = dashboardPeriodo) {
+  if (period === '3m') return 'Ultimos 3 meses';
+  if (period === '6m') return 'Ultimos 6 meses';
+  if (period === 'year') return 'Este ano';
+  return 'Este mes';
+}
+
+function calcTotals(movs = []) {
+  const entradas = movs.filter((m) => m.tipo === 'entrada').reduce((sum, mov) => sum + mov.valor, 0);
+  const saidas = movs.filter((m) => m.tipo === 'saida').reduce((sum, mov) => sum + mov.valor, 0);
+  return { entradas, saidas, lucro: entradas - saidas };
+}
+
+function calcPercentChange(current, previous) {
+  if (!previous && !current) return 0;
+  if (!previous) return current > 0 ? 100 : 0;
+  return ((current - previous) / Math.abs(previous)) * 100;
+}
+
+function formatPercentChange(value) {
+  const rounded = Math.abs(value) >= 10 ? Math.round(value) : Math.round(value * 10) / 10;
+  const sign = value > 0 ? '+' : value < 0 ? '-' : '';
+  return `${sign}${Math.abs(rounded).toLocaleString('pt-BR')}%`;
+}
+
+function getExpenseCategories(movs = []) {
+  const categories = new Map();
+  movs.filter((mov) => mov.tipo === 'saida').forEach((mov) => {
+    categories.set(mov.cat, (categories.get(mov.cat) || 0) + mov.valor);
+  });
+  return [...categories.entries()]
+    .map(([category, value]) => ({ category, value }))
+    .sort((a, b) => b.value - a.value);
+}
+
 function renderDashboard() {
   const mesSelecionado = getDashboardMes();
   syncDashboardMesInput();
@@ -1701,6 +1764,205 @@ function renderDashChart(anoMesFinal = getDashboardMes()) {
 }
 
 // ===== MOVIMENTAÇÕES =====
+function renderDashboardInsights({ movPeriodo, monthlyTotals, periodTotals, saidasChange }) {
+  const root = document.getElementById('dashboardInsights');
+  if (!root) return;
+  const categories = getExpenseCategories(movPeriodo);
+  const topCategory = categories[0];
+  const insights = [
+    {
+      tone: saidasChange > 0 ? 'warning' : 'good',
+      title: saidasChange > 0
+        ? `Suas despesas aumentaram ${formatPercentChange(saidasChange)} em relação ao mês anterior.`
+        : 'Suas despesas não aumentaram em relação ao mês anterior.'
+    },
+    {
+      tone: 'info',
+      title: topCategory ? `Sua maior categoria de gasto foi ${topCategory.category}.` : 'Nenhuma despesa registrada no período.'
+    },
+    {
+      tone: monthlyTotals.lucro >= 0 ? 'good' : 'danger',
+      title: monthlyTotals.lucro >= 0
+        ? `Você teve lucro de ${formatBRL(monthlyTotals.lucro)} neste mês.`
+        : `Você teve resultado negativo de ${formatBRL(Math.abs(monthlyTotals.lucro))} neste mês.`
+    },
+    {
+      tone: periodTotals.lucro >= 0 ? 'good' : 'warning',
+      title: periodTotals.lucro >= 0
+        ? `Você está próximo da sua meta financeira. Resultado do período: ${formatBRL(periodTotals.lucro)}.`
+        : 'Revise seus gastos para se aproximar da sua meta financeira.'
+    }
+  ];
+
+  root.innerHTML = insights.map((insight) => `
+    <article class="dashboard-insight ${insight.tone}">
+      <span></span>
+      <p>${esc(insight.title)}</p>
+    </article>
+  `).join('');
+}
+
+function buildMonthlyDashboardSeries(months) {
+  let runningBalance = 0;
+  const firstMonth = months[0] || getDashboardMes();
+  state.movimentacoes
+    .filter((mov) => mov.data && mov.data.slice(0, 7) < firstMonth)
+    .forEach((mov) => { runningBalance += mov.tipo === 'entrada' ? mov.valor : -mov.valor; });
+
+  return months.map((ym) => {
+    const movs = filtrarMes(state.movimentacoes, ym);
+    const totals = calcTotals(movs);
+    runningBalance += totals.lucro;
+    const [, month] = ym.split('-').map(Number);
+    return { ym, label: MESES_ABREV[month - 1], ...totals, saldo: runningBalance };
+  });
+}
+
+function renderRevenueExpenseChart(series) {
+  const root = document.getElementById('revenueExpenseChart');
+  if (!root) return;
+  const maxValue = Math.max(1, ...series.flatMap((item) => [item.entradas, item.saidas]));
+  root.innerHTML = `
+    <div class="bar-chart" data-chart="revenue-expense">
+      ${series.map((item) => `
+        <div class="bar-group">
+          <div class="bar-pair" title="${esc(item.label)}">
+            <span class="bar income" style="height:${Math.max(4, (item.entradas / maxValue) * 100)}%"></span>
+            <span class="bar expense" style="height:${Math.max(4, (item.saidas / maxValue) * 100)}%"></span>
+          </div>
+          <strong>${esc(item.label)}</strong>
+        </div>
+      `).join('')}
+    </div>
+    <div class="chart-legend"><span class="income"></span>Receitas <span class="expense"></span>Despesas</div>
+  `;
+}
+
+function renderBalanceEvolutionChart(series) {
+  const root = document.getElementById('balanceEvolutionChart');
+  if (!root) return;
+  const values = series.map((item) => item.saldo);
+  const min = Math.min(0, ...values);
+  const max = Math.max(1, ...values);
+  const range = max - min || 1;
+  const width = 320;
+  const height = 150;
+  const coords = series.map((item, index) => {
+    const x = series.length === 1 ? width / 2 : (index / (series.length - 1)) * width;
+    const y = height - (((item.saldo - min) / range) * (height - 20)) - 10;
+    return { x, y, item };
+  });
+  const points = coords.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
+
+  root.innerHTML = `
+    <svg class="line-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Evolução do saldo">
+      <polyline points="${points}" fill="none" stroke="var(--primary)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+      ${coords.map((point) => `<circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="5" fill="var(--primary-dark)"><title>${esc(point.item.label)}: ${esc(formatBRL(point.item.saldo))}</title></circle>`).join('')}
+    </svg>
+    <div class="chart-legend compact">${series.map((item) => `<span>${esc(item.label)}</span>`).join('')}</div>
+  `;
+}
+
+function renderExpenseCategoryChart(movPeriodo) {
+  const root = document.getElementById('expenseCategoryChart');
+  if (!root) return;
+  const categories = getExpenseCategories(movPeriodo).slice(0, 5);
+  const max = Math.max(1, ...categories.map((item) => item.value));
+  if (!categories.length) {
+    root.innerHTML = '<div class="empty-state">Sem despesas no período.</div>';
+    return;
+  }
+  root.innerHTML = categories.map((item) => `
+    <div class="category-row">
+      <div><strong>${esc(item.category)}</strong><span>${esc(formatBRL(item.value))}</span></div>
+      <div class="category-meter"><span style="width:${Math.max(8, (item.value / max) * 100)}%"></span></div>
+    </div>
+  `).join('');
+}
+
+function renderTopExpenses(movPeriodo) {
+  const root = document.getElementById('topExpensesList');
+  if (!root) return;
+  const expenses = movPeriodo
+    .filter((mov) => mov.tipo === 'saida')
+    .sort((a, b) => b.valor - a.valor)
+    .slice(0, 5);
+  if (!expenses.length) {
+    root.innerHTML = '<div class="empty-state">Sem despesas no período.</div>';
+    return;
+  }
+  root.innerHTML = expenses.map((mov, index) => `
+    <div class="top-expense-item">
+      <span>${index + 1}</span>
+      <div><strong>${esc(mov.desc)}</strong><small>${esc(mov.cat)} · ${formatDate(mov.data)}</small></div>
+      <b>${formatBRL(mov.valor)}</b>
+    </div>
+  `).join('');
+}
+
+function renderDashboardCharts({ months, movPeriodo }) {
+  const series = buildMonthlyDashboardSeries(months);
+  const subtitle = document.getElementById('revenueExpenseSubtitle');
+  if (subtitle) subtitle.textContent = getDashboardPeriodLabel(dashboardPeriodo);
+  renderRevenueExpenseChart(series);
+  renderBalanceEvolutionChart(series);
+  renderExpenseCategoryChart(movPeriodo);
+  renderTopExpenses(movPeriodo);
+}
+
+function renderDashboard() {
+  const mesSelecionado = getDashboardMes();
+  syncDashboardMesInput();
+  const months = getDashboardPeriodMonths(mesSelecionado, dashboardPeriodo);
+  const periodSet = new Set(months);
+  const movPeriodo = state.movimentacoes.filter((mov) => mov.data && periodSet.has(mov.data.slice(0, 7)));
+  const movMes = filtrarMes(state.movimentacoes, mesSelecionado);
+  const previousTotals = calcTotals(filtrarMes(state.movimentacoes, getPreviousAnoMes(mesSelecionado)));
+  const monthlyTotals = calcTotals(movMes);
+  const periodTotals = calcTotals(movPeriodo);
+  const saldoTotal = state.movimentacoes.reduce((sum, mov) => sum + (mov.tipo === 'entrada' ? mov.valor : -mov.valor), 0);
+
+  renderSmartAlerts('dashboardSmartAlerts', { includeActive: true });
+  document.getElementById('dashSubtitle').textContent = `${formatMesAno(mesSelecionado)} · ${getDashboardPeriodLabel(dashboardPeriodo)}`;
+  document.getElementById('dashboardEmptyState').hidden = state.movimentacoes.length > 0;
+  document.getElementById('kpiSaldo').textContent = formatBRL(saldoTotal);
+  document.getElementById('kpiEntradas').textContent = formatBRL(monthlyTotals.entradas);
+  document.getElementById('kpiSaidas').textContent = formatBRL(monthlyTotals.saidas);
+  document.getElementById('kpiLucro').textContent = formatBRL(monthlyTotals.lucro);
+
+  const entradasChange = calcPercentChange(monthlyTotals.entradas, previousTotals.entradas);
+  const saidasChange = calcPercentChange(monthlyTotals.saidas, previousTotals.saidas);
+  const lucroChange = calcPercentChange(monthlyTotals.lucro, previousTotals.lucro);
+  document.getElementById('kpiSaldoTrend').textContent = `${getDashboardPeriodLabel(dashboardPeriodo)}: ${formatBRL(periodTotals.lucro)} de resultado`;
+  document.getElementById('kpiEntradasTrend').textContent = `${formatPercentChange(entradasChange)} vs mês anterior`;
+  document.getElementById('kpiSaidasTrend').textContent = `${formatPercentChange(saidasChange)} vs mês anterior`;
+  document.getElementById('kpiLucroLabel').textContent = `${monthlyTotals.lucro >= 0 ? 'Positivo' : 'Negativo'} · ${formatPercentChange(lucroChange)} vs mês anterior`;
+  document.getElementById('kpiLucro').style.color = monthlyTotals.lucro >= 0 ? 'var(--green)' : 'var(--red)';
+
+  renderDASInfo();
+  renderDashboardInsights({ movPeriodo, monthlyTotals, periodTotals, saidasChange });
+  renderDashboardCharts({ months, movPeriodo });
+
+  const ultimas = [...movPeriodo].sort((a, b) => b.data.localeCompare(a.data)).slice(0, 8);
+  const list = document.getElementById('dashMovList');
+  if (!ultimas.length) {
+    list.innerHTML = '<div class="empty-state">Nenhuma movimentação no período.</div>';
+  } else {
+    list.innerHTML = ultimas.map((m) => `
+      <div class="mov-item">
+        <div class="mov-item-left">
+          <div class="mov-dot ${m.tipo}"></div>
+          <div>
+            <div class="mov-desc">${esc(m.desc)}</div>
+            <div class="mov-date">${formatDate(m.data)} · ${esc(m.cat)}</div>
+          </div>
+        </div>
+        <span class="mov-valor ${m.tipo}">${m.tipo === 'entrada' ? '+' : '-'}${formatBRL(m.valor)}</span>
+      </div>
+    `).join('');
+  }
+}
+
 let movCurrentTipo = '';
 let movCurrentCat  = '';
 let movCurrentMes  = '';
@@ -2922,6 +3184,15 @@ async function init() {
     dashboardMesInput.addEventListener('change', () => {
       dashboardMes = dashboardMesInput.value || getMesAtual();
       localStorage.setItem(DASHBOARD_MONTH_KEY, dashboardMes);
+      renderDashboard();
+    });
+  }
+  const dashboardPeriodoInput = document.getElementById('dashboardPeriodo');
+  if (dashboardPeriodoInput) {
+    dashboardPeriodoInput.value = ['month', '3m', '6m', 'year'].includes(dashboardPeriodo) ? dashboardPeriodo : 'month';
+    dashboardPeriodoInput.addEventListener('change', () => {
+      dashboardPeriodo = dashboardPeriodoInput.value || 'month';
+      localStorage.setItem(DASHBOARD_PERIOD_KEY, dashboardPeriodo);
       renderDashboard();
     });
   }
