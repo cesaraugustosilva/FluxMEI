@@ -414,8 +414,11 @@ function getSafeRedirectUrl() {
   const redirect = query.get('redirect');
   if (!redirect) return null;
 
+  const cleanRedirect = redirect.trim();
+  if (!cleanRedirect.startsWith('/') || cleanRedirect.startsWith('//') || cleanRedirect.includes('\\')) return null;
+
   try {
-    const url = new URL(redirect, window.location.origin);
+    const url = new URL(cleanRedirect, window.location.origin);
     if (url.origin !== window.location.origin) return null;
     return url.href;
   } catch {

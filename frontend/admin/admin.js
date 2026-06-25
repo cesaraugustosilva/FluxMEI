@@ -25,6 +25,12 @@ function getToken() {
   return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
 }
 
+function getAdminLoginUrl() {
+  const url = new URL('/auth/login.html', window.location.origin);
+  url.searchParams.set('redirect', '/admin/');
+  return url.href;
+}
+
 function clearAuthStorage() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem('fluxmei_user');
@@ -35,7 +41,7 @@ function clearAuthStorage() {
 async function apiRequest(path, options = {}) {
   const token = getToken();
   if (!token) {
-    window.location.href = '/auth/login/';
+    window.location.href = getAdminLoginUrl();
     throw new Error('Faca login para continuar.');
   }
 
@@ -54,7 +60,7 @@ async function apiRequest(path, options = {}) {
 
   if (response.status === 401) {
     clearAuthStorage();
-    window.location.href = '/auth/login/';
+    window.location.href = getAdminLoginUrl();
     throw new Error('Sessao expirada.');
   }
 

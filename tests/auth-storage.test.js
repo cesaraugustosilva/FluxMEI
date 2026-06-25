@@ -71,8 +71,22 @@ test('login com intent recente vai para checkout e consome intent', () => {
 test('login respeita redirect interno seguro quando nao ha intent de assinatura', () => {
   assert.match(authJs, /function getSafeRedirectUrl\(\)/);
   assert.match(authJs, /const redirect = query\.get\('redirect'\)/);
+  assert.match(authJs, /const cleanRedirect = redirect\.trim\(\)/);
+  assert.match(authJs, /!cleanRedirect\.startsWith\('\/'\)/);
   assert.match(authJs, /if \(url\.origin !== window\.location\.origin\) return null/);
   assert.match(authJs, /window\.location\.href = getSafeRedirectUrl\(\) \|\| defaultUrl/);
+});
+
+test('login com redirect para admin volta para o painel admin', () => {
+  assert.match(authJs, /const url = new URL\(cleanRedirect, window\.location\.origin\)/);
+  assert.match(authJs, /return url\.href/);
+  assert.match(authJs, /redirectAfterAuth\('\.\.\/\.\.\/app\/index\.html'\)/);
+});
+
+test('login rejeita redirect externo ou ambiguo', () => {
+  assert.match(authJs, /cleanRedirect\.startsWith\('\/\/'\)/);
+  assert.match(authJs, /cleanRedirect\.includes\('\\\\'\)/);
+  assert.match(authJs, /if \(url\.origin !== window\.location\.origin\) return null/);
 });
 
 test('fluxo de teste gratis remove intent com timestamp', () => {

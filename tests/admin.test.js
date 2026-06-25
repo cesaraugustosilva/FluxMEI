@@ -115,6 +115,13 @@ test('rotas admin exigem autenticacao e middleware administrativo', () => {
   assert.match(serverSource, /apiRouter\.use\('\/admin', adminRoutes\)/);
 });
 
+test('admin sem login redireciona para login preservando retorno ao painel', () => {
+  assert.match(adminJs, /function getAdminLoginUrl\(\)/);
+  assert.match(adminJs, /new URL\('\/auth\/login\.html', window\.location\.origin\)/);
+  assert.match(adminJs, /url\.searchParams\.set\('redirect', '\/admin\/'\)/);
+  assert.match(adminJs, /window\.location\.href = getAdminLoginUrl\(\)/);
+});
+
 test('middleware admin permite email autorizado e bloqueia usuario comum', async () => {
   const [{ supabaseAdmin }, { adminMiddleware }] = await Promise.all([
     import('../backend/src/config/supabase.js'),
