@@ -292,6 +292,99 @@ async function apiRequest(path, options = {}) {
   return data;
 }
 
+function todayDownloadDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function fetchExportBlob(path) {
+  const token = getToken();
+  if (!token) {
+    redirectToLogin();
+    throw new Error('Faça login para continuar.');
+  }
+
+  let response = null;
+  let lastUrl = '';
+  for (const apiUrl of API_URLS) {
+    lastUrl = `${apiUrl}${path}`;
+    try {
+      response = await fetch(lastUrl, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.status === 404 && apiUrl !== API_URLS[API_URLS.length - 1]) continue;
+      localStorage.setItem('fluxmei_api_url', apiUrl);
+      break;
+    } catch {
+      response = null;
+    }
+  }
+
+  if (!response) throw new Error('Nao foi possivel conectar a API.');
+  if (response.status === 401) {
+    clearAuthStorage();
+    redirectToLogin();
+    throw new Error('Sua sessão expirou. Faça login novamente.');
+  }
+  if (!response.ok) {
+    const message = response.headers.get('content-type')?.includes('application/json')
+      ? (await response.json())?.message
+      : await response.text();
+    throw new Error(message || `Erro ao baixar exportacao em ${lastUrl}.`);
+  }
+  return response.blob();
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+
+async function downloadExport(path, filename, button) {
+  const originalText = button?.textContent || '';
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Baixando...';
+  }
+  try {
+    const blob = await fetchExportBlob(path);
+    downloadBlob(blob, filename);
+    showToast('Exportação iniciada.');
+  } catch (error) {
+    showToast(error.message || 'Nao foi possivel exportar seus dados agora.', 'error');
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+}
+
+function handleExportClick(type, button) {
+  const date = todayDownloadDate();
+  const options = {
+    csv: {
+      path: '/export/movimentacoes.csv',
+      filename: `fluxmei-movimentacoes-${date}.csv`
+    },
+    json: {
+      path: '/export/movimentacoes.json',
+      filename: `fluxmei-movimentacoes-${date}.json`
+    },
+    resumo: {
+      path: '/export/resumo.json',
+      filename: `fluxmei-resumo-${date}.json`
+    }
+  };
+  const selected = options[type];
+  if (selected) downloadExport(selected.path, selected.filename, button);
+}
+
 function mapMovimentacao(item) {
   const meta = parseMetaObservacao(item.observacao);
   const localLinks = getMovClientLinks();
@@ -3123,6 +3216,9 @@ async function init() {
   });
   document.getElementById('accountQuickHistory')?.addEventListener('click', scrollToPaymentHistory);
   document.getElementById('accountReferralCopy')?.addEventListener('click', copyReferralLink);
+  document.getElementById('exportCsvAction')?.addEventListener('click', (event) => handleExportClick('csv', event.currentTarget));
+  document.getElementById('exportJsonAction')?.addEventListener('click', (event) => handleExportClick('json', event.currentTarget));
+  document.getElementById('exportSummaryAction')?.addEventListener('click', (event) => handleExportClick('resumo', event.currentTarget));
   document.getElementById('accountCancelAction')?.addEventListener('click', cancelSubscription);
   document.getElementById('accountReactivateAction')?.addEventListener('click', reactivateSubscription);
   document.getElementById('receiptClose')?.addEventListener('click', closeReceiptModal);

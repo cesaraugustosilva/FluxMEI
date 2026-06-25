@@ -19,6 +19,7 @@ import webhookRoutes from './routes/webhookRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import couponRoutes from './routes/couponRoutes.js';
 import referralRoutes from './routes/referralRoutes.js';
+import exportRoutes from './routes/exportRoutes.js';
 import devRoutes from './routes/devRoutes.js';
 import { planos } from './controllers/assinaturaController.js';
 import { asyncHandler, errorHandler, notFoundHandler } from './middlewares/errorMiddleware.js';
@@ -116,6 +117,7 @@ apiRouter.use('/webhooks', webhookRoutes);
 apiRouter.use('/admin', adminRoutes);
 apiRouter.use('/coupons', couponRoutes);
 apiRouter.use('/referrals', referralRoutes);
+apiRouter.use('/export', exportRoutes);
 if (!isProduction) apiRouter.use('/dev', devRoutes);
 apiRouter.get('/planos', asyncHandler(planos));
 
