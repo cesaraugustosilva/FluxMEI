@@ -397,40 +397,78 @@
 
   <!-- ====== MOVIMENTAÇÕES ====== -->
   <section class="page" id="page-movimentacoes">
-    <div class="page-header">
-      <div>
+    <div class="page-header movements-hero fm-card fm-card-premium">
+      <div class="movements-hero-copy">
+        <span class="fm-badge fm-badge-info">Fluxo financeiro</span>
         <h1 class="page-title">Movimentações</h1>
-        <p class="page-subtitle">Controle de entradas e saídas</p>
+        <p class="page-subtitle">Controle receitas, despesas e acompanhe o fluxo do seu MEI.</p>
       </div>
-      <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">+ Nova</button>
-    </div>
-
-    <!-- Filters -->
-    <div class="filter-bar">
-      <div class="filter-group">
-        <select id="filtroTipo" class="filter-select">
-          <option value="">Todos os tipos</option>
-          <option value="entrada">Entradas</option>
-          <option value="saida">Saídas</option>
-        </select>
-        <select id="filtroCategoria" class="filter-select">
-          <option value="">Todas as categorias</option>
-        </select>
-        <input type="month" id="filtroMes" class="filter-select" />
-      </div>
-      <div class="filter-search">
-        <input type="text" id="filtroTexto" placeholder="Buscar descrição…" class="filter-input" />
+      <div class="movements-hero-actions">
+        <button class="fm-btn fm-btn-primary" type="button" onclick="openNovaMovimentacao(); setTipo('entrada');">Nova receita</button>
+        <button class="fm-btn fm-btn-secondary" type="button" onclick="openNovaMovimentacao(); setTipo('saida');">Nova despesa</button>
+        <button class="fm-btn fm-btn-outline" type="button" disabled aria-disabled="true">Importar extrato <span>Em breve</span></button>
       </div>
     </div>
 
     <!-- Summary -->
-    <div class="mov-summary">
-      <span class="sum-entrada">Entradas: <strong id="sumEntrada">R$ 0,00</strong></span>
-      <span class="sum-saida">Saídas: <strong id="sumSaida">R$ 0,00</strong></span>
-      <span class="sum-saldo">Saldo: <strong id="sumSaldo">R$ 0,00</strong></span>
+    <div class="mov-summary movements-summary-grid" aria-label="Resumo das movimentações filtradas">
+      <article class="movement-summary-card movement-summary-income">
+        <span class="movement-summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></span>
+        <div><span>Total de receitas</span><strong id="sumEntrada">R$ 0,00</strong></div>
+      </article>
+      <article class="movement-summary-card movement-summary-expense">
+        <span class="movement-summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg></span>
+        <div><span>Total de despesas</span><strong id="sumSaida">R$ 0,00</strong></div>
+      </article>
+      <article class="movement-summary-card movement-summary-balance">
+        <span class="movement-summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 17h16"/><path d="M7 12h10"/></svg></span>
+        <div><span>Saldo do período</span><strong id="sumSaldo">R$ 0,00</strong></div>
+      </article>
+      <article class="movement-summary-card movement-summary-count">
+        <span class="movement-summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg></span>
+        <div><span>Movimentações</span><strong id="sumQuantidade">0</strong></div>
+      </article>
     </div>
 
-    <div class="table-wrap">
+    <!-- Filters -->
+    <div class="filter-bar movements-filter-card fm-card fm-card-simple">
+      <div class="filter-search movements-search">
+        <label for="filtroTexto">Buscar</label>
+        <input type="text" id="filtroTexto" placeholder="Descrição, categoria ou observação" class="filter-input fm-input" />
+      </div>
+      <div class="filter-group movements-filter-grid">
+        <label>Tipo
+          <select id="filtroTipo" class="filter-select fm-select">
+            <option value="">Todos</option>
+            <option value="entrada">Receitas</option>
+            <option value="saida">Despesas</option>
+          </select>
+        </label>
+        <label>Período
+          <input type="month" id="filtroMes" class="filter-select fm-input" />
+        </label>
+        <label>Categoria
+          <select id="filtroCategoria" class="filter-select fm-select">
+            <option value="">Todas as categorias</option>
+          </select>
+        </label>
+        <label>Valor mínimo
+          <input type="text" id="filtroValorMin" placeholder="R$ 0,00" class="filter-input fm-input" />
+        </label>
+        <label>Valor máximo
+          <input type="text" id="filtroValorMax" placeholder="Sem limite" class="filter-input fm-input" />
+        </label>
+        <button class="fm-btn fm-btn-ghost" type="button" id="limparFiltrosMov">Limpar filtros</button>
+      </div>
+    </div>
+
+    <div class="table-wrap movements-table-card fm-card fm-card-simple">
+      <div class="movements-table-header">
+        <div>
+          <h2>Lista de movimentações</h2>
+          <p>Visualize, filtre e gerencie lançamentos do período.</p>
+        </div>
+      </div>
       <table class="data-table" id="movTable">
         <thead>
           <tr>
@@ -445,7 +483,21 @@
         </thead>
         <tbody id="movTableBody"></tbody>
       </table>
-      <div class="empty-state" id="movEmpty" style="display:none">Nenhuma movimentação encontrada.</div>
+      <div class="movements-mobile-list" id="movMobileList" aria-label="Movimentações em cards"></div>
+      <div class="empty-state movements-empty-state" id="movEmpty" style="display:none">
+        <svg viewBox="0 0 160 120" aria-hidden="true">
+          <rect x="28" y="24" width="104" height="72" rx="14"></rect>
+          <path d="M46 47h68M46 62h42M46 77h56"></path>
+          <circle cx="118" cy="80" r="17"></circle>
+          <path d="M118 70v20M108 80h20"></path>
+        </svg>
+        <strong>Você ainda não cadastrou nenhuma movimentação.</strong>
+        <p>Adicione uma receita ou despesa para acompanhar melhor o fluxo do seu MEI.</p>
+        <div>
+          <button class="fm-btn fm-btn-primary" type="button" onclick="openNovaMovimentacao(); setTipo('entrada');">Adicionar receita</button>
+          <button class="fm-btn fm-btn-secondary" type="button" onclick="openNovaMovimentacao(); setTipo('saida');">Adicionar despesa</button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -724,48 +776,59 @@
 
 <!-- Modal Movimentação -->
 <div class="modal-backdrop" id="modalMovimentacao">
-  <div class="modal">
-    <div class="modal-header">
-      <h2 id="modalMovTitle">Nova Movimentação</h2>
-      <button class="modal-close" type="button" onclick="closeModal('modalMovimentacao')">✕</button>
+  <div class="modal movement-modal">
+    <div class="modal-header movement-modal-header">
+      <div>
+        <span class="fm-badge fm-badge-info">Movimentação</span>
+        <h2 id="modalMovTitle">Nova Movimentação</h2>
+      </div>
+      <button class="modal-close" type="button" onclick="closeModal('modalMovimentacao')" aria-label="Fechar movimentação">✕</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="movId" />
-      <div class="tipo-toggle">
-        <button class="tipo-btn active" id="btnEntrada" type="button" onclick="setTipo('entrada')">↑ Entrada</button>
-        <button class="tipo-btn" id="btnSaida" type="button" onclick="setTipo('saida')">↓ Saída</button>
+      <div class="tipo-toggle movement-type-cards" aria-label="Tipo da movimentação">
+        <button class="tipo-btn active" id="btnEntrada" type="button" onclick="setTipo('entrada')">
+          <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></span>
+          <strong>Receita</strong>
+          <small>Entrada de dinheiro</small>
+        </button>
+        <button class="tipo-btn" id="btnSaida" type="button" onclick="setTipo('saida')">
+          <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg></span>
+          <strong>Despesa</strong>
+          <small>Saída de dinheiro</small>
+        </button>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Descrição *</label>
-          <input type="text" id="movDesc" class="form-input" placeholder="Ex: Venda de produto" />
+          <input type="text" id="movDesc" class="form-input fm-input" placeholder="Ex: Venda de produto" />
         </div>
-        <div class="form-group">
+        <div class="form-group movement-value-field">
           <label class="form-label">Valor *</label>
-          <input type="text" id="movValor" class="form-input" placeholder="0,00" />
+          <input type="text" id="movValor" class="form-input fm-input" placeholder="0,00" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Categoria *</label>
-          <select id="movCategoria" class="form-input"></select>
+          <select id="movCategoria" class="form-input fm-select"></select>
           <div class="category-create">
-            <input type="text" id="novaCategoria" class="form-input" placeholder="Nova categoria" />
-            <button class="btn btn-outline" type="button" onclick="criarCategoria()">+ Criar</button>
+            <input type="text" id="novaCategoria" class="form-input fm-input" placeholder="Nova categoria" />
+            <button class="fm-btn fm-btn-outline" type="button" onclick="criarCategoria()">Criar</button>
           </div>
         </div>
         <div class="form-group">
           <label class="form-label">Data *</label>
-          <input type="date" id="movData" class="form-input" />
+          <input type="date" id="movData" class="form-input fm-input" />
         </div>
       </div>
       <div class="form-group">
         <label class="form-label">Cliente</label>
-        <select id="movCliente" class="form-input"></select>
+        <select id="movCliente" class="form-input fm-select"></select>
         <div class="inline-create">
-          <input type="text" id="movNovoClienteNome" class="form-input" placeholder="Novo cliente" />
-          <input type="text" id="movNovoClienteTel" class="form-input" placeholder="WhatsApp" />
-          <button class="btn btn-outline" type="button" onclick="criarClienteRapido()">+ Criar</button>
+          <input type="text" id="movNovoClienteNome" class="form-input fm-input" placeholder="Novo cliente" />
+          <input type="text" id="movNovoClienteTel" class="form-input fm-input" placeholder="WhatsApp" />
+          <button class="fm-btn fm-btn-outline" type="button" onclick="criarClienteRapido()">Criar</button>
         </div>
       </div>
       <div class="form-group">
@@ -779,12 +842,12 @@
       </div>
       <div class="form-group">
         <label class="form-label">Observação</label>
-        <textarea id="movObs" class="form-input" rows="2" placeholder="Opcional…"></textarea>
+        <textarea id="movObs" class="form-input fm-textarea" rows="2" placeholder="Opcional…"></textarea>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" type="button" onclick="closeModal('modalMovimentacao')">Cancelar</button>
-      <button class="btn btn-primary" type="button" onclick="salvarMovimentacao()">Salvar</button>
+      <button class="fm-btn fm-btn-outline" type="button" onclick="closeModal('modalMovimentacao')">Cancelar</button>
+      <button class="fm-btn fm-btn-primary" type="button" onclick="salvarMovimentacao()">Salvar movimentação</button>
     </div>
   </div>
 </div>

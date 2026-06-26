@@ -2229,6 +2229,8 @@ let movCurrentTipo = '';
 let movCurrentCat  = '';
 let movCurrentMes  = '';
 let movCurrentText = '';
+let movCurrentValorMin = 0;
+let movCurrentValorMax = 0;
 
 function renderMovimentacoes() {
   // Set default month filter
@@ -2243,12 +2245,22 @@ function applyFilters() {
   movCurrentCat  = document.getElementById('filtroCategoria').value;
   movCurrentMes  = document.getElementById('filtroMes').value;
   movCurrentText = document.getElementById('filtroTexto').value.toLowerCase();
+  movCurrentValorMin = parseBRL(document.getElementById('filtroValorMin')?.value || '');
+  movCurrentValorMax = parseBRL(document.getElementById('filtroValorMax')?.value || '');
+
+  updateMovCategoriaFilter();
 
   let movs = [...state.movimentacoes];
   if (movCurrentTipo) movs = movs.filter(m => m.tipo === movCurrentTipo);
   if (movCurrentCat)  movs = movs.filter(m => m.cat  === movCurrentCat);
   if (movCurrentMes)  movs = movs.filter(m => m.data && m.data.startsWith(movCurrentMes));
-  if (movCurrentText) movs = movs.filter(m => m.desc.toLowerCase().includes(movCurrentText) || (m.obs||'').toLowerCase().includes(movCurrentText));
+  if (movCurrentText) movs = movs.filter(m =>
+    m.desc.toLowerCase().includes(movCurrentText) ||
+    (m.cat || '').toLowerCase().includes(movCurrentText) ||
+    (m.obs || '').toLowerCase().includes(movCurrentText)
+  );
+  if (movCurrentValorMin > 0) movs = movs.filter(m => m.valor >= movCurrentValorMin);
+  if (movCurrentValorMax > 0) movs = movs.filter(m => m.valor <= movCurrentValorMax);
 
   movs.sort((a,b) => b.data.localeCompare(a.data));
 
@@ -2258,42 +2270,80 @@ function applyFilters() {
   document.getElementById('sumEntrada').textContent = formatBRL(ent);
   document.getElementById('sumSaida').textContent   = formatBRL(sai);
   document.getElementById('sumSaldo').textContent   = formatBRL(ent-sai);
+  const sumQuantidade = document.getElementById('sumQuantidade');
+  if (sumQuantidade) sumQuantidade.textContent = String(movs.length);
 
   const tbody = document.getElementById('movTableBody');
   const empty = document.getElementById('movEmpty');
+  const mobileList = document.getElementById('movMobileList');
 
   if (!movs.length) {
     tbody.innerHTML = '';
+    if (mobileList) mobileList.innerHTML = '';
     empty.style.display = 'block';
     return;
   }
   empty.style.display = 'none';
 
   tbody.innerHTML = movs.map(m => `
-    <tr>
-      <td>${formatDate(m.data)}</td>
+    <tr class="movement-row ${m.tipo}">
       <td>
-        <div style="font-weight:500">${esc(m.desc)}</div>
-        ${m.clienteId ? `<div style="font-size:.75rem;color:var(--primary)">Cliente: ${esc(getClienteNome(m.clienteId))}</div>` : ''}
-        ${m.obs ? `<div style="font-size:.75rem;color:var(--text-muted)">${esc(m.obs)}</div>` : ''}
+        <span class="movement-date">${formatDate(m.data)}</span>
+      </td>
+      <td>
+        <div class="movement-desc-cell">
+          <span class="movement-type-icon ${m.tipo}" aria-hidden="true">${getMovIconSvg(m.tipo)}</span>
+          <div>
+            <strong>${esc(m.desc)}</strong>
+            ${m.clienteId ? `<span>Cliente: ${esc(getClienteNome(m.clienteId))}</span>` : ''}
+            ${m.obs ? `<small>${esc(m.obs)}</small>` : ''}
+          </div>
+        </div>
       </td>
       <td><span class="badge-cat">${esc(m.cat)}</span></td>
-      <td style="text-transform:capitalize">${pagIcon(m.pag)} ${m.pag||'—'}</td>
+      <td><span class="movement-payment">${pagIcon(m.pag)} ${esc(getPaymentLabel(m.pag))}</span></td>
       <td><span class="badge-tipo ${m.tipo}">${m.tipo==='entrada'?'↑ Entrada':'↓ Saída'}</span></td>
-      <td style="font-weight:700;color:${m.tipo==='entrada'?'var(--green)':'var(--red)'}">
+      <td class="movement-value ${m.tipo}">
         ${m.tipo==='entrada'?'+':'-'}${formatBRL(m.valor)}
       </td>
       <td>
         <div class="action-btns">
-          <button class="btn-action" onclick="editarMov('${m.id}')">✏️ Editar</button>
-          <button class="btn-action delete" onclick="excluirMov('${m.id}')">🗑️ Excluir</button>
+          <button class="btn-action" type="button" onclick="editarMov('${m.id}')">Editar</button>
+          <button class="btn-action" type="button" disabled aria-disabled="true">Duplicar</button>
+          <button class="btn-action delete" type="button" onclick="excluirMov('${m.id}')">Excluir</button>
         </div>
       </td>
     </tr>
   `).join('');
 
-  // Update cat filter options
+  if (mobileList) {
+    mobileList.innerHTML = movs.map(m => `
+      <article class="movement-mobile-card ${m.tipo}">
+        <div class="movement-mobile-main">
+          <span class="movement-type-icon ${m.tipo}" aria-hidden="true">${getMovIconSvg(m.tipo)}</span>
+          <div>
+            <strong>${esc(m.desc)}</strong>
+            <span>${formatDate(m.data)} · ${esc(m.cat)}</span>
+          </div>
+        </div>
+        <div class="movement-mobile-meta">
+          <span class="badge-tipo ${m.tipo}">${m.tipo==='entrada'?'Receita':'Despesa'}</span>
+          <strong class="movement-value ${m.tipo}">${m.tipo==='entrada'?'+':'-'}${formatBRL(m.valor)}</strong>
+        </div>
+        ${m.obs ? `<p>${esc(m.obs)}</p>` : ''}
+        <div class="action-btns">
+          <button class="btn-action" type="button" onclick="editarMov('${m.id}')">Editar</button>
+          <button class="btn-action" type="button" disabled aria-disabled="true">Duplicar</button>
+          <button class="btn-action delete" type="button" onclick="excluirMov('${m.id}')">Excluir</button>
+        </div>
+      </article>
+    `).join('');
+  }
+}
+
+function updateMovCategoriaFilter() {
   const catSelect = document.getElementById('filtroCategoria');
+  if (!catSelect) return;
   const curCat = catSelect.value;
   const cats = [...new Set(state.movimentacoes.map(m=>m.cat))].sort();
   catSelect.innerHTML = '<option value="">Todas as categorias</option>' +
@@ -2303,6 +2353,30 @@ function applyFilters() {
 function pagIcon(pag) {
   const icons = { pix:'⚡', dinheiro:'💵', cartao:'💳', boleto:'📄' };
   return icons[pag] || '';
+}
+
+function getPaymentLabel(pag) {
+  const labels = { pix: 'Pix', dinheiro: 'Dinheiro', cartao: 'Cartão', boleto: 'Boleto' };
+  return labels[pag] || 'Não informado';
+}
+
+function getMovIconSvg(tipo) {
+  if (tipo === 'entrada') {
+    return '<svg viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>';
+  }
+  return '<svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>';
+}
+
+function limparFiltrosMovimentacoes() {
+  document.getElementById('filtroTipo').value = '';
+  document.getElementById('filtroCategoria').value = '';
+  document.getElementById('filtroMes').value = getDashboardMes();
+  document.getElementById('filtroTexto').value = '';
+  const min = document.getElementById('filtroValorMin');
+  const max = document.getElementById('filtroValorMax');
+  if (min) min.value = '';
+  if (max) max.value = '';
+  applyFilters();
 }
 
 // ===== MOVIMENTACAO FORM =====
@@ -3845,6 +3919,9 @@ async function init() {
   document.getElementById('filtroCategoria').addEventListener('change', applyFilters);
   document.getElementById('filtroMes').addEventListener('change', applyFilters);
   document.getElementById('filtroTexto').addEventListener('input', applyFilters);
+  document.getElementById('filtroValorMin')?.addEventListener('input', applyFilters);
+  document.getElementById('filtroValorMax')?.addEventListener('input', applyFilters);
+  document.getElementById('limparFiltrosMov')?.addEventListener('click', limparFiltrosMovimentacoes);
   document.getElementById('buscaCliente').addEventListener('input', renderClientesEnhanced);
   document.getElementById('ordemClientes').addEventListener('change', renderClientesEnhanced);
 
