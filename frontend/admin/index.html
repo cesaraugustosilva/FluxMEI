@@ -24,6 +24,7 @@
         <a href="#payments" data-admin-nav="payments">Pagamentos</a>
         <a href="#coupons" data-admin-nav="coupons">Cupons</a>
         <a href="#audit" data-admin-nav="audit">Auditoria</a>
+        <a href="#security" data-admin-nav="security">Seguranca</a>
       </nav>
       <div class="sidebar-note">
         <strong>Area restrita</strong>
@@ -54,6 +55,9 @@
         <article class="metric-card"><span>Indicacoes recompensadas</span><strong id="metricRewardedReferrals">--</strong></article>
         <article class="metric-card"><span>Onboarding concluidos</span><strong id="metricOnboardingCompleted">--</strong></article>
         <article class="metric-card"><span>Onboarding pendentes</span><strong id="metricOnboardingPending">--</strong></article>
+        <article class="metric-card"><span>Consultas IA</span><strong id="metricAiConsultations">--</strong></article>
+        <article class="metric-card"><span>Usuarios IA</span><strong id="metricAiUsers">--</strong></article>
+        <article class="metric-card"><span>Pergunta IA frequente</span><strong id="metricAiTopQuestion">--</strong></article>
         <article class="metric-card primary"><span>Receita total</span><strong id="metricTotalRevenue">--</strong></article>
         <article class="metric-card"><span>MRR</span><strong id="metricMrr">--</strong></article>
         <article class="metric-card"><span>ARR estimado</span><strong id="metricArr">--</strong></article>
@@ -191,6 +195,53 @@
             </thead>
             <tbody id="auditTableBody"></tbody>
           </table>
+        </div>
+      </section>
+
+      <section class="admin-panel" id="security">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Seguranca</p>
+            <h2>Backup manual e status do sistema</h2>
+          </div>
+          <button class="header-action admin-button" type="button" id="backupDownloadButton">Gerar backup agora</button>
+        </div>
+        <div class="security-grid" aria-label="Resumo de seguranca">
+          <article class="security-card">
+            <span>Total de usuarios</span>
+            <strong id="securityTotalUsers">--</strong>
+          </article>
+          <article class="security-card">
+            <span>Total de assinaturas</span>
+            <strong id="securityTotalSubscriptions">--</strong>
+          </article>
+          <article class="security-card">
+            <span>Total de pagamentos</span>
+            <strong id="securityTotalPayments">--</strong>
+          </article>
+          <article class="security-card accent">
+            <span>Ultimo backup manual</span>
+            <strong id="securityLastBackup">--</strong>
+          </article>
+        </div>
+        <div class="critical-events">
+          <div class="panel-subheader">
+            <p class="eyebrow">Eventos criticos</p>
+            <h3>Ultimas ocorrencias da auditoria</h3>
+          </div>
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Usuario</th>
+                  <th>Acao</th>
+                  <th>Detalhes</th>
+                </tr>
+              </thead>
+              <tbody id="securityCriticalEventsBody"></tbody>
+            </table>
+          </div>
         </div>
       </section>
     </section>

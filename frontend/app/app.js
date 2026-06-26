@@ -101,6 +101,12 @@ let state = {
   paymentHistoryError: '',
   referral: null,
   referralError: '',
+  aiInsights: [],
+  aiConversations: [],
+  aiMessages: [],
+  aiActiveConversationId: null,
+  aiLoaded: false,
+  aiLoading: false,
   onboardingStep: 1,
   onboardingSaving: false,
   user: null,
@@ -1373,6 +1379,7 @@ function renderPage(page) {
     case 'calendario':     renderCalendario(); break;
     case 'clientes':       renderClientesEnhanced(); break;
     case 'relatorios':     renderRelatorios(); break;
+    case 'assistente':     renderAiAssistant(); break;
     case 'configuracoes':  renderConfiguracoes(); break;
   }
 }
@@ -3180,6 +3187,216 @@ function esc(str) {
     .replace(/'/g, '&#39;');
 }
 
+// ===== ASSISTENTE FINANCEIRO IA =====
+function aiMarkdown(text) {
+  return esc(text)
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n{2,}/g, '</p><p>')
+    .replace(/\n/g, '<br>');
+}
+
+function renderAiInsights() {
+  const root = document.getElementById('aiInsightsGrid');
+  if (!root) return;
+
+  if (!state.aiInsights.length) {
+    root.innerHTML = `
+      <article class="ai-insight-card info">
+        <span>AI</span>
+        <p>Carregando analise automatica das suas financas...</p>
+      </article>
+    `;
+    return;
+  }
+
+  root.innerHTML = state.aiInsights.map((insight) => `
+    <article class="ai-insight-card ${esc(insight.type || 'info')}">
+      <span>${insight.type === 'positive' ? '↗' : insight.type === 'danger' ? '!' : insight.type === 'goal' ? '◎' : '•'}</span>
+      <p>${esc(insight.title)}</p>
+      ${insight.metric !== undefined ? `<strong>${typeof insight.metric === 'number' ? formatBRL(insight.metric) : esc(insight.metric)}</strong>` : ''}
+    </article>
+  `).join('');
+}
+
+function renderAiHistory() {
+  const root = document.getElementById('aiHistoryList');
+  if (!root) return;
+
+  if (!state.aiConversations.length) {
+    root.innerHTML = '<div class="ai-history-empty">Nenhuma conversa ainda.</div>';
+    return;
+  }
+
+  root.innerHTML = state.aiConversations.map((conversation) => `
+    <div class="ai-history-item ${conversation.id === state.aiActiveConversationId ? 'active' : ''}">
+      <button type="button" data-ai-conversation="${esc(conversation.id)}">
+        <strong>${esc(conversation.title || 'Nova conversa')}</strong>
+        <span>${formatDate(String(conversation.updated_at || conversation.created_at || '').slice(0, 10))}</span>
+      </button>
+      <div class="ai-history-actions">
+        <button type="button" title="Renomear" data-ai-rename="${esc(conversation.id)}">Editar</button>
+        <button type="button" title="Excluir" data-ai-delete="${esc(conversation.id)}">Excluir</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderAiMessages() {
+  const root = document.getElementById('aiChatMessages');
+  if (!root) return;
+
+  if (!state.aiMessages.length && !state.aiLoading) {
+    root.innerHTML = `
+      <div class="ai-empty-chat">
+        <strong>Como posso ajudar nas suas financas?</strong>
+        <span>Pergunte sobre gastos, lucro, metas, DAS, previsao ou economia.</span>
+      </div>
+    `;
+    return;
+  }
+
+  root.innerHTML = state.aiMessages.map((message) => `
+    <article class="ai-message ${esc(message.role)}">
+      <div>${message.role === 'assistant' ? `<p>${aiMarkdown(message.content)}</p>` : esc(message.content)}</div>
+    </article>
+  `).join('') + (state.aiLoading ? '<article class="ai-message assistant typing"><div><span></span><span></span><span></span></div></article>' : '');
+  root.scrollTop = root.scrollHeight;
+}
+
+function renderAiAssistant() {
+  renderAiInsights();
+  renderAiHistory();
+  renderAiMessages();
+  if (!state.aiLoaded) loadAiAssistant();
+}
+
+async function loadAiAssistant() {
+  try {
+    const [insights, conversations] = await Promise.all([
+      apiRequest('/ai/insights'),
+      apiRequest('/ai/conversations')
+    ]);
+    state.aiInsights = Array.isArray(insights.insights) ? insights.insights : [];
+    state.aiConversations = Array.isArray(conversations.conversations) ? conversations.conversations : [];
+    state.aiLoaded = true;
+    renderAiAssistant();
+  } catch (error) {
+    state.aiInsights = [{ type: 'danger', title: error.message || 'Nao foi possivel carregar o assistente.', metric: 0 }];
+    renderAiInsights();
+  }
+}
+
+async function openAiConversation(id) {
+  const data = await apiRequest(`/ai/conversations/${encodeURIComponent(id)}`);
+  state.aiActiveConversationId = data.conversation?.id || id;
+  state.aiMessages = Array.isArray(data.messages) ? data.messages : [];
+  renderAiHistory();
+  renderAiMessages();
+}
+
+function newAiConversation() {
+  state.aiActiveConversationId = null;
+  state.aiMessages = [];
+  renderAiHistory();
+  renderAiMessages();
+  document.getElementById('aiChatInput')?.focus();
+}
+
+async function submitAiMessage(event) {
+  event.preventDefault();
+  const input = document.getElementById('aiChatInput');
+  const message = String(input?.value || '').trim();
+  if (!message || state.aiLoading) return;
+
+  input.value = '';
+  state.aiMessages.push({
+    id: `local-${Date.now()}`,
+    role: 'user',
+    content: message,
+    created_at: new Date().toISOString()
+  });
+  state.aiLoading = true;
+  renderAiMessages();
+
+  try {
+    const response = await apiRequest('/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        message,
+        conversation_id: state.aiActiveConversationId
+      })
+    });
+    state.aiActiveConversationId = response.conversation?.id || state.aiActiveConversationId;
+    state.aiMessages = state.aiMessages
+      .filter((item) => !String(item.id).startsWith('local-'))
+      .concat(Array.isArray(response.messages) ? response.messages : []);
+    if (Array.isArray(response.insights)) state.aiInsights = response.insights;
+    state.aiLoaded = false;
+    await loadAiAssistant();
+    if (state.aiActiveConversationId) await openAiConversation(state.aiActiveConversationId);
+  } catch (error) {
+    state.aiMessages.push({
+      id: `error-${Date.now()}`,
+      role: 'assistant',
+      content: error.message || 'Nao foi possivel responder agora.',
+      created_at: new Date().toISOString()
+    });
+  } finally {
+    state.aiLoading = false;
+    renderAiMessages();
+  }
+}
+
+async function renameAiConversation(id) {
+  const current = state.aiConversations.find((item) => item.id === id);
+  const title = window.prompt('Novo nome da conversa', current?.title || 'Nova conversa');
+  if (!title) return;
+  await apiRequest(`/ai/conversations/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ title })
+  });
+  state.aiLoaded = false;
+  await loadAiAssistant();
+}
+
+async function deleteAiConversation(id) {
+  if (!window.confirm('Excluir esta conversa?')) return;
+  await apiRequest(`/ai/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (state.aiActiveConversationId === id) newAiConversation();
+  state.aiLoaded = false;
+  await loadAiAssistant();
+}
+
+function handleAiHistoryClick(event) {
+  const conversationButton = event.target.closest('[data-ai-conversation]');
+  const renameButton = event.target.closest('[data-ai-rename]');
+  const deleteButton = event.target.closest('[data-ai-delete]');
+
+  if (renameButton) {
+    renameAiConversation(renameButton.dataset.aiRename);
+    return;
+  }
+  if (deleteButton) {
+    deleteAiConversation(deleteButton.dataset.aiDelete);
+    return;
+  }
+  if (conversationButton) {
+    openAiConversation(conversationButton.dataset.aiConversation).catch((error) => {
+      showToast(error.message || 'Nao foi possivel abrir a conversa.', 'error');
+    });
+  }
+}
+
+function handleAiSuggestion(event) {
+  const button = event.target.closest('[data-ai-prompt]');
+  if (!button) return;
+  const input = document.getElementById('aiChatInput');
+  if (input) {
+    input.value = button.dataset.aiPrompt || '';
+    input.focus();
+  }
+}
+
 // ===== INIT =====
 async function init() {
   setupThemeControls();
@@ -3219,6 +3436,10 @@ async function init() {
   document.getElementById('exportCsvAction')?.addEventListener('click', (event) => handleExportClick('csv', event.currentTarget));
   document.getElementById('exportJsonAction')?.addEventListener('click', (event) => handleExportClick('json', event.currentTarget));
   document.getElementById('exportSummaryAction')?.addEventListener('click', (event) => handleExportClick('resumo', event.currentTarget));
+  document.getElementById('aiChatForm')?.addEventListener('submit', submitAiMessage);
+  document.getElementById('aiNewConversation')?.addEventListener('click', newAiConversation);
+  document.getElementById('aiHistoryList')?.addEventListener('click', handleAiHistoryClick);
+  document.getElementById('aiSuggestions')?.addEventListener('click', handleAiSuggestion);
   document.getElementById('accountCancelAction')?.addEventListener('click', cancelSubscription);
   document.getElementById('accountReactivateAction')?.addEventListener('click', reactivateSubscription);
   document.getElementById('receiptClose')?.addEventListener('click', closeReceiptModal);

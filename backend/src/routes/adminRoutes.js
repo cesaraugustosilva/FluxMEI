@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   adminAuditLogs,
+  adminBackup,
   adminDashboard,
   adminPayments,
   adminSubscriptions,
@@ -24,6 +25,7 @@ router.get('/users', asyncHandler(adminUsers));
 router.get('/subscriptions', asyncHandler(adminSubscriptions));
 router.get('/payments', asyncHandler(adminPayments));
 router.get('/audit-logs', asyncHandler(adminAuditLogs));
+router.get('/backup', asyncHandler(adminBackup));
 router.get('/coupons', asyncHandler(listCoupons));
 router.post('/coupons', asyncHandler(createCoupon));
 router.put('/coupons/:id', asyncHandler(updateCoupon));

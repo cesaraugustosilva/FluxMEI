@@ -3,22 +3,258 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
 import { fetchMovimentacoes, summarizeMovimentacoes } from './relatorioService.js';
 
-const PROMPT = `Você é um assistente financeiro para MEIs no Brasil.
-Analise os dados financeiros fornecidos e gere um relatório simples, claro e útil.
-Use linguagem fácil, sem termos técnicos.
+const PROMPT = `Voce e um assistente financeiro para MEIs no Brasil.
+Analise os dados financeiros fornecidos e gere um relatorio simples, claro e util.
+Use linguagem facil, sem termos tecnicos.
 Mostre:
-1. resumo do período
+1. resumo do periodo
 2. total de entradas
-3. total de saídas
+3. total de saidas
 4. saldo/lucro
 5. maiores gastos
 6. melhores dias de faturamento
 7. alertas importantes
-8. recomendações práticas
-Não invente dados. Se faltar informação, avise.`;
+8. recomendacoes praticas
+Nao invente dados. Se faltar informacao, avise.`;
+
+export const FINANCIAL_ASSISTANT_PROMPT = `Voce e um consultor financeiro especializado em MEIs brasileiros dentro do FluxMEI.
+Responda de forma profissional, objetiva e didatica.
+Use somente os dados financeiros enviados no contexto.
+Nao invente numeros, metas, despesas, receitas, datas ou eventos.
+Quando faltar informacao, diga claramente que nao ha dados suficientes.
+Nunca solicite nem mencione senha, token, CPF/CNPJ, dados de cartao, CVV, provider_raw ou secrets.
+Priorize recomendacoes praticas, com proximos passos simples para o MEI.`;
+
+function moneyNumber(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? Math.round(number * 100) / 100 : 0;
+}
+
+function monthKey(dateValue) {
+  return String(dateValue || '').slice(0, 7);
+}
+
+function currentMonthKey() {
+  return new Date().toISOString().slice(0, 7);
+}
+
+function previousMonthKey(anoMes = currentMonthKey()) {
+  const [year, month] = anoMes.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 2, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function sanitizeMovement(item = {}) {
+  return {
+    data: item.data || null,
+    tipo: item.tipo || null,
+    categoria: item.categoria || null,
+    descricao: item.descricao || null,
+    valor: moneyNumber(item.valor),
+    forma_pagamento: item.forma_pagamento || null,
+    observacao: item.observacao || null
+  };
+}
+
+function summarizeSafeMovements(movimentacoes = []) {
+  const totalReceitas = movimentacoes
+    .filter((item) => item.tipo === 'entrada')
+    .reduce((sum, item) => sum + moneyNumber(item.valor), 0);
+  const totalDespesas = movimentacoes
+    .filter((item) => item.tipo === 'saida')
+    .reduce((sum, item) => sum + moneyNumber(item.valor), 0);
+  const categorias = {};
+  const receitasPorMes = {};
+  const despesasPorMes = {};
+
+  for (const item of movimentacoes) {
+    const key = monthKey(item.data);
+    if (item.tipo === 'saida') {
+      const categoria = item.categoria || 'Sem categoria';
+      categorias[categoria] = moneyNumber((categorias[categoria] || 0) + moneyNumber(item.valor));
+      if (key) despesasPorMes[key] = moneyNumber((despesasPorMes[key] || 0) + moneyNumber(item.valor));
+    }
+    if (item.tipo === 'entrada' && key) {
+      receitasPorMes[key] = moneyNumber((receitasPorMes[key] || 0) + moneyNumber(item.valor));
+    }
+  }
+
+  return {
+    total_receitas: moneyNumber(totalReceitas),
+    total_despesas: moneyNumber(totalDespesas),
+    saldo: moneyNumber(totalReceitas - totalDespesas),
+    quantidade_movimentacoes: movimentacoes.length,
+    categorias_despesas: Object.entries(categorias)
+      .map(([categoria, valor]) => ({ categoria, valor }))
+      .sort((a, b) => b.valor - a.valor),
+    receitas_por_mes: receitasPorMes,
+    despesas_por_mes: despesasPorMes
+  };
+}
+
+async function fetchOptionalRows(table, select, buildQuery = (query) => query) {
+  try {
+    const query = buildQuery(supabaseAdmin.from(table).select(select));
+    const { data, error } = await query;
+    if (error) return [];
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function buildFinancialAiContext(userId) {
+  const [movimentacoesRaw, dasRaw, metasRaw] = await Promise.all([
+    fetchOptionalRows('movimentacoes', 'data,tipo,categoria,descricao,valor,forma_pagamento,observacao', (query) => query
+      .eq('user_id', userId)
+      .order('data', { ascending: false })
+      .limit(250)),
+    fetchOptionalRows('das', 'mes_referencia,vencimento,valor,status', (query) => query
+      .eq('user_id', userId)
+      .order('vencimento', { ascending: true })
+      .limit(12)),
+    fetchOptionalRows('metas', '*', (query) => query
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(20))
+  ]);
+
+  const movimentacoes = (movimentacoesRaw || []).map(sanitizeMovement);
+  const dates = movimentacoes.map((item) => item.data).filter(Boolean).sort();
+  const resumo = summarizeSafeMovements(movimentacoes);
+
+  return {
+    periodo: {
+      inicio: dates[0] || null,
+      fim: dates.at(-1) || null
+    },
+    resumo,
+    movimentacoes,
+    categorias: resumo.categorias_despesas,
+    metas: metasRaw || [],
+    das: (dasRaw || []).map((item) => ({
+      mes_referencia: item.mes_referencia || null,
+      vencimento: item.vencimento || null,
+      valor: moneyNumber(item.valor),
+      status: item.status || null
+    }))
+  };
+}
+
+function percentChange(current, previous) {
+  if (!previous && !current) return 0;
+  if (!previous) return current > 0 ? 100 : 0;
+  return ((current - previous) / Math.abs(previous)) * 100;
+}
+
+function formatPercent(value) {
+  const rounded = Math.abs(value) >= 10 ? Math.round(value) : Math.round(value * 10) / 10;
+  return `${Math.abs(rounded).toLocaleString('pt-BR')}%`;
+}
+
+export function generateAutomaticInsights(context = {}) {
+  const resumo = context.resumo || {};
+  const currentMonth = currentMonthKey();
+  const previousMonth = previousMonthKey(currentMonth);
+  const receitasMes = moneyNumber(resumo.receitas_por_mes?.[currentMonth]);
+  const receitasAnterior = moneyNumber(resumo.receitas_por_mes?.[previousMonth]);
+  const despesasMes = moneyNumber(resumo.despesas_por_mes?.[currentMonth]);
+  const despesasAnterior = moneyNumber(resumo.despesas_por_mes?.[previousMonth]);
+  const receitaChange = percentChange(receitasMes, receitasAnterior);
+  const despesaChange = percentChange(despesasMes, despesasAnterior);
+  const topExpense = resumo.categorias_despesas?.[0];
+  const nextDas = (context.das || [])
+    .filter((item) => item.status !== 'pago')
+    .sort((a, b) => String(a.vencimento).localeCompare(String(b.vencimento)))[0];
+  const insights = [];
+
+  if (receitasMes || receitasAnterior) {
+    insights.push({
+      type: receitaChange >= 0 ? 'positive' : 'warning',
+      title: receitaChange >= 0
+        ? `Receita aumentou ${formatPercent(receitaChange)} este mes.`
+        : `Receita caiu ${formatPercent(receitaChange)} este mes.`,
+      metric: receitasMes
+    });
+  }
+
+  if (despesasMes || despesasAnterior) {
+    insights.push({
+      type: despesaChange > 0 ? 'warning' : 'positive',
+      title: despesaChange > 0
+        ? `Despesas cresceram ${formatPercent(despesaChange)} este mes.`
+        : 'Despesas ficaram controladas este mes.',
+      metric: despesasMes
+    });
+  }
+
+  if (topExpense) {
+    insights.push({
+      type: 'info',
+      title: `Sua maior despesa continua sendo ${topExpense.categoria}.`,
+      metric: topExpense.valor
+    });
+  }
+
+  insights.push({
+    type: resumo.saldo >= 0 ? 'positive' : 'danger',
+    title: resumo.saldo >= 0
+      ? 'Seu saldo acumulado esta positivo.'
+      : 'Seu lucro caiu e o saldo acumulado esta negativo.',
+    metric: moneyNumber(resumo.saldo)
+  });
+
+  if ((context.metas || []).length) {
+    insights.push({
+      type: 'goal',
+      title: 'Voce possui metas financeiras para acompanhar.',
+      metric: context.metas.length
+    });
+  }
+
+  if (nextDas) {
+    insights.push({
+      type: 'warning',
+      title: `O DAS vence em breve: ${nextDas.vencimento}.`,
+      metric: nextDas.valor
+    });
+  }
+
+  if (!context.movimentacoes?.length) {
+    insights.push({
+      type: 'info',
+      title: 'Ainda nao ha movimentacoes suficientes para uma analise completa.',
+      metric: 0
+    });
+  }
+
+  return insights.slice(0, 6);
+}
+
+export async function responderAssistenteFinanceiro({ userId, message }) {
+  if (!geminiModel) throw new AppError('GEMINI_API_KEY nao configurada.', 500);
+
+  const context = await buildFinancialAiContext(userId);
+  const payload = {
+    instrucoes: FINANCIAL_ASSISTANT_PROMPT,
+    pergunta: message,
+    contexto_financeiro: context
+  };
+
+  const result = await geminiModel.generateContent([
+    FINANCIAL_ASSISTANT_PROMPT,
+    JSON.stringify(payload, null, 2)
+  ]);
+
+  return {
+    answer: result.response.text(),
+    context,
+    insights: generateAutomaticInsights(context)
+  };
+}
 
 export async function gerarRelatorioIA(userId, periodo) {
-  if (!geminiModel) throw new AppError('GEMINI_API_KEY não configurada.', 500);
+  if (!geminiModel) throw new AppError('GEMINI_API_KEY nao configurada.', 500);
 
   const movimentacoes = await fetchMovimentacoes(userId, periodo.inicio, periodo.fim);
   const resumo = summarizeMovimentacoes(movimentacoes, periodo);
@@ -43,7 +279,7 @@ export async function gerarRelatorioIA(userId, periodo) {
     .select()
     .single();
 
-  if (error) throw new AppError('Erro ao salvar relatório de IA.', 500, error.message);
+  if (error) throw new AppError('Erro ao salvar relatorio de IA.', 500, error.message);
 
   return {
     relatorio: texto,
@@ -51,3 +287,9 @@ export async function gerarRelatorioIA(userId, periodo) {
     registro: data
   };
 }
+
+export const geminiAssistantTestUtils = {
+  sanitizeMovement,
+  summarizeSafeMovements,
+  generateAutomaticInsights
+};
