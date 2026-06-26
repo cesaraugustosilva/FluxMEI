@@ -1902,6 +1902,58 @@ function renderDashboardInsights({ movPeriodo, monthlyTotals, periodTotals, said
   `).join('');
 }
 
+function getDashboardGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Bom dia';
+  if (hour < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+function getDashboardUserName() {
+  return state.profile?.nome
+    || state.config?.nome
+    || state.user?.user_metadata?.nome
+    || 'FluxMEI';
+}
+
+function renderDashboardHero() {
+  const greeting = document.getElementById('dashboardGreeting');
+  const planBadge = document.getElementById('dashboardPlanBadge');
+  const subscriptionStatusLabel = document.getElementById('dashboardSubscriptionStatus');
+
+  if (greeting) greeting.textContent = `${getDashboardGreeting()}, ${getDashboardUserName()}`;
+  if (planBadge) planBadge.textContent = getPlanLabel();
+
+  if (subscriptionStatusLabel) {
+    const estado = subscriptionStatus?.estado || subscriptionStatus?.status || 'ativo';
+    const blocked = subscriptionStatus?.bloqueado || ['expirado', 'bloqueado', 'vencido'].includes(estado);
+    subscriptionStatusLabel.textContent = blocked ? 'Acesso requer atenção' : 'Assinatura em dia';
+    subscriptionStatusLabel.classList.toggle('warning', blocked);
+  }
+}
+
+function renderDashboardFluxia({ movPeriodo, monthlyTotals, periodTotals }) {
+  const root = document.getElementById('dashboardFluxiaInsight');
+  if (!root) return;
+
+  if (!state.movimentacoes.length) {
+    root.textContent = 'Cadastre movimentações para receber análises inteligentes.';
+    return;
+  }
+
+  const categories = getExpenseCategories(movPeriodo);
+  const topCategory = categories[0];
+  if (monthlyTotals.lucro < 0) {
+    root.textContent = `Seu mês está negativo em ${formatBRL(Math.abs(monthlyTotals.lucro))}. A FluxIA pode ajudar a encontrar cortes rápidos.`;
+    return;
+  }
+  if (topCategory) {
+    root.textContent = `Maior gasto do período: ${topCategory.category}, com ${formatBRL(topCategory.value)}. Abra a FluxIA para ver oportunidades.`;
+    return;
+  }
+  root.textContent = `Resultado positivo no período: ${formatBRL(periodTotals.lucro)}. Peça uma análise da FluxIA para planejar o próximo passo.`;
+}
+
 function buildMonthlyDashboardSeries(months) {
   let runningBalance = 0;
   const firstMonth = months[0] || getDashboardMes();
@@ -1921,6 +1973,10 @@ function buildMonthlyDashboardSeries(months) {
 function renderRevenueExpenseChart(series) {
   const root = document.getElementById('revenueExpenseChart');
   if (!root) return;
+  if (!series.some((item) => item.entradas || item.saidas)) {
+    root.innerHTML = '<div class="chart-empty-state">Sem movimentações para comparar neste período.</div>';
+    return;
+  }
   const maxValue = Math.max(1, ...series.flatMap((item) => [item.entradas, item.saidas]));
   root.innerHTML = `
     <div class="bar-chart" data-chart="revenue-expense">
@@ -1941,6 +1997,10 @@ function renderRevenueExpenseChart(series) {
 function renderBalanceEvolutionChart(series) {
   const root = document.getElementById('balanceEvolutionChart');
   if (!root) return;
+  if (!series.some((item) => item.saldo)) {
+    root.innerHTML = '<div class="chart-empty-state">O saldo aparecerá quando houver movimentações.</div>';
+    return;
+  }
   const values = series.map((item) => item.saldo);
   const min = Math.min(0, ...values);
   const max = Math.max(1, ...values);
@@ -1969,7 +2029,7 @@ function renderExpenseCategoryChart(movPeriodo) {
   const categories = getExpenseCategories(movPeriodo).slice(0, 5);
   const max = Math.max(1, ...categories.map((item) => item.value));
   if (!categories.length) {
-    root.innerHTML = '<div class="empty-state">Sem despesas no período.</div>';
+    root.innerHTML = '<div class="chart-empty-state">Sem despesas no período.</div>';
     return;
   }
   root.innerHTML = categories.map((item) => `
@@ -1988,7 +2048,7 @@ function renderTopExpenses(movPeriodo) {
     .sort((a, b) => b.valor - a.valor)
     .slice(0, 5);
   if (!expenses.length) {
-    root.innerHTML = '<div class="empty-state">Sem despesas no período.</div>';
+    root.innerHTML = '<div class="chart-empty-state">Sem despesas no período.</div>';
     return;
   }
   root.innerHTML = expenses.map((mov, index) => `
@@ -2022,6 +2082,7 @@ function renderDashboard() {
   const periodTotals = calcTotals(movPeriodo);
   const saldoTotal = state.movimentacoes.reduce((sum, mov) => sum + (mov.tipo === 'entrada' ? mov.valor : -mov.valor), 0);
 
+  renderDashboardHero();
   renderSmartAlerts('dashboardSmartAlerts', { includeActive: true });
   document.getElementById('dashSubtitle').textContent = `${formatMesAno(mesSelecionado)} · ${getDashboardPeriodLabel(dashboardPeriodo)}`;
   document.getElementById('dashboardEmptyState').hidden = state.movimentacoes.length > 0;
@@ -2038,9 +2099,20 @@ function renderDashboard() {
   document.getElementById('kpiSaidasTrend').textContent = `${formatPercentChange(saidasChange)} vs mês anterior`;
   document.getElementById('kpiLucroLabel').textContent = `${monthlyTotals.lucro >= 0 ? 'Positivo' : 'Negativo'} · ${formatPercentChange(lucroChange)} vs mês anterior`;
   document.getElementById('kpiLucro').style.color = monthlyTotals.lucro >= 0 ? 'var(--green)' : 'var(--red)';
+  const variationValue = document.getElementById('kpiVariacao');
+  const variationTrend = document.getElementById('kpiVariacaoTrend');
+  if (variationValue) {
+    variationValue.textContent = formatPercentChange(lucroChange);
+    variationValue.classList.toggle('positive', lucroChange >= 0);
+    variationValue.classList.toggle('negative', lucroChange < 0);
+  }
+  if (variationTrend) {
+    variationTrend.textContent = `Lucro vs mês anterior · ${formatBRL(previousTotals.lucro)}`;
+  }
 
   renderDASInfo();
   renderDashboardInsights({ movPeriodo, monthlyTotals, periodTotals, saidasChange });
+  renderDashboardFluxia({ movPeriodo, monthlyTotals, periodTotals });
   renderDashboardCharts({ months, movPeriodo });
 
   const ultimas = [...movPeriodo].sort((a, b) => b.data.localeCompare(a.data)).slice(0, 8);
@@ -3475,6 +3547,9 @@ async function init() {
   document.getElementById('exportCsvAction')?.addEventListener('click', (event) => handleExportClick('csv', event.currentTarget));
   document.getElementById('exportJsonAction')?.addEventListener('click', (event) => handleExportClick('json', event.currentTarget));
   document.getElementById('exportSummaryAction')?.addEventListener('click', (event) => handleExportClick('resumo', event.currentTarget));
+  document.querySelectorAll('[data-dashboard-export]').forEach((button) => {
+    button.addEventListener('click', (event) => handleExportClick(event.currentTarget.dataset.dashboardExport || 'resumo', event.currentTarget));
+  });
   document.getElementById('aiChatForm')?.addEventListener('submit', submitAiMessage);
   document.getElementById('aiNewConversation')?.addEventListener('click', newAiConversation);
   document.getElementById('aiHistoryList')?.addEventListener('click', handleAiHistoryClick);

@@ -12,9 +12,21 @@ test('dashboard possui cards financeiros avancados e variacao mensal', () => {
   assert.match(appHtml, /id="kpiEntradas"/);
   assert.match(appHtml, /id="kpiSaidas"/);
   assert.match(appHtml, /id="kpiLucro"/);
+  assert.match(appHtml, /id="kpiVariacao"/);
+  assert.match(appHtml, /id="kpiVariacaoTrend"/);
   assert.match(appJs, /function calcTotals\(movs = \[\]\)/);
   assert.match(appJs, /function calcPercentChange\(current, previous\)/);
-  assert.match(appJs, /vs mês anterior/);
+  assert.match(appJs, /Lucro vs mês anterior/);
+});
+
+test('dashboard carrega design system e novo hero premium', () => {
+  assert.match(appHtml, /\/styles\/design-system\.css/);
+  assert.match(appHtml, /id="dashboardGreeting"/);
+  assert.match(appHtml, /Aqui está o resumo financeiro do seu MEI\./);
+  assert.match(appHtml, /id="dashboardPlanBadge"/);
+  assert.match(appHtml, /id="dashboardSubscriptionStatus"/);
+  assert.match(appHtml, /Abrir FluxIA/);
+  assert.match(appJs, /function renderDashboardHero/);
 });
 
 test('dashboard possui filtros de periodo e salva selecao', () => {
@@ -30,8 +42,21 @@ test('dashboard possui filtros de periodo e salva selecao', () => {
 test('dashboard renderiza estado vazio amigavel', () => {
   assert.match(appHtml, /id="dashboardEmptyState"/);
   assert.match(appHtml, /Comece cadastrando sua primeira receita ou despesa\./);
-  assert.match(appHtml, /Adicionar movimentação/);
+  assert.match(appHtml, /Adicionar primeira movimentação/);
   assert.match(appJs, /document\.getElementById\('dashboardEmptyState'\)\.hidden = state\.movimentacoes\.length > 0/);
+});
+
+test('dashboard possui card FluxIA e acoes rapidas', () => {
+  assert.match(appHtml, /id="dashboardFluxiaCard"/);
+  assert.match(appHtml, /id="dashboardFluxiaInsight"/);
+  assert.match(appHtml, /Análise da FluxIA/);
+  assert.match(appHtml, /Ações rápidas/);
+  assert.match(appHtml, /Adicionar receita/);
+  assert.match(appHtml, /Adicionar despesa/);
+  assert.match(appHtml, /Criar meta/);
+  assert.match(appHtml, /data-dashboard-export="resumo"/);
+  assert.match(appJs, /function renderDashboardFluxia/);
+  assert.match(appJs, /querySelectorAll\('\[data-dashboard-export\]'\)/);
 });
 
 test('dashboard renderiza graficos sem depender de nova biblioteca', () => {

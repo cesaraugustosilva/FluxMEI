@@ -54,6 +54,7 @@
       document.addEventListener('DOMContentLoaded', () => syncButtons(getTheme()));
     }());
   </script>
+  <link rel="stylesheet" href="/styles/design-system.css?v=20260626-1" />
   <link rel="stylesheet" href="style.css?v=20260523-17" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
@@ -165,74 +166,127 @@
 
   <!-- ====== DASHBOARD ====== -->
   <section class="page active" id="page-dashboard">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Dashboard</h1>
-        <p class="page-subtitle" id="dashSubtitle">Visão geral do seu negócio</p>
+    <section class="dashboard-hero fm-card fm-card-premium">
+      <div class="dashboard-hero-main">
+        <div class="dashboard-hero-kicker">
+          <span class="fm-badge fm-badge-success" id="dashboardPlanBadge">Plano</span>
+          <span class="dashboard-status-dot" id="dashboardSubscriptionStatus">Status da assinatura</span>
+        </div>
+        <h1 class="page-title" id="dashboardGreeting">Bom dia, FluxMEI</h1>
+        <p class="page-subtitle">Aqui está o resumo financeiro do seu MEI.</p>
+        <p class="dashboard-period-label" id="dashSubtitle">Visão geral do seu negócio</p>
       </div>
-      <div class="dashboard-actions">
-        <input type="month" id="dashboardMes" class="filter-select" aria-label="Mês do dashboard" />
-        <select id="dashboardPeriodo" class="filter-select" aria-label="Período do dashboard">
-          <option value="month">Este mês</option>
-          <option value="3m">Últimos 3 meses</option>
-          <option value="6m">Últimos 6 meses</option>
-          <option value="year">Este ano</option>
-        </select>
-        <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">
-        + Nova Movimentação
-        </button>
+      <div class="dashboard-hero-side">
+        <div class="dashboard-actions">
+          <input type="month" id="dashboardMes" class="filter-select fm-input" aria-label="Mês do dashboard" />
+          <select id="dashboardPeriodo" class="filter-select fm-select" aria-label="Período do dashboard">
+            <option value="month">Este mês</option>
+            <option value="3m">Últimos 3 meses</option>
+            <option value="6m">Últimos 6 meses</option>
+            <option value="year">Este ano</option>
+          </select>
+        </div>
+        <div class="dashboard-hero-actions">
+          <button class="fm-btn fm-btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">
+            Nova movimentação
+          </button>
+          <button class="fm-btn fm-btn-outline" type="button" onclick="navigate('assistente')">
+            Abrir FluxIA
+          </button>
+        </div>
       </div>
-    </div>
+    </section>
 
     <section class="smart-alerts" id="dashboardSmartAlerts" aria-label="Avisos importantes"></section>
 
     <!-- DAS Alert -->
     <div class="das-alert" id="dasAlert" style="display:none"></div>
 
-    <section class="dashboard-empty-state" id="dashboardEmptyState" hidden>
-      <div>
+    <section class="dashboard-empty-state fm-card fm-card-premium" id="dashboardEmptyState" hidden>
+      <div class="dashboard-empty-visual" aria-hidden="true">
+        <svg viewBox="0 0 180 130" role="img">
+          <rect x="24" y="20" width="132" height="90" rx="18"></rect>
+          <path d="M48 82h84M48 60h42M48 42h64"></path>
+          <circle cx="130" cy="42" r="8"></circle>
+          <circle cx="116" cy="82" r="8"></circle>
+        </svg>
+      </div>
+      <div class="dashboard-empty-copy">
         <span class="empty-kicker">Primeiro passo</span>
         <h2>Comece cadastrando sua primeira receita ou despesa.</h2>
         <p>Com alguns lançamentos, o FluxMEI monta gráficos, insights e acompanha seu saldo automaticamente.</p>
       </div>
-      <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">Adicionar movimentação</button>
+      <button class="fm-btn fm-btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">Adicionar primeira movimentação</button>
     </section>
 
     <!-- KPI Cards -->
     <div class="kpi-grid">
-      <div class="kpi-card kpi-saldo">
+      <div class="kpi-card kpi-saldo fm-card fm-card-hover">
         <div class="kpi-header">
-          <span class="kpi-label">Saldo Atual</span>
-          <span class="kpi-icon">◈</span>
+          <span class="kpi-label">Saldo atual</span>
+          <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16v10H4z"></path><path d="M7 10h4"></path><path d="M17 14h.01"></path></svg></span>
         </div>
         <div class="kpi-value" id="kpiSaldo">R$ 0,00</div>
         <div class="kpi-trend" id="kpiSaldoTrend"></div>
       </div>
-      <div class="kpi-card kpi-entrada">
+      <div class="kpi-card kpi-entrada fm-card fm-card-hover">
         <div class="kpi-header">
-          <span class="kpi-label">Entradas do Mês</span>
-          <span class="kpi-icon">↑</span>
+          <span class="kpi-label">Receitas do mês</span>
+          <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 19V5"></path><path d="M6 11l6-6 6 6"></path></svg></span>
         </div>
         <div class="kpi-value" id="kpiEntradas">R$ 0,00</div>
         <div class="kpi-trend" id="kpiEntradasTrend"></div>
       </div>
-      <div class="kpi-card kpi-saida">
+      <div class="kpi-card kpi-saida fm-card fm-card-hover">
         <div class="kpi-header">
-          <span class="kpi-label">Saídas do Mês</span>
-          <span class="kpi-icon">↓</span>
+          <span class="kpi-label">Despesas do mês</span>
+          <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14"></path><path d="M18 13l-6 6-6-6"></path></svg></span>
         </div>
         <div class="kpi-value" id="kpiSaidas">R$ 0,00</div>
         <div class="kpi-trend" id="kpiSaidasTrend"></div>
       </div>
-      <div class="kpi-card kpi-lucro">
+      <div class="kpi-card kpi-lucro fm-card fm-card-hover">
         <div class="kpi-header">
-          <span class="kpi-label">Resultado do Mês</span>
-          <span class="kpi-icon">◆</span>
+          <span class="kpi-label">Lucro do mês</span>
+          <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 17l6-6 4 4 6-8"></path><path d="M15 7h5v5"></path></svg></span>
         </div>
         <div class="kpi-value" id="kpiLucro">R$ 0,00</div>
         <div class="kpi-trend" id="kpiLucroLabel"></div>
       </div>
+      <div class="kpi-card kpi-variacao fm-card fm-card-hover">
+        <div class="kpi-header">
+          <span class="kpi-label">Variação vs mês anterior</span>
+          <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 18V6"></path><path d="M8 18V9"></path><path d="M12 18v-5"></path><path d="M16 18V7"></path><path d="M20 18v-8"></path></svg></span>
+        </div>
+        <div class="kpi-value" id="kpiVariacao">0%</div>
+        <div class="kpi-trend" id="kpiVariacaoTrend">Resultado do mês</div>
+      </div>
     </div>
+
+    <section class="dashboard-feature-grid" aria-label="Ações e análise inteligente">
+      <article class="dashboard-fluxia-card fm-card fm-card-premium" id="dashboardFluxiaCard">
+        <div>
+          <span class="fm-badge fm-badge-info">FluxIA</span>
+          <h2>Análise da FluxIA</h2>
+          <p id="dashboardFluxiaInsight">Cadastre movimentações para receber análises inteligentes.</p>
+        </div>
+        <button class="fm-btn fm-btn-primary" type="button" onclick="navigate('assistente')">Abrir Assistente Financeiro</button>
+      </article>
+
+      <article class="dashboard-quick-actions fm-card fm-card-simple">
+        <div class="dashboard-section-heading">
+          <span class="fm-caption">Atalhos</span>
+          <h2>Ações rápidas</h2>
+        </div>
+        <div class="dashboard-quick-actions-grid">
+          <button class="fm-btn fm-btn-outline" type="button" onclick="openNovaMovimentacao(); setTipo('entrada');">Adicionar receita</button>
+          <button class="fm-btn fm-btn-outline" type="button" onclick="openNovaMovimentacao(); setTipo('saida');">Adicionar despesa</button>
+          <button class="fm-btn fm-btn-outline" type="button" onclick="showToast('Metas financeiras em breve.')">Criar meta</button>
+          <button class="fm-btn fm-btn-outline" type="button" data-dashboard-export="resumo">Exportar dados</button>
+          <button class="fm-btn fm-btn-ghost" type="button" onclick="navigate('assistente')">Abrir FluxIA</button>
+        </div>
+      </article>
+    </section>
 
     <section class="dashboard-insights" id="dashboardInsights" aria-label="Insights financeiros"></section>
 
