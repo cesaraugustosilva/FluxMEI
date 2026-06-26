@@ -27,18 +27,26 @@ function createContextMockFrom(rowsByTable) {
   };
 }
 
-async function withMockedAiContext(rowsByTable, fn) {
+async function withMockedAiContext(rowsByTable, fn, options = {}) {
   const [{ supabaseAdmin }, service] = await Promise.all([
     import('../backend/src/config/supabase.js'),
     import('../backend/src/services/geminiService.js?ai-chat-tests')
   ]);
   const originalFrom = supabaseAdmin.from;
+  const originalGeminiApiKey = process.env.GEMINI_API_KEY;
   supabaseAdmin.from = createContextMockFrom(rowsByTable);
+  if (options.geminiApiKey === null) {
+    delete process.env.GEMINI_API_KEY;
+  } else {
+    process.env.GEMINI_API_KEY = options.geminiApiKey || originalGeminiApiKey || 'test-gemini-key';
+  }
 
   try {
     await fn(service);
   } finally {
     supabaseAdmin.from = originalFrom;
+    if (originalGeminiApiKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = originalGeminiApiKey;
   }
 }
 
@@ -195,6 +203,163 @@ test('falha do Gemini retorna erro amigavel sem detalhes do prompt', async () =>
       }
     );
   });
+});
+
+test('chat retorna erro especifico quando chave Gemini nao esta configurada', async () => {
+  await withMockedAiContext({
+    movimentacoes: [{
+      data: '2026-06-10',
+      tipo: 'entrada',
+      categoria: 'Servico',
+      descricao: 'Venda',
+      valor: 500
+    }],
+    das: [],
+    metas: []
+  }, async ({ responderAssistenteFinanceiro, GEMINI_MISSING_KEY_MESSAGE }) => {
+    await assert.rejects(
+      () => responderAssistenteFinanceiro({
+        userId: 'user-1',
+        message: 'Analisar meu mes',
+        model: { async generateContent() {} }
+      }),
+      (error) => {
+        assert.equal(error.statusCode, 503);
+        assert.equal(error.message, GEMINI_MISSING_KEY_MESSAGE);
+        assert.equal(error.expose, true);
+        return true;
+      }
+    );
+  }, { geminiApiKey: null });
+});
+
+test('chat retorna erro especifico quando modelo Gemini esta invalido', async () => {
+  await withMockedAiContext({
+    movimentacoes: [{
+      data: '2026-06-10',
+      tipo: 'entrada',
+      categoria: 'Servico',
+      descricao: 'Venda',
+      valor: 500
+    }],
+    das: [],
+    metas: []
+  }, async ({ responderAssistenteFinanceiro, GEMINI_INVALID_MODEL_MESSAGE }) => {
+    await assert.rejects(
+      () => responderAssistenteFinanceiro({
+        userId: 'user-1',
+        message: 'Analisar meu mes',
+        model: { model: 'gemini-invalido' }
+      }),
+      (error) => {
+        assert.equal(error.statusCode, 503);
+        assert.equal(error.message, GEMINI_INVALID_MODEL_MESSAGE);
+        assert.equal(error.expose, true);
+        return true;
+      }
+    );
+  });
+});
+
+test('chat classifica quota ou rate limit do Gemini com mensagem especifica', async () => {
+  await withMockedAiContext({
+    movimentacoes: [{
+      data: '2026-06-10',
+      tipo: 'entrada',
+      categoria: 'Servico',
+      descricao: 'Venda',
+      valor: 500
+    }],
+    das: [],
+    metas: []
+  }, async ({ responderAssistenteFinanceiro, GEMINI_RATE_LIMIT_MESSAGE }) => {
+    const originalError = console.error;
+    console.error = () => {};
+    const fakeModel = {
+      model: 'gemini-1.5-flash',
+      async generateContent() {
+        const error = new Error('RESOURCE_EXHAUSTED: quota exceeded');
+        error.status = 429;
+        throw error;
+      }
+    };
+
+    try {
+      await assert.rejects(
+        () => responderAssistenteFinanceiro({
+          userId: 'user-1',
+          message: 'Analisar meu mes',
+          model: fakeModel
+        }),
+        (error) => {
+          assert.equal(error.statusCode, 503);
+          assert.equal(error.message, GEMINI_RATE_LIMIT_MESSAGE);
+          assert.equal(error.expose, true);
+          return true;
+        }
+      );
+    } finally {
+      console.error = originalError;
+    }
+  });
+});
+
+test('falha do Gemini registra log seguro sem prompt contexto ou chave', async () => {
+  await withMockedAiContext({
+    movimentacoes: [{
+      data: '2026-06-10',
+      tipo: 'entrada',
+      categoria: 'Servico',
+      descricao: 'Venda secreta 4111111111111111',
+      valor: 500
+    }],
+    das: [],
+    metas: []
+  }, async ({ responderAssistenteFinanceiro }) => {
+    const logs = [];
+    const originalError = console.error;
+    console.error = (...args) => logs.push(args);
+    const fakeModel = {
+      model: 'gemini-1.5-flash',
+      async generateContent() {
+        const error = new Error('Gemini upstream failed token=abc123 12345678901 test-gemini-key');
+        error.name = 'GoogleGenerativeAIError';
+        error.status = 500;
+        error.response = {
+          statusCode: 500,
+          data: {
+            error: {
+              message: 'body has card 4111111111111111 and token=abc123 and cpf 12345678901'
+            }
+          }
+        };
+        throw error;
+      }
+    };
+
+    try {
+      await assert.rejects(() => responderAssistenteFinanceiro({
+        userId: 'user-1',
+        message: 'Analisar meu mes',
+        model: fakeModel
+      }));
+    } finally {
+      console.error = originalError;
+    }
+
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0][0], '[gemini:error]');
+    const payload = logs[0][1];
+    assert.equal(payload.provider, 'gemini');
+    assert.equal(payload.operation, 'responderAssistenteFinanceiro');
+    assert.equal(payload.status, 500);
+    assert.equal(payload.statusCode, 500);
+    assert.equal(payload.name, 'GoogleGenerativeAIError');
+    assert.equal(payload.has_gemini_api_key, true);
+    assert.equal(payload.model, 'gemini-1.5-flash');
+    const serialized = JSON.stringify(payload);
+    assert.doesNotMatch(serialized, /test-gemini-key|4111111111111111|12345678901|token=abc123|Venda secreta|contexto_financeiro|pergunta/);
+  }, { geminiApiKey: 'test-gemini-key' });
 });
 
 test('insights automaticos usam dados financeiros reais', async () => {

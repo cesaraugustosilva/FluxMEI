@@ -1,9 +1,13 @@
-import { aiProvider, geminiModel } from '../config/gemini.js';
+import { aiProvider, geminiModel, geminiModelName } from '../config/gemini.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
 import { fetchMovimentacoes, summarizeMovimentacoes } from './relatorioService.js';
 
 export const INSUFFICIENT_FINANCIAL_DATA_MESSAGE = 'Ainda não há dados financeiros suficientes para uma análise completa.';
+export const GEMINI_MISSING_KEY_MESSAGE = 'Assistente financeiro indisponível: chave Gemini não configurada.';
+export const GEMINI_INVALID_MODEL_MESSAGE = 'Assistente financeiro indisponível: modelo Gemini inválido ou indisponível.';
+export const GEMINI_RATE_LIMIT_MESSAGE = 'Limite temporário da IA atingido. Tente novamente em alguns minutos.';
+export const GEMINI_GENERIC_ERROR_MESSAGE = 'Nao foi possivel gerar resposta agora. Tente novamente em instantes.';
 
 const PROMPT = `Voce e um assistente financeiro para MEIs no Brasil.
 Analise os dados financeiros fornecidos e gere um relatorio simples, claro e util.
@@ -41,6 +45,80 @@ function sanitizeText(value, max = 180) {
     .replace(/\b\d{3,4}\b/g, (match) => (/(cvv|cvc|codigo|cartao)/i.test(value) ? '[codigo_removido]' : match))
     .replace(/(senha|token|secret|secrets|cvv|cvc)\s*[:=]\s*\S+/gi, '$1=[removido]')
     .slice(0, max);
+}
+
+function sanitizeLogText(value, max = 1200) {
+  if (value === undefined || value === null) return null;
+  const text = typeof value === 'string' ? value : JSON.stringify(value);
+  return text
+    .replace(process.env.GEMINI_API_KEY || '__no_gemini_key__', '[gemini_key_redacted]')
+    .replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, '[documento_removido]')
+    .replace(/\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/g, '[documento_removido]')
+    .replace(/\b(?:\d[ -]*?){13,19}\b/g, '[cartao_removido]')
+    .replace(/(authorization|token|api[_-]?key|secret|senha|cvv|cvc)\s*[:=]\s*["']?[^"',\s}]+/gi, '$1=[removido]')
+    .slice(0, max);
+}
+
+function getGeminiStatus(error = {}) {
+  return error.status
+    || error.statusCode
+    || error.code
+    || error.response?.status
+    || error.response?.statusCode
+    || null;
+}
+
+function getGeminiResponseBody(error = {}) {
+  return error.response?.data
+    || error.response?.body
+    || error.responseBody
+    || error.body
+    || error.details
+    || null;
+}
+
+function getGeminiErrorSignal(error = {}) {
+  return [
+    error.message,
+    error.name,
+    error.code,
+    error.status,
+    error.statusCode,
+    error.response?.status,
+    getGeminiResponseBody(error)
+  ].filter(Boolean).map((item) => (typeof item === 'string' ? item : JSON.stringify(item))).join(' ');
+}
+
+function isGeminiRateLimitError(error = {}) {
+  const status = Number(getGeminiStatus(error));
+  const signal = getGeminiErrorSignal(error);
+  return status === 429
+    || /RESOURCE_EXHAUSTED|rate.?limit|quota|too many requests/i.test(signal);
+}
+
+function isGeminiInvalidModelError(error = {}) {
+  const status = Number(getGeminiStatus(error));
+  const signal = getGeminiErrorSignal(error);
+  return [400, 404].includes(status)
+    && /(model|models\/|not found|not_found|invalid|unsupported|indisponivel|unavailable)/i.test(signal);
+}
+
+function getGeminiModelLabel(model) {
+  return model?.model || model?.modelName || model?._model || geminiModelName;
+}
+
+function logGeminiError(error, model) {
+  console.error('[gemini:error]', {
+    provider: 'gemini',
+    operation: 'responderAssistenteFinanceiro',
+    status: getGeminiStatus(error),
+    statusCode: error?.statusCode || error?.response?.statusCode || null,
+    message: sanitizeLogText(error?.message, 500),
+    name: error?.name || null,
+    response_body: sanitizeLogText(getGeminiResponseBody(error)),
+    has_gemini_api_key: Boolean(process.env.GEMINI_API_KEY),
+    model: getGeminiModelLabel(model)
+  });
 }
 
 function monthKey(dateValue) {
@@ -261,6 +339,10 @@ export async function responderAssistenteFinanceiro({ userId, message, model = g
     throw new AppError('Assistente financeiro indisponivel no momento.', 503, null, { expose: true });
   }
 
+  if (!process.env.GEMINI_API_KEY) {
+    throw new AppError(GEMINI_MISSING_KEY_MESSAGE, 503, null, { expose: true });
+  }
+
   const context = await buildFinancialAiContext(userId);
   const insights = generateAutomaticInsights(context);
 
@@ -272,7 +354,9 @@ export async function responderAssistenteFinanceiro({ userId, message, model = g
     };
   }
 
-  if (!model) throw new AppError('Assistente financeiro indisponivel no momento.', 503, null, { expose: true });
+  if (!model || typeof model.generateContent !== 'function') {
+    throw new AppError(GEMINI_INVALID_MODEL_MESSAGE, 503, null, { expose: true });
+  }
   const payload = {
     pergunta: message,
     contexto_financeiro: context
@@ -290,7 +374,14 @@ export async function responderAssistenteFinanceiro({ userId, message, model = g
       insights
     };
   } catch (error) {
-    throw new AppError('Nao foi possivel gerar resposta agora. Tente novamente em instantes.', 503, null, { expose: true });
+    logGeminiError(error, model);
+    if (isGeminiRateLimitError(error)) {
+      throw new AppError(GEMINI_RATE_LIMIT_MESSAGE, 503, null, { expose: true });
+    }
+    if (isGeminiInvalidModelError(error)) {
+      throw new AppError(GEMINI_INVALID_MODEL_MESSAGE, 503, null, { expose: true });
+    }
+    throw new AppError(GEMINI_GENERIC_ERROR_MESSAGE, 503, null, { expose: true });
   }
 }
 
