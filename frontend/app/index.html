@@ -453,12 +453,23 @@
 
   <!-- ====== ASSISTENTE FINANCEIRO ====== -->
   <section class="page" id="page-assistente">
-    <div class="page-header ai-page-header">
-      <div>
+    <div class="ai-hero">
+      <div class="ai-hero-copy">
+        <div class="ai-hero-kicker">
+          <span class="ai-badge">FluxIA</span>
+          <span>Especialista em MEIs brasileiros</span>
+        </div>
         <h1 class="page-title">Assistente Financeiro</h1>
-        <p class="page-subtitle">A IA analisa automaticamente suas finanças e gera recomendações personalizadas.</p>
+        <p>Entenda seus números, descubra oportunidades e tome decisões melhores com IA.</p>
       </div>
-      <button class="btn btn-outline" type="button" id="aiNewConversation">Nova conversa</button>
+      <div class="ai-hero-visual" aria-hidden="true">
+        <div class="ai-hero-panel">
+          <span></span>
+          <strong>FluxIA</strong>
+          <small>receitas, despesas e metas</small>
+          <div></div>
+        </div>
+      </div>
     </div>
 
     <section class="ai-insights-grid" id="aiInsightsGrid" aria-label="Insights do assistente financeiro"></section>
@@ -466,31 +477,60 @@
     <section class="ai-shell">
       <aside class="ai-history-panel">
         <div class="ai-history-header">
-          <strong>Histórico</strong>
-          <span>Últimas conversas</span>
+          <div>
+            <strong>Conversas recentes</strong>
+            <span>Continue uma análise ou comece do zero.</span>
+          </div>
+          <button class="btn btn-primary btn-sm" type="button" id="aiNewConversation">Nova conversa</button>
         </div>
         <div class="ai-history-list" id="aiHistoryList"></div>
+        <div class="ai-privacy-card" id="aiPrivacyCard">
+          <span>Privacidade</span>
+          <p>Seus dados financeiros são usados apenas para gerar esta análise. Nunca enviamos CPF/CNPJ, cartão, tokens ou dados sensíveis para a IA.</p>
+        </div>
       </aside>
 
       <div class="ai-chat-panel">
+        <div class="ai-chat-header">
+          <div class="ai-avatar" aria-hidden="true">FX</div>
+          <div>
+            <strong>FluxIA</strong>
+            <span>Online para analisar seu financeiro</span>
+          </div>
+        </div>
+
         <div class="ai-suggestions" id="aiSuggestions">
           <button type="button" data-ai-prompt="Analisar meu mês">Analisar meu mês</button>
           <button type="button" data-ai-prompt="Como posso economizar?">Como posso economizar?</button>
           <button type="button" data-ai-prompt="Qual minha maior despesa?">Qual minha maior despesa?</button>
           <button type="button" data-ai-prompt="Estou lucrando?">Estou lucrando?</button>
           <button type="button" data-ai-prompt="Como bater minha meta?">Como bater minha meta?</button>
+          <button type="button" data-ai-prompt="Prever próximo mês">Prever próximo mês</button>
         </div>
 
         <div class="ai-chat-messages" id="aiChatMessages" aria-live="polite">
           <div class="ai-empty-chat">
-            <strong>Como posso ajudar nas suas finanças?</strong>
-            <span>Pergunte sobre gastos, lucro, metas, DAS, previsão ou economia.</span>
+            <div class="ai-empty-illustration" aria-hidden="true">
+              <svg viewBox="0 0 160 120" role="img">
+                <rect x="22" y="18" width="116" height="84" rx="18"></rect>
+                <path d="M43 76l22-22 18 14 30-36"></path>
+                <circle cx="43" cy="76" r="5"></circle>
+                <circle cx="65" cy="54" r="5"></circle>
+                <circle cx="83" cy="68" r="5"></circle>
+                <circle cx="113" cy="32" r="5"></circle>
+              </svg>
+            </div>
+            <strong>Cadastre algumas receitas e despesas para a FluxIA gerar análises mais precisas.</strong>
+            <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">Adicionar movimentação</button>
           </div>
         </div>
 
         <form class="ai-chat-form" id="aiChatForm">
           <input id="aiChatInput" type="text" autocomplete="off" placeholder="Pergunte algo sobre suas finanças..." />
-          <button class="btn btn-primary" type="submit" id="aiChatSubmit">Enviar</button>
+          <button class="btn btn-primary ai-send-button" type="submit" id="aiChatSubmit" aria-label="Enviar pergunta">
+            <span>Enviar</span>
+            <span aria-hidden="true">→</span>
+          </button>
         </form>
       </div>
     </section>

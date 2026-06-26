@@ -230,18 +230,32 @@ test('controller registra auditoria de chat e analise', () => {
 test('frontend possui tela de assistente, chat, sugestoes e historico', () => {
   assert.match(appHtml, /data-page="assistente"/);
   assert.match(appHtml, /id="page-assistente"/);
+  assert.match(appHtml, /class="ai-hero"/);
+  assert.match(appHtml, /FluxIA/);
+  assert.match(appHtml, /Especialista em MEIs brasileiros/);
   assert.match(appHtml, /id="aiInsightsGrid"/);
+  assert.match(appHtml, /id="aiPrivacyCard"/);
+  assert.match(appHtml, /Nunca enviamos CPF\/CNPJ, cartão, tokens ou dados sensíveis para a IA/);
   assert.match(appHtml, /id="aiChatForm"/);
+  assert.match(appHtml, /id="aiChatInput"/);
+  assert.match(appHtml, /id="aiChatSubmit"/);
   assert.match(appHtml, /data-ai-prompt="Analisar meu mês"/);
   assert.match(appHtml, /data-ai-prompt="Como posso economizar\?"/);
   assert.match(appHtml, /data-ai-prompt="Qual minha maior despesa\?"/);
   assert.match(appHtml, /data-ai-prompt="Estou lucrando\?"/);
   assert.match(appHtml, /data-ai-prompt="Como bater minha meta\?"/);
+  assert.match(appHtml, /data-ai-prompt="Prever próximo mês"/);
   assert.match(appHtml, /id="aiHistoryList"/);
+  assert.match(appHtml, /id="aiNewConversation"/);
   assert.match(appJs, /apiRequest\('\/ai\/insights'\)/);
   assert.match(appJs, /apiRequest\('\/ai\/chat'/);
   assert.match(appJs, /apiRequest\(`\/ai\/conversations\/\$\{encodeURIComponent\(id\)\}`\)/);
+  assert.match(appJs, /data-ai-rename/);
+  assert.match(appJs, /data-ai-delete/);
+  assert.match(appJs, /analisando suas financas/);
+  assert.match(appCss, /\.ai-hero/);
   assert.match(appCss, /\.ai-shell/);
+  assert.match(appCss, /\.ai-privacy-card/);
   assert.match(appCss, /\.ai-message\.typing/);
 });
 

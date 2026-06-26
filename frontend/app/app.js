@@ -3195,23 +3195,34 @@ function aiMarkdown(text) {
     .replace(/\n/g, '<br>');
 }
 
+function getAiInsightIcon(type) {
+  const icons = {
+    positive: '↑',
+    warning: '!',
+    danger: '!',
+    info: 'i',
+    goal: '◎'
+  };
+  return icons[type] || 'i';
+}
+
 function renderAiInsights() {
   const root = document.getElementById('aiInsightsGrid');
   if (!root) return;
 
   if (!state.aiInsights.length) {
     root.innerHTML = `
-      <article class="ai-insight-card info">
-        <span>AI</span>
+      <article class="ai-insight-card info loading">
+        <span>FX</span>
         <p>Carregando analise automatica das suas financas...</p>
       </article>
     `;
     return;
   }
 
-  root.innerHTML = state.aiInsights.map((insight) => `
-    <article class="ai-insight-card ${esc(insight.type || 'info')}">
-      <span>${insight.type === 'positive' ? '↗' : insight.type === 'danger' ? '!' : insight.type === 'goal' ? '◎' : '•'}</span>
+  root.innerHTML = state.aiInsights.map((insight, index) => `
+    <article class="ai-insight-card ${esc(insight.type || 'info')}" style="--delay:${index * 60}ms">
+      <span>${getAiInsightIcon(insight.type || 'info')}</span>
       <p>${esc(insight.title)}</p>
       ${insight.metric !== undefined ? `<strong>${typeof insight.metric === 'number' ? formatBRL(insight.metric) : esc(insight.metric)}</strong>` : ''}
     </article>
@@ -3223,7 +3234,12 @@ function renderAiHistory() {
   if (!root) return;
 
   if (!state.aiConversations.length) {
-    root.innerHTML = '<div class="ai-history-empty">Nenhuma conversa ainda.</div>';
+    root.innerHTML = `
+      <div class="ai-history-empty">
+        <strong>Nenhuma conversa ainda</strong>
+        <span>Use uma sugestao rapida ou envie sua primeira pergunta.</span>
+      </div>
+    `;
     return;
   }
 
@@ -3248,8 +3264,18 @@ function renderAiMessages() {
   if (!state.aiMessages.length && !state.aiLoading) {
     root.innerHTML = `
       <div class="ai-empty-chat">
-        <strong>Como posso ajudar nas suas financas?</strong>
-        <span>Pergunte sobre gastos, lucro, metas, DAS, previsao ou economia.</span>
+        <div class="ai-empty-illustration" aria-hidden="true">
+          <svg viewBox="0 0 160 120" role="img">
+            <rect x="22" y="18" width="116" height="84" rx="18"></rect>
+            <path d="M43 76l22-22 18 14 30-36"></path>
+            <circle cx="43" cy="76" r="5"></circle>
+            <circle cx="65" cy="54" r="5"></circle>
+            <circle cx="83" cy="68" r="5"></circle>
+            <circle cx="113" cy="32" r="5"></circle>
+          </svg>
+        </div>
+        <strong>Cadastre algumas receitas e despesas para a FluxIA gerar analises mais precisas.</strong>
+        <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">Adicionar movimentacao</button>
       </div>
     `;
     return;
@@ -3257,10 +3283,23 @@ function renderAiMessages() {
 
   root.innerHTML = state.aiMessages.map((message) => `
     <article class="ai-message ${esc(message.role)}">
-      <div>${message.role === 'assistant' ? `<p>${aiMarkdown(message.content)}</p>` : esc(message.content)}</div>
+      ${message.role === 'assistant' ? '<span class="ai-message-avatar">FX</span>' : ''}
+      <div>
+        ${message.role === 'assistant' ? '<strong class="ai-message-author">FluxIA</strong>' : ''}
+        ${message.role === 'assistant' ? `<p>${aiMarkdown(message.content)}</p>` : esc(message.content)}
+      </div>
     </article>
-  `).join('') + (state.aiLoading ? '<article class="ai-message assistant typing"><div><span></span><span></span><span></span></div></article>' : '');
-  root.scrollTop = root.scrollHeight;
+  `).join('') + (state.aiLoading ? `
+    <article class="ai-message assistant typing">
+      <span class="ai-message-avatar">FX</span>
+      <div>
+        <strong class="ai-message-author">FluxIA</strong>
+        <p>analisando suas financas...</p>
+        <span></span><span></span><span></span>
+      </div>
+    </article>
+  ` : '');
+  root.scrollTo({ top: root.scrollHeight, behavior: 'smooth' });
 }
 
 function renderAiAssistant() {
