@@ -1359,13 +1359,18 @@ function fmtDate(ano, mes, dia) {
 function navigate(page) {
   currentPage = page;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.querySelectorAll('.bottom-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.nav-item, .bottom-item').forEach((n) => {
+    n.classList.remove('active');
+    n.removeAttribute('aria-current');
+  });
 
   const pg = document.getElementById('page-' + page);
   if (pg) pg.classList.add('active');
 
-  document.querySelectorAll(`[data-page="${page}"]`).forEach(el => el.classList.add('active'));
+  document.querySelectorAll(`.nav-item[data-page="${page}"], .bottom-item[data-page="${page}"]`).forEach((el) => {
+    el.classList.add('active');
+    el.setAttribute('aria-current', 'page');
+  });
 
   closeMobileMenu();
   renderPage(page);
@@ -1385,9 +1390,24 @@ function renderPage(page) {
 }
 
 // ===== MOBILE MENU =====
+function setMobileMenuState(open) {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('mobileOverlay');
+  const hamburger = document.getElementById('hamburger');
+  if (sidebar) sidebar.classList.toggle('mobile-open', open);
+  if (overlay) {
+    overlay.classList.toggle('active', open);
+    overlay.setAttribute('aria-hidden', open ? 'false' : 'true');
+  }
+  if (hamburger) hamburger.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function openMobileMenu() {
+  setMobileMenuState(true);
+}
+
 function closeMobileMenu() {
-  document.getElementById('sidebar').classList.remove('mobile-open');
-  document.getElementById('mobileOverlay').classList.remove('active');
+  setMobileMenuState(false);
 }
 
 // ===== ONBOARDING =====
@@ -3194,10 +3214,97 @@ function updateDasPreview() {
 }
 
 function updateSidebarUser() {
-  const nome = state.config.nome || 'FluxMEI';
+  const nome = state.config.nome || state.profile?.nome || state.user?.user_metadata?.nome || 'FluxMEI';
+  const email = state.user?.email || 'email@exemplo.com';
+  const statusMeta = getSidebarSubscriptionMeta();
   document.querySelectorAll('.user-name').forEach(el=>el.textContent=nome);
   document.querySelectorAll('.user-avatar').forEach(el=>el.textContent=nome.charAt(0).toUpperCase());
   document.querySelectorAll('.user-plan').forEach(el=>el.textContent=getPlanLabel());
+  document.querySelectorAll('.user-email').forEach(el=>el.textContent=email);
+  document.querySelectorAll('.user-status').forEach((el) => {
+    el.textContent = statusMeta.label;
+    el.classList.toggle('warning', statusMeta.warning);
+  });
+  renderSidebarUpgradeCta();
+}
+
+function getSidebarSubscriptionMeta(status = subscriptionStatus) {
+  const estado = status?.estado || status?.status || '';
+  const dias = Number(status?.dias_restantes || 0);
+  if (status?.bloqueado || ['expirado', 'bloqueado', 'vencido'].includes(estado)) {
+    return { label: 'Acesso requer atenção', warning: true };
+  }
+  if (['pendente_pagamento', 'pendente'].includes(estado)) {
+    return { label: 'Pagamento pendente', warning: true };
+  }
+  if (estado === 'teste_gratis') {
+    return { label: dias ? `Trial: ${dias} dia(s)` : 'Trial ativo', warning: dias <= 3 };
+  }
+  if (estado === 'ativo') {
+    return { label: dias ? `Ativo: ${dias} dia(s)` : 'Assinatura ativa', warning: dias <= 7 };
+  }
+  return { label: 'Status da assinatura', warning: false };
+}
+
+function renderSidebarUpgradeCta(status = subscriptionStatus) {
+  const root = document.getElementById('sidebarUpgradeCta');
+  if (!root) return;
+  const text = document.getElementById('sidebarUpgradeText');
+  const action = document.getElementById('sidebarUpgradeAction');
+  const estado = status?.estado || status?.status || '';
+  const dias = Number(status?.dias_restantes || 0);
+  const isBlocked = status?.bloqueado || ['expirado', 'bloqueado', 'vencido'].includes(estado);
+  const isTrial = estado === 'teste_gratis';
+  const needsRenewal = estado === 'ativo' && dias > 0 && dias <= 7;
+  const isPending = ['pendente_pagamento', 'pendente'].includes(estado);
+
+  if (!isBlocked && !isTrial && !needsRenewal && !isPending) {
+    root.hidden = true;
+    return;
+  }
+
+  root.hidden = false;
+  if (text) {
+    text.textContent = isBlocked
+      ? 'Renove para continuar acessando seus dados.'
+      : isPending
+        ? 'Finalize o pagamento para manter seu acesso.'
+        : needsRenewal
+          ? `Seu plano vence em ${dias} dia(s).`
+          : 'Assine para continuar após o período gratuito.';
+  }
+  if (action) {
+    action.textContent = isBlocked || needsRenewal || isPending ? 'Renovar' : 'Assinar agora';
+    action.href = getCheckoutUrlForPlan(getCurrentPlanId(status) !== 'gratuito' ? getCurrentPlanId(status) : 'pro_mensal');
+  }
+}
+
+function openAccountSection(section) {
+  openAccountPanel();
+  const selectors = {
+    referral: '#accountReferralCard',
+    export: '.account-export-card',
+    payments: '#accountPaymentHistorySection'
+  };
+  const selector = selectors[section];
+  if (!selector) return;
+  window.setTimeout(() => {
+    document.querySelector(selector)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 120);
+}
+
+function handleSidebarAction(action) {
+  if (action === 'account') {
+    openAccountPanel();
+    return;
+  }
+  if (action === 'referral' || action === 'export' || action === 'payments') {
+    openAccountSection(action);
+    return;
+  }
+  if (action === 'support') {
+    showToast('Fale com o suporte pelo e-mail suporte@fluxmei.com.br.');
+  }
 }
 
 async function limparTudo() {
@@ -3529,12 +3636,21 @@ async function init() {
 
   // Hamburger
   document.getElementById('hamburger').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.toggle('mobile-open');
-    document.getElementById('mobileOverlay').classList.toggle('active');
+    const sidebar = document.getElementById('sidebar');
+    setMobileMenuState(!sidebar?.classList.contains('mobile-open'));
   });
   document.getElementById('mobileOverlay').addEventListener('click', closeMobileMenu);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeMobileMenu();
+  });
 
   document.getElementById('accountMenuButton')?.addEventListener('click', openAccountPanel);
+  document.querySelectorAll('[data-sidebar-action]').forEach((button) => {
+    button.addEventListener('click', () => {
+      handleSidebarAction(button.dataset.sidebarAction);
+      closeMobileMenu();
+    });
+  });
   document.getElementById('accountModalClose')?.addEventListener('click', closeAccountPanel);
   document.getElementById('accountPlanSwitchAction')?.addEventListener('click', (event) => {
     confirmPlanSwitch(event.currentTarget.dataset.targetPlan);
