@@ -83,6 +83,7 @@ SUPABASE_ANON_KEY=sua_chave_anon
 SUPABASE_SERVICE_ROLE_KEY=sua_chave_service_role
 
 GEMINI_API_KEY=sua_chave_gemini
+AI_PROVIDER=gemini
 
 PAYMENT_GATEWAY=asaas
 ASAAS_API_KEY=sua_api_key_asaas

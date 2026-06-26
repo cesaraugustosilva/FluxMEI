@@ -1,7 +1,9 @@
-import { geminiModel } from '../config/gemini.js';
+import { aiProvider, geminiModel } from '../config/gemini.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
 import { fetchMovimentacoes, summarizeMovimentacoes } from './relatorioService.js';
+
+export const INSUFFICIENT_FINANCIAL_DATA_MESSAGE = 'Ainda não há dados financeiros suficientes para uma análise completa.';
 
 const PROMPT = `Voce e um assistente financeiro para MEIs no Brasil.
 Analise os dados financeiros fornecidos e gere um relatorio simples, claro e util.
@@ -18,6 +20,7 @@ Mostre:
 Nao invente dados. Se faltar informacao, avise.`;
 
 export const FINANCIAL_ASSISTANT_PROMPT = `Voce e um consultor financeiro especializado em MEIs brasileiros dentro do FluxMEI.
+Você é o Assistente Financeiro do FluxMEI, especializado em MEIs brasileiros. Responda de forma prática, objetiva e baseada apenas nos dados enviados.
 Responda de forma profissional, objetiva e didatica.
 Use somente os dados financeiros enviados no contexto.
 Nao invente numeros, metas, despesas, receitas, datas ou eventos.
@@ -28,6 +31,16 @@ Priorize recomendacoes praticas, com proximos passos simples para o MEI.`;
 function moneyNumber(value) {
   const number = Number(value || 0);
   return Number.isFinite(number) ? Math.round(number * 100) / 100 : 0;
+}
+
+function sanitizeText(value, max = 180) {
+  return String(value || '')
+    .replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, '[documento_removido]')
+    .replace(/\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/g, '[documento_removido]')
+    .replace(/\b(?:\d[ -]*?){13,19}\b/g, '[cartao_removido]')
+    .replace(/\b\d{3,4}\b/g, (match) => (/(cvv|cvc|codigo|cartao)/i.test(value) ? '[codigo_removido]' : match))
+    .replace(/(senha|token|secret|secrets|cvv|cvc)\s*[:=]\s*\S+/gi, '$1=[removido]')
+    .slice(0, max);
 }
 
 function monthKey(dateValue) {
@@ -48,11 +61,23 @@ function sanitizeMovement(item = {}) {
   return {
     data: item.data || null,
     tipo: item.tipo || null,
-    categoria: item.categoria || null,
-    descricao: item.descricao || null,
+    categoria: sanitizeText(item.categoria, 80) || null,
+    descricao: sanitizeText(item.descricao) || null,
     valor: moneyNumber(item.valor),
-    forma_pagamento: item.forma_pagamento || null,
-    observacao: item.observacao || null
+    forma_pagamento: sanitizeText(item.forma_pagamento, 40) || null,
+    observacao: sanitizeText(item.observacao, 220) || null
+  };
+}
+
+function sanitizeGoal(item = {}) {
+  return {
+    id: item.id || null,
+    nome: sanitizeText(item.nome || item.titulo || item.title, 100) || null,
+    descricao: sanitizeText(item.descricao || item.description, 180) || null,
+    valor: moneyNumber(item.valor || item.valor_meta || item.valor_alvo || item.meta),
+    valor_atual: moneyNumber(item.valor_atual || item.progresso || item.atual),
+    prazo: item.prazo || item.data_limite || item.deadline || null,
+    status: sanitizeText(item.status, 60) || null
   };
 }
 
@@ -131,7 +156,7 @@ export async function buildFinancialAiContext(userId) {
     resumo,
     movimentacoes,
     categorias: resumo.categorias_despesas,
-    metas: metasRaw || [],
+    metas: (metasRaw || []).map(sanitizeGoal),
     das: (dasRaw || []).map((item) => ({
       mes_referencia: item.mes_referencia || null,
       vencimento: item.vencimento || null,
@@ -223,7 +248,7 @@ export function generateAutomaticInsights(context = {}) {
   if (!context.movimentacoes?.length) {
     insights.push({
       type: 'info',
-      title: 'Ainda nao ha movimentacoes suficientes para uma analise completa.',
+      title: INSUFFICIENT_FINANCIAL_DATA_MESSAGE,
       metric: 0
     });
   }
@@ -231,26 +256,42 @@ export function generateAutomaticInsights(context = {}) {
   return insights.slice(0, 6);
 }
 
-export async function responderAssistenteFinanceiro({ userId, message }) {
-  if (!geminiModel) throw new AppError('GEMINI_API_KEY nao configurada.', 500);
+export async function responderAssistenteFinanceiro({ userId, message, model = geminiModel }) {
+  if (aiProvider !== 'gemini') {
+    throw new AppError('Assistente financeiro indisponivel no momento.', 503, null, { expose: true });
+  }
 
   const context = await buildFinancialAiContext(userId);
+  const insights = generateAutomaticInsights(context);
+
+  if (!context.resumo.quantidade_movimentacoes) {
+    return {
+      answer: INSUFFICIENT_FINANCIAL_DATA_MESSAGE,
+      context,
+      insights
+    };
+  }
+
+  if (!model) throw new AppError('Assistente financeiro indisponivel no momento.', 503, null, { expose: true });
   const payload = {
-    instrucoes: FINANCIAL_ASSISTANT_PROMPT,
     pergunta: message,
     contexto_financeiro: context
   };
 
-  const result = await geminiModel.generateContent([
-    FINANCIAL_ASSISTANT_PROMPT,
-    JSON.stringify(payload, null, 2)
-  ]);
+  try {
+    const result = await model.generateContent([
+      FINANCIAL_ASSISTANT_PROMPT,
+      JSON.stringify(payload, null, 2)
+    ]);
 
-  return {
-    answer: result.response.text(),
-    context,
-    insights: generateAutomaticInsights(context)
-  };
+    return {
+      answer: result.response.text(),
+      context,
+      insights
+    };
+  } catch (error) {
+    throw new AppError('Nao foi possivel gerar resposta agora. Tente novamente em instantes.', 503, null, { expose: true });
+  }
 }
 
 export async function gerarRelatorioIA(userId, periodo) {
@@ -290,6 +331,7 @@ export async function gerarRelatorioIA(userId, periodo) {
 
 export const geminiAssistantTestUtils = {
   sanitizeMovement,
+  sanitizeGoal,
   summarizeSafeMovements,
   generateAutomaticInsights
 };

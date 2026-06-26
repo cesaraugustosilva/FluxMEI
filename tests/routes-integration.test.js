@@ -96,5 +96,16 @@ test('rotas do assistente financeiro exigem autenticacao no Express', async () =
     const payload = await response.json();
     assert.equal(typeof payload, 'object');
     assert.notEqual(payload, null);
+
+    const chatResponse = await fetch(`${baseUrl}/api/ai/chat`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: 'Estou lucrando?' })
+    });
+
+    assert.equal(chatResponse.status, 401);
+    const chatPayload = await chatResponse.json();
+    assert.equal(typeof chatPayload, 'object');
+    assert.notEqual(chatPayload, null);
   });
 });

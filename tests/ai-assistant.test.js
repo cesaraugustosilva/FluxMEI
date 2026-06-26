@@ -27,6 +27,21 @@ function createContextMockFrom(rowsByTable) {
   };
 }
 
+async function withMockedAiContext(rowsByTable, fn) {
+  const [{ supabaseAdmin }, service] = await Promise.all([
+    import('../backend/src/config/supabase.js'),
+    import('../backend/src/services/geminiService.js?ai-chat-tests')
+  ]);
+  const originalFrom = supabaseAdmin.from;
+  supabaseAdmin.from = createContextMockFrom(rowsByTable);
+
+  try {
+    await fn(service);
+  } finally {
+    supabaseAdmin.from = originalFrom;
+  }
+}
+
 test('migration e schema criam historico seguro do assistente financeiro', () => {
   for (const source of [migration, schema]) {
     assert.match(source, /create table if not exists public\.ai_conversations/);
@@ -82,6 +97,106 @@ test('contexto financeiro da IA usa apenas dados permitidos e remove sensiveis',
   }
 });
 
+test('chat retorna resposta do Gemini usando contexto financeiro sanitizado', async () => {
+  await withMockedAiContext({
+    movimentacoes: [{
+      data: '2026-06-10',
+      tipo: 'entrada',
+      categoria: 'Servico',
+      descricao: 'Cliente recorrente cartao 4111111111111111',
+      valor: 1200,
+      forma_pagamento: 'pix',
+      observacao: 'token=abc123'
+    }, {
+      data: '2026-06-12',
+      tipo: 'saida',
+      categoria: 'Marketing',
+      descricao: 'Anuncios',
+      valor: 200
+    }],
+    das: [],
+    metas: [{ id: 'meta-1', nome: 'Reserva', valor: 1000, provider_raw: { secret: true } }]
+  }, async ({ responderAssistenteFinanceiro }) => {
+    let sentPrompt = '';
+    let sentPayload = '';
+    const fakeModel = {
+      async generateContent(parts) {
+        sentPrompt = JSON.stringify(parts);
+        sentPayload = parts[1];
+        return { response: { text: () => 'Voce esta lucrando e pode reforcar a reserva.' } };
+      }
+    };
+
+    const result = await responderAssistenteFinanceiro({
+      userId: 'user-1',
+      message: 'Estou lucrando?',
+      model: fakeModel
+    });
+
+    assert.equal(result.answer, 'Voce esta lucrando e pode reforcar a reserva.');
+    assert.equal(result.context.resumo.saldo, 1000);
+    assert.match(sentPrompt, /Assistente Financeiro do FluxMEI/);
+    assert.doesNotMatch(sentPayload, /4111111111111111|token=abc123|provider_raw|secret/);
+  });
+});
+
+test('chat sem dados suficientes responde claramente sem chamar Gemini', async () => {
+  await withMockedAiContext({
+    movimentacoes: [],
+    das: [],
+    metas: []
+  }, async ({ responderAssistenteFinanceiro, INSUFFICIENT_FINANCIAL_DATA_MESSAGE }) => {
+    const fakeModel = {
+      async generateContent() {
+        throw new Error('Gemini nao deveria ser chamado sem dados');
+      }
+    };
+
+    const result = await responderAssistenteFinanceiro({
+      userId: 'user-1',
+      message: 'Analisar meu mes',
+      model: fakeModel
+    });
+
+    assert.equal(result.answer, INSUFFICIENT_FINANCIAL_DATA_MESSAGE);
+  });
+});
+
+test('falha do Gemini retorna erro amigavel sem detalhes do prompt', async () => {
+  await withMockedAiContext({
+    movimentacoes: [{
+      data: '2026-06-10',
+      tipo: 'entrada',
+      categoria: 'Servico',
+      descricao: 'Venda',
+      valor: 500
+    }],
+    das: [],
+    metas: []
+  }, async ({ responderAssistenteFinanceiro }) => {
+    const fakeModel = {
+      async generateContent() {
+        throw new Error('upstream prompt with sensitive payload');
+      }
+    };
+
+    await assert.rejects(
+      () => responderAssistenteFinanceiro({
+        userId: 'user-1',
+        message: 'Analisar meu mes',
+        model: fakeModel
+      }),
+      (error) => {
+        assert.equal(error.statusCode, 503);
+        assert.equal(error.expose, true);
+        assert.equal(error.message, 'Nao foi possivel gerar resposta agora. Tente novamente em instantes.');
+        assert.equal(error.details, null);
+        return true;
+      }
+    );
+  });
+});
+
 test('insights automaticos usam dados financeiros reais', async () => {
   const { geminiAssistantTestUtils } = await import('../backend/src/services/geminiService.js?ai-insights-tests');
   const currentMonth = new Date().toISOString().slice(0, 7);
@@ -108,6 +223,8 @@ test('controller registra auditoria de chat e analise', () => {
   assert.match(aiController, /action: 'ai\.analysis'/);
   assert.match(aiController, /responderAssistenteFinanceiro/);
   assert.match(geminiService, /Nunca solicite nem mencione senha, token, CPF\/CNPJ, dados de cartao, CVV, provider_raw ou secrets/);
+  assert.match(geminiService, /Assistente Financeiro do FluxMEI/);
+  assert.match(geminiService, /Ainda não há dados financeiros suficientes para uma análise completa/);
 });
 
 test('frontend possui tela de assistente, chat, sugestoes e historico', () => {
@@ -116,6 +233,10 @@ test('frontend possui tela de assistente, chat, sugestoes e historico', () => {
   assert.match(appHtml, /id="aiInsightsGrid"/);
   assert.match(appHtml, /id="aiChatForm"/);
   assert.match(appHtml, /data-ai-prompt="Analisar meu mês"/);
+  assert.match(appHtml, /data-ai-prompt="Como posso economizar\?"/);
+  assert.match(appHtml, /data-ai-prompt="Qual minha maior despesa\?"/);
+  assert.match(appHtml, /data-ai-prompt="Estou lucrando\?"/);
+  assert.match(appHtml, /data-ai-prompt="Como bater minha meta\?"/);
   assert.match(appHtml, /id="aiHistoryList"/);
   assert.match(appJs, /apiRequest\('\/ai\/insights'\)/);
   assert.match(appJs, /apiRequest\('\/ai\/chat'/);

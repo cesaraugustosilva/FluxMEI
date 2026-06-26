@@ -22,7 +22,7 @@ export function errorHandler(error, req, res, next) {
   const statusCode = error.statusCode || 500;
   const isProduction = process.env.NODE_ENV === 'production';
   const hasDetails = error.details !== undefined && error.details !== null;
-  const canExposeMessage = error.expose !== false && statusCode < 500 && !hasDetails;
+  const canExposeMessage = error.expose === true || (error.expose !== false && statusCode < 500 && !hasDetails);
   const payload = {
     success: false,
     message: isProduction && !canExposeMessage
