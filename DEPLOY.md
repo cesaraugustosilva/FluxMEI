@@ -32,6 +32,7 @@ SUPABASE_ANON_KEY=sua_chave_anon_do_supabase
 SUPABASE_SERVICE_ROLE_KEY=sua_chave_service_role_do_supabase
 SUPABASE_JWT_SECRET=
 GEMINI_API_KEY=sua_chave_gemini
+GEMINI_MODEL=gemini-2.5-flash
 AI_PROVIDER=gemini
 JWT_SECRET=opcional_para_integracoes_futuras
 AUTH_AUTO_CONFIRM_EMAIL=false

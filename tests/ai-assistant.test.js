@@ -276,7 +276,7 @@ test('chat classifica quota ou rate limit do Gemini com mensagem especifica', as
     const originalError = console.error;
     console.error = () => {};
     const fakeModel = {
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash',
       async generateContent() {
         const error = new Error('RESOURCE_EXHAUSTED: quota exceeded');
         error.status = 429;
@@ -320,7 +320,7 @@ test('falha do Gemini registra log seguro sem prompt contexto ou chave', async (
     const originalError = console.error;
     console.error = (...args) => logs.push(args);
     const fakeModel = {
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash',
       async generateContent() {
         const error = new Error('Gemini upstream failed token=abc123 12345678901 test-gemini-key');
         error.name = 'GoogleGenerativeAIError';
@@ -356,7 +356,7 @@ test('falha do Gemini registra log seguro sem prompt contexto ou chave', async (
     assert.equal(payload.statusCode, 500);
     assert.equal(payload.name, 'GoogleGenerativeAIError');
     assert.equal(payload.has_gemini_api_key, true);
-    assert.equal(payload.model, 'gemini-1.5-flash');
+    assert.equal(payload.model, 'gemini-2.5-flash');
     const serialized = JSON.stringify(payload);
     assert.doesNotMatch(serialized, /test-gemini-key|4111111111111111|12345678901|token=abc123|Venda secreta|contexto_financeiro|pergunta/);
   }, { geminiApiKey: 'test-gemini-key' });
