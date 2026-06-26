@@ -841,27 +841,38 @@
     <header class="account-modal-header">
       <div>
         <p class="eyebrow">Minha conta</p>
-        <h2 id="accountModalTitle">Conta e plano</h2>
+        <h2 id="accountModalTitle">Painel da conta</h2>
       </div>
       <button class="modal-close" type="button" id="accountModalClose" aria-label="Fechar">x</button>
     </header>
 
-    <div class="account-summary">
+    <section class="account-summary account-profile-hero fm-card fm-card-premium" aria-label="Perfil da conta">
       <div class="account-avatar user-avatar">M</div>
-      <div>
+      <div class="account-profile-copy">
+        <div class="account-profile-kicker">
+          <span class="fm-badge fm-badge-info" id="accountProBadge" hidden>FluxMEI Pro</span>
+        </div>
         <strong id="accountName">FluxMEI</strong>
         <span id="accountEmail">email@exemplo.com</span>
+        <div class="account-profile-meta">
+          <span>Cadastro: <strong id="accountCreatedAt">--</strong></span>
+        </div>
       </div>
-    </div>
+      <button class="fm-btn fm-btn-secondary" type="button" id="accountEditProfileAction" aria-label="Editar perfil">Editar Perfil</button>
+    </section>
 
     <section class="smart-alerts account-smart-alerts" id="accountSmartAlerts" aria-label="Avisos importantes da assinatura"></section>
 
-    <section class="account-subscription-hero" aria-label="Minha assinatura">
+    <div class="account-layout-grid">
+      <div class="account-main-column">
+    <section class="account-subscription-hero fm-card fm-card-premium" aria-label="Minha assinatura">
       <div class="account-hero-copy">
         <span>Minha assinatura</span>
+        <h3>Gerenciamento do plano</h3>
         <strong id="accountCurrentPlan">Carregando...</strong>
         <p id="accountStatusText"></p>
       </div>
+      <span class="account-subscription-indicator" id="accountSubscriptionIndicator" aria-label="Indicador da assinatura"></span>
       <span class="account-status-badge" id="accountStatusBadge">Status</span>
     </section>
 
@@ -873,6 +884,10 @@
       <span class="account-status-badge" id="accountStatusBadgeLegacy">Status</span>
     </section>
     <section class="account-plan-overview">
+      <div>
+        <span>Plano</span>
+        <strong id="accountCurrentPlanMirror">--</strong>
+      </div>
       <div>
         <span>Valor atual</span>
         <strong id="accountCurrentValue">--</strong>
@@ -904,61 +919,93 @@
       <button class="btn btn-primary" type="button" id="accountReactivateAction" hidden>Reativar assinatura</button>
     </section>
 
-    <section class="account-switch-card" id="accountSwitchCard">
+    <section class="account-switch-card fm-card fm-card-simple" id="accountSwitchCard">
       <div>
         <span class="account-section-title inline">Troca de plano</span>
         <strong id="accountSwitchTitle">Trocar plano</strong>
         <p id="accountSwitchText"></p>
         <p class="account-pending-warning" id="accountPendingWarning" hidden></p>
       </div>
-      <button class="btn btn-primary" type="button" id="accountPlanSwitchAction">Trocar plano</button>
+      <button class="fm-btn fm-btn-primary" type="button" id="accountPlanSwitchAction">Trocar plano</button>
     </section>
 
-    <section class="account-referral-card" id="accountReferralCard" aria-label="Indique e ganhe">
+    <section class="account-payment-history fm-card fm-card-simple" id="accountPaymentHistorySection" aria-label="Histórico financeiro">
+      <div class="account-section-title">Histórico financeiro</div>
+      <div class="account-payment-list" id="accountPaymentHistory">
+        <div class="account-history-state">Carregando pagamentos...</div>
+      </div>
+    </section>
+      </div>
+      <aside class="account-side-column">
+
+    <section class="account-referral-card fm-card fm-card-premium" id="accountReferralCard" aria-label="Indique e ganhe">
       <div class="account-referral-copy">
-        <span class="account-section-title inline">Indique e ganhe</span>
+        <span class="account-section-title inline">Programa de indicação</span>
         <strong>Indique outro MEI e ganhe 15 dias gratis</strong>
         <p>Quando a pessoa indicada assinar o FluxMEI, voce ganha 15 dias extras de assinatura.</p>
+      </div>
+      <div class="account-referral-stats">
+        <div><span>Indicações</span><strong id="accountReferralCount">0</strong></div>
+        <div><span>Dias ganhos</span><strong id="accountReferralDays">0</strong></div>
       </div>
       <div class="account-referral-box">
         <label for="accountReferralLink">Seu link de convite</label>
         <div class="account-referral-input">
           <input id="accountReferralLink" type="text" readonly value="Carregando..." />
-          <button class="btn btn-primary" type="button" id="accountReferralCopy">Copiar link</button>
+          <button class="fm-btn fm-btn-primary" type="button" id="accountReferralCopy">Copiar link</button>
         </div>
         <div class="account-referral-code">Codigo: <strong id="accountReferralCode">--</strong></div>
+        <button class="fm-btn fm-btn-outline" type="button" id="accountReferralShare">Compartilhar</button>
       </div>
     </section>
 
-    <section>
+    <section class="account-plans-card fm-card fm-card-simple">
       <div class="account-section-title">Planos disponiveis</div>
       <div class="account-plans" id="accountPlans"></div>
     </section>
 
-    <section class="account-export-card" aria-label="Exportar meus dados">
+    <section class="account-export-card fm-card fm-card-premium" aria-label="Exportar meus dados">
       <div>
         <span class="account-section-title inline">Exportar meus dados</span>
         <strong>Backup financeiro FluxMEI</strong>
         <p>Baixe suas movimentações e um resumo financeiro para controle próprio.</p>
       </div>
       <div class="account-export-actions">
-        <button class="btn btn-outline" type="button" id="exportCsvAction">Baixar CSV</button>
-        <button class="btn btn-outline" type="button" id="exportJsonAction">Baixar JSON</button>
-        <button class="btn btn-primary" type="button" id="exportSummaryAction">Baixar resumo</button>
+        <button class="account-export-option" type="button" id="exportCsvAction"><strong>Exportar CSV</strong><span>Movimentações em planilha.</span></button>
+        <button class="account-export-option" type="button" id="exportJsonAction"><strong>Exportar JSON</strong><span>Dados estruturados completos.</span></button>
+        <button class="account-export-option primary" type="button" id="exportSummaryAction"><strong>Resumo Financeiro</strong><span>Totais, período e indicadores.</span></button>
       </div>
     </section>
 
-    <section class="account-payment-history" id="accountPaymentHistorySection" aria-label="Historico de pagamentos">
-      <div class="account-section-title">Historico de pagamentos</div>
-      <div class="account-payment-list" id="accountPaymentHistory">
-        <div class="account-history-state">Carregando pagamentos...</div>
+    <section class="account-security-card fm-card fm-card-simple" aria-label="Segurança da conta">
+      <div class="account-section-title">Segurança</div>
+      <div class="account-preference-list">
+        <div><span>Último login</span><strong id="accountLastLogin">Sessão atual</strong></div>
+        <div><span>Sessão atual</span><strong>Protegida</strong></div>
+        <div><span>Email verificado</span><strong id="accountEmailVerified">Em breve</strong></div>
+      </div>
+      <div class="account-card-actions">
+        <button class="fm-btn fm-btn-outline" type="button" id="accountChangePasswordAction" disabled>Alterar senha</button>
+        <button class="fm-btn fm-btn-ghost" type="button" id="accountLogoutAllAction" disabled>Sair de todos os dispositivos</button>
       </div>
     </section>
+
+    <section class="account-preferences-card fm-card fm-card-simple" aria-label="Preferências da conta">
+      <div class="account-section-title">Preferências</div>
+      <div class="account-preference-list">
+        <div><span>Tema</span><strong>Claro/Escuro</strong></div>
+        <div><span>Idioma</span><strong>Português BR</strong></div>
+        <div><span>Notificações</span><strong>Em breve</strong></div>
+        <div><span>Moeda</span><strong>BRL</strong></div>
+      </div>
+    </section>
+      </aside>
+    </div>
 
     <footer class="account-actions">
-      <a class="btn btn-primary" href="/checkout/" id="accountSubscribeAction">Assinar agora</a>
-      <a class="btn btn-outline" href="/checkout/" id="accountManageAction">Gerenciar plano</a>
-      <button class="btn btn-outline" type="button" data-logout>Sair</button>
+      <a class="fm-btn fm-btn-primary" href="/checkout/" id="accountSubscribeAction">Assinar agora</a>
+      <a class="fm-btn fm-btn-outline" href="/checkout/" id="accountManageAction">Gerenciar plano</a>
+      <button class="fm-btn fm-btn-ghost" type="button" data-logout>Sair</button>
     </footer>
   </section>
 </div>

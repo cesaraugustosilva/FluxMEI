@@ -1195,6 +1195,328 @@ button.nav-item {
   background: rgba(246,252,248,.82);
 }
 
+/* ========= ACCOUNT PREMIUM ========= */
+.account-modal-backdrop {
+  align-items: center;
+  justify-content: center;
+  padding: var(--fm-space-5);
+}
+
+.account-modal {
+  width: min(1180px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  border-radius: var(--fm-radius-5);
+  background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(247,250,248,.98));
+  border-color: var(--fm-color-border);
+  box-shadow: var(--fm-shadow-lg);
+}
+
+.account-modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(255,255,255,.88);
+  backdrop-filter: blur(16px);
+}
+
+.account-profile-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--fm-space-4);
+  margin: var(--fm-space-5);
+  padding: var(--fm-space-5);
+}
+
+.account-profile-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.account-profile-copy #accountName {
+  display: block;
+  color: var(--fm-color-text-primary);
+  font-family: var(--fm-font-display);
+  font-size: 1.55rem;
+  line-height: 1.15;
+}
+
+.account-profile-copy #accountEmail,
+.account-profile-meta {
+  color: var(--fm-color-text-secondary);
+  font-weight: 700;
+}
+
+.account-profile-meta {
+  margin-top: var(--fm-space-2);
+  font-size: .84rem;
+}
+
+.account-layout-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(340px, .85fr);
+  gap: var(--fm-space-4);
+  padding: 0 var(--fm-space-5) var(--fm-space-5);
+}
+
+.account-main-column,
+.account-side-column {
+  display: grid;
+  align-content: start;
+  gap: var(--fm-space-4);
+}
+
+.account-subscription-hero,
+.account-switch-card,
+.account-payment-history,
+.account-referral-card,
+.account-export-card,
+.account-security-card,
+.account-preferences-card,
+.account-plans-card {
+  margin: 0;
+  border: 1px solid var(--fm-color-border);
+  border-radius: var(--fm-radius-4);
+  background: var(--fm-color-card);
+  box-shadow: var(--fm-shadow-sm);
+}
+
+.account-subscription-hero {
+  position: relative;
+  display: grid;
+  gap: var(--fm-space-4);
+  color: var(--fm-color-text-primary);
+  background:
+    radial-gradient(circle at top right, rgba(37,99,235,.10), transparent 34%),
+    linear-gradient(180deg, #ffffff, #f7fbf8);
+}
+
+.account-hero-copy h3,
+.account-referral-copy strong,
+.account-export-card strong {
+  color: var(--fm-color-text-primary);
+  font-family: var(--fm-font-display);
+  font-size: 1.05rem;
+}
+
+.account-subscription-indicator {
+  width: 14px;
+  height: 14px;
+  position: absolute;
+  right: var(--fm-space-5);
+  top: var(--fm-space-5);
+  border-radius: 50%;
+  background: var(--fm-color-success);
+  box-shadow: 0 0 0 6px rgba(22,163,74,.12);
+}
+
+.account-subscription-indicator.warning,
+.account-subscription-indicator.scheduled,
+.account-subscription-indicator.pending {
+  background: var(--fm-color-warning);
+  box-shadow: 0 0 0 6px rgba(217,119,6,.14);
+}
+
+.account-subscription-indicator.blocked {
+  background: var(--fm-color-danger);
+  box-shadow: 0 0 0 6px rgba(220,38,38,.12);
+}
+
+.account-plan-overview {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  gap: var(--fm-space-3);
+}
+
+.account-plan-overview div,
+.account-preference-list div,
+.account-referral-stats div {
+  border: 1px solid var(--fm-color-border);
+  border-radius: var(--fm-radius-3);
+  background: var(--fm-color-background);
+}
+
+.account-plan-overview div {
+  padding: var(--fm-space-4);
+}
+
+.account-quick-actions,
+.account-card-actions {
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fm-space-2);
+}
+
+.account-switch-card,
+.account-export-card,
+.account-payment-history,
+.account-referral-card,
+.account-security-card,
+.account-preferences-card,
+.account-plans-card {
+  padding: var(--fm-space-4);
+}
+
+.account-payment-list {
+  padding: 0;
+}
+
+.account-payment-item {
+  grid-template-columns: minmax(180px, 1.35fr) repeat(4, minmax(92px, 1fr)) minmax(130px, auto);
+  border-color: var(--fm-color-border);
+  border-radius: var(--fm-radius-3);
+  background: var(--fm-color-surface);
+  box-shadow: var(--fm-shadow-sm);
+  transition: transform var(--fm-transition), box-shadow var(--fm-transition), border-color var(--fm-transition);
+}
+
+.account-payment-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--fm-color-border-strong);
+  box-shadow: var(--fm-shadow-md);
+}
+
+.account-payment-icon {
+  border-radius: var(--fm-radius-2);
+  background: var(--fm-color-info-bg);
+  color: var(--fm-color-info);
+}
+
+.account-payment-action-cell {
+  display: grid;
+  gap: var(--fm-space-1);
+}
+
+.account-payment-actions {
+  justify-content: flex-start;
+}
+
+.account-payment-action {
+  min-height: 30px;
+  border-radius: var(--fm-radius-2);
+}
+
+.account-history-state.account-empty-illustrated {
+  display: grid;
+  place-items: center;
+  gap: var(--fm-space-2);
+}
+
+.account-history-state svg {
+  width: 120px;
+  max-width: 100%;
+}
+
+.account-history-state svg rect {
+  fill: var(--fm-color-info-bg);
+  stroke: rgba(37,99,235,.24);
+}
+
+.account-history-state svg path {
+  fill: none;
+  stroke: var(--fm-color-info);
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.account-history-state svg circle {
+  fill: var(--fm-color-primary);
+}
+
+.account-referral-card {
+  grid-template-columns: 1fr;
+  color: var(--fm-color-text-primary);
+  background:
+    radial-gradient(circle at top left, rgba(22,163,74,.12), transparent 34%),
+    var(--fm-color-card);
+}
+
+.account-referral-copy p,
+.account-export-card p {
+  color: var(--fm-color-text-secondary);
+}
+
+.account-referral-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--fm-space-2);
+}
+
+.account-referral-stats div,
+.account-preference-list div {
+  padding: var(--fm-space-3);
+}
+
+.account-referral-stats span,
+.account-preference-list span {
+  display: block;
+  color: var(--fm-color-text-muted);
+  font-size: .76rem;
+  font-weight: 850;
+}
+
+.account-referral-stats strong,
+.account-preference-list strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--fm-color-text-primary);
+}
+
+.account-referral-input input {
+  min-height: 42px;
+  border-color: var(--fm-color-border);
+  background: var(--fm-color-background);
+  color: var(--fm-color-text-primary);
+}
+
+.account-export-actions {
+  display: grid;
+  gap: var(--fm-space-2);
+}
+
+.account-export-option {
+  width: 100%;
+  display: grid;
+  gap: 3px;
+  padding: var(--fm-space-3);
+  border: 1px solid var(--fm-color-border);
+  border-radius: var(--fm-radius-3);
+  background: var(--fm-color-background);
+  color: var(--fm-color-text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: transform var(--fm-transition), border-color var(--fm-transition), background var(--fm-transition);
+}
+
+.account-export-option:hover {
+  transform: translateY(-1px);
+  border-color: var(--fm-color-border-strong);
+  background: var(--fm-color-surface);
+}
+
+.account-export-option.primary {
+  border-color: rgba(22,163,74,.28);
+  background: var(--fm-color-success-bg);
+}
+
+.account-export-option span {
+  color: var(--fm-color-text-muted);
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.account-preference-list {
+  display: grid;
+  gap: var(--fm-space-2);
+}
+
+.account-actions {
+  justify-content: flex-end;
+  padding: var(--fm-space-4) var(--fm-space-5);
+  margin-top: 0;
+  background: rgba(255,255,255,.82);
+}
+
 .receipt-modal {
   width: min(640px, calc(100vw - 28px));
 }
@@ -2705,15 +3027,35 @@ button.nav-item {
 :root[data-theme="dark"] .account-modal,
 :root[data-theme="dark"] .account-current-plan,
 :root[data-theme="dark"] .account-plan-overview div,
+:root[data-theme="dark"] .account-profile-hero,
 :root[data-theme="dark"] .account-switch-card,
 :root[data-theme="dark"] .account-billing-notice,
 :root[data-theme="dark"] .account-plan-card,
 :root[data-theme="dark"] .account-payment-item,
 :root[data-theme="dark"] .account-history-state,
-:root[data-theme="dark"] .account-export-card {
+:root[data-theme="dark"] .account-export-card,
+:root[data-theme="dark"] .account-referral-card,
+:root[data-theme="dark"] .account-security-card,
+:root[data-theme="dark"] .account-preferences-card,
+:root[data-theme="dark"] .account-plans-card,
+:root[data-theme="dark"] .account-export-option,
+:root[data-theme="dark"] .account-preference-list div,
+:root[data-theme="dark"] .account-referral-stats div {
   background:
     linear-gradient(180deg, rgba(16,27,30,.98) 0%, rgba(7,18,19,.98) 100%);
   border-color: rgba(93,128,113,.35);
+}
+
+:root[data-theme="dark"] .account-modal-header,
+:root[data-theme="dark"] .account-actions {
+  background: rgba(16,27,30,.88);
+  border-color: rgba(93,128,113,.28);
+}
+
+:root[data-theme="dark"] .account-subscription-hero {
+  background:
+    radial-gradient(circle at top right, rgba(96,165,250,.12), transparent 34%),
+    linear-gradient(180deg, rgba(16,27,30,.98), rgba(7,18,19,.98));
 }
 
 :root[data-theme="dark"] .account-pending-warning {
@@ -3835,6 +4177,15 @@ textarea.form-input { resize: vertical; }
   .dash-grid { grid-template-columns: 1fr; }
   .config-grid { grid-template-columns: 1fr; }
   .agenda-grid { grid-template-columns: 1fr; }
+  .account-layout-grid {
+    grid-template-columns: 1fr;
+  }
+  .account-plan-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .account-payment-item {
+    grid-template-columns: 1fr 1fr;
+  }
   #page-dashboard .dashboard-hero {
     grid-template-columns: 1fr;
   }
@@ -3881,11 +4232,27 @@ textarea.form-input { resize: vertical; }
     grid-template-columns: 1fr;
   }
 
+  .account-profile-hero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .account-layout-grid {
+    padding: 0 var(--fm-space-3) var(--fm-space-3);
+  }
+
+  .account-payment-item {
+    grid-template-columns: 1fr;
+  }
+
   .account-subscription-hero {
     flex-direction: column;
   }
 
-  .account-quick-actions .btn {
+  .account-quick-actions .btn,
+  .account-quick-actions .fm-btn,
+  .account-card-actions .fm-btn,
+  .account-actions .fm-btn {
     width: 100%;
   }
 

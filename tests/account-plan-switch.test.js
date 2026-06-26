@@ -9,11 +9,23 @@ const assinaturaRules = readFileSync(new URL('../backend/src/services/assinatura
 
 test('Minha Conta mostra plano atual, valor, vencimento e card de troca', () => {
   assert.match(appHtml, /id="accountCurrentPlan"/);
+  assert.match(appHtml, /id="accountCurrentPlanMirror"/);
   assert.match(appHtml, /id="accountCurrentValue"/);
   assert.match(appHtml, /id="accountNextDueDate"/);
   assert.match(appHtml, /id="accountStatusBadge"/);
   assert.match(appHtml, /id="accountSwitchCard"/);
   assert.match(appHtml, /id="accountPlanSwitchAction"/);
+});
+
+test('Minha Conta renderiza hero premium do perfil', () => {
+  assert.match(appHtml, /account-profile-hero/);
+  assert.match(appHtml, /id="accountName"/);
+  assert.match(appHtml, /id="accountEmail"/);
+  assert.match(appHtml, /id="accountCreatedAt"/);
+  assert.match(appHtml, /id="accountProBadge"/);
+  assert.match(appHtml, /Editar Perfil/);
+  assert.match(appJs, /accountCreatedAt/);
+  assert.match(appJs, /accountProBadge/);
 });
 
 test('Minha Conta configura troca mensal para anual e anual para mensal', () => {
@@ -39,16 +51,33 @@ test('Minha Conta mostra aviso de pagamento pendente para troca de plano', () =>
 });
 
 test('Minha Conta renderiza historico de pagamentos', () => {
-  assert.match(appHtml, /Hist[oó]rico de pagamentos|Historico de pagamentos/);
+  assert.match(appHtml, /Hist[oóÃ³]rico financeiro|Historico financeiro/);
   assert.match(appHtml, /id="accountPaymentHistory"/);
   assert.match(appJs, /apiRequest\('\/pagamentos\/historico'\)/);
   assert.match(appJs, /function renderPaymentHistory\(\)/);
   assert.match(appJs, /Nenhum pagamento encontrado ainda\./);
   assert.match(appJs, /Nao foi possivel carregar o historico de pagamentos agora\./);
+  assert.match(appJs, /data-copy-pix/);
+  assert.match(appJs, /Abrir boleto/);
+});
+
+test('Minha Conta renderiza exportacao indicacao seguranca e preferencias', () => {
+  assert.match(appHtml, /account-export-card/);
+  assert.match(appHtml, /Exportar CSV/);
+  assert.match(appHtml, /Exportar JSON/);
+  assert.match(appHtml, /Resumo Financeiro/);
+  assert.match(appHtml, /id="accountReferralCount"/);
+  assert.match(appHtml, /id="accountReferralDays"/);
+  assert.match(appHtml, /id="accountReferralShare"/);
+  assert.match(appHtml, /account-security-card/);
+  assert.match(appHtml, /id="accountChangePasswordAction"/);
+  assert.match(appHtml, /account-preferences-card/);
+  assert.match(appJs, /function shareReferralLink/);
 });
 
 test('Minha Conta renderiza gerenciamento completo da assinatura', () => {
   assert.match(appHtml, /Minha assinatura/);
+  assert.match(appHtml, /account-subscription-indicator/);
   assert.match(appHtml, /id="accountDaysRemaining"/);
   assert.match(appHtml, /id="accountLastPaymentMethod"/);
   assert.match(appHtml, /id="accountLastPaymentDate"/);

@@ -819,6 +819,48 @@ async function copyReferralLink() {
   }
 }
 
+async function shareReferralLink() {
+  const input = document.getElementById('accountReferralLink');
+  const link = input?.value || '';
+  if (!link || state.referralError) return;
+
+  try {
+    if (navigator.share) {
+      await navigator.share({
+        title: 'FluxMEI',
+        text: 'Conheca o FluxMEI para organizar as financas do MEI.',
+        url: link
+      });
+      return;
+    }
+    await copyReferralLink();
+  } catch {
+    showToast('Nao foi possivel compartilhar agora.', 'error');
+  }
+}
+
+async function copyTextToClipboard(text, successMessage) {
+  if (!text) return;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const temp = document.createElement('textarea');
+      temp.value = text;
+      temp.setAttribute('readonly', '');
+      temp.style.position = 'fixed';
+      temp.style.opacity = '0';
+      document.body.appendChild(temp);
+      temp.select();
+      document.execCommand('copy');
+      temp.remove();
+    }
+    showToast(successMessage);
+  } catch {
+    showToast('Nao foi possivel copiar agora.', 'error');
+  }
+}
+
 function handleSmartAlertClick(event) {
   const closeButton = event.target.closest('[data-smart-alert-close]');
   if (closeButton) {
@@ -878,10 +920,15 @@ function renderAccountPanel() {
 
   document.getElementById('accountName').textContent = nome;
   document.getElementById('accountEmail').textContent = email;
+  const createdAt = document.getElementById('accountCreatedAt');
+  if (createdAt) createdAt.textContent = state.profile?.created_at || state.user?.created_at ? formatDate(state.profile?.created_at || state.user?.created_at) : '--';
   document.querySelectorAll('.account-avatar').forEach((avatar) => {
     avatar.textContent = nome.charAt(0).toUpperCase();
   });
-  document.getElementById('accountCurrentPlan').textContent = getPlanShortLabel(currentPlanId) || currentPlan?.nome || getPlanLabel(status);
+  const currentPlanLabel = getPlanShortLabel(currentPlanId) || currentPlan?.nome || getPlanLabel(status);
+  document.getElementById('accountCurrentPlan').textContent = currentPlanLabel;
+  const mirrorPlan = document.getElementById('accountCurrentPlanMirror');
+  if (mirrorPlan) mirrorPlan.textContent = currentPlanLabel;
   document.getElementById('accountCurrentValue').textContent = currentPlan ? formatPlanPrice(currentPlan) : '--';
   document.getElementById('accountNextDueDate').textContent = status.data_vencimento ? formatDate(status.data_vencimento) : '--';
   document.getElementById('accountDaysRemaining').textContent = status.dias_restantes != null ? `${Number(status.dias_restantes || 0)} dia(s)` : '--';
@@ -891,6 +938,10 @@ function renderAccountPanel() {
   const badge = document.getElementById('accountStatusBadge');
   badge.textContent = statusMeta.label;
   badge.className = `account-status-badge ${statusMeta.className}`;
+  const proBadge = document.getElementById('accountProBadge');
+  if (proBadge) proBadge.hidden = !['pro_mensal', 'pro_anual', 'mensal', 'anual'].includes(currentPlanId);
+  const indicator = document.getElementById('accountSubscriptionIndicator');
+  if (indicator) indicator.className = `account-subscription-indicator ${statusMeta.className}`;
 
   const statusText = estado === 'cancelamento_agendado'
     ? `Voce continuara com acesso ate ${status.data_vencimento ? formatDate(status.data_vencimento) : 'o fim do periodo ja pago'}.`
@@ -1010,13 +1061,22 @@ function renderReferralCard() {
   const codeEl = document.getElementById('accountReferralCode');
   const linkEl = document.getElementById('accountReferralLink');
   const copyButton = document.getElementById('accountReferralCopy');
+  const countEl = document.getElementById('accountReferralCount');
+  const daysEl = document.getElementById('accountReferralDays');
   if (!codeEl || !linkEl || !copyButton) return;
 
   const code = state.referral?.referral_code || '';
   const link = getReferralInviteLink(code);
+  const stats = state.referral?.stats || {};
+  const rewardedCount = Number(stats.rewarded || 0);
+  const convertedCount = Number(stats.converted || 0);
+  const pendingCount = Number(stats.pending || 0);
+  const totalReferrals = rewardedCount + convertedCount + pendingCount;
   codeEl.textContent = code || '--';
   linkEl.value = state.referralError || link || 'Gerando seu link de indicacao...';
   copyButton.disabled = !link;
+  if (countEl) countEl.textContent = String(totalReferrals);
+  if (daysEl) daysEl.textContent = String(rewardedCount * Number(state.referral?.reward_days || 15));
 }
 
 function renderPaymentHistory() {
@@ -1030,7 +1090,12 @@ function renderPaymentHistory() {
 
   const payments = Array.isArray(state.paymentHistory) ? state.paymentHistory : [];
   if (!payments.length) {
-    root.innerHTML = '<div class="account-history-state">Nenhum pagamento encontrado ainda.</div>';
+    root.innerHTML = `
+      <div class="account-history-state account-empty-illustrated">
+        <svg viewBox="0 0 120 88" aria-hidden="true"><rect x="18" y="16" width="84" height="56" rx="14"/><path d="M34 38h52M34 52h32"/><circle cx="82" cy="52" r="7"/></svg>
+        <strong>Nenhum pagamento encontrado ainda.</strong>
+        <span>Quando houver pagamentos, eles aparecerão aqui com recibos e links úteis.</span>
+      </div>`;
     return;
   }
 
@@ -1039,14 +1104,19 @@ function renderPaymentHistory() {
     const status = getPaymentStatusMeta(payment.status);
     const date = payment.paid_at || payment.created_at;
     const provider = payment.provider ? String(payment.provider).toUpperCase() : '--';
+    const pixCode = payment.pix_copia_cola || payment.pix_code || payment.qr_code || payment.copia_cola || '';
+    const isBoleto = String(payment.payment_method || '').toLowerCase().includes('boleto');
     const externalAction = payment.link
-      ? `<a class="account-payment-action" href="${esc(payment.link)}" target="_blank" rel="noopener">Abrir</a>`
+      ? `<a class="account-payment-action" href="${esc(payment.link)}" target="_blank" rel="noopener">${isBoleto ? 'Abrir boleto' : 'Abrir'}</a>`
+      : '';
+    const pixAction = pixCode
+      ? `<button class="account-payment-action" type="button" data-copy-pix="${esc(pixCode)}">Copiar Pix</button>`
       : '';
     const receiptAction = isReceiptEligible(payment.status)
       ? `<button class="account-payment-action receipt-link" type="button" data-receipt-id="${esc(payment.id)}">Ver recibo</button>`
       : '';
-    const action = externalAction || receiptAction
-      ? `<div class="account-payment-actions">${externalAction}${receiptAction}</div>`
+    const action = externalAction || pixAction || receiptAction
+      ? `<div class="account-payment-actions">${externalAction}${pixAction}${receiptAction}</div>`
       : '<span class="account-payment-action muted">--</span>';
 
     return `
@@ -1062,7 +1132,7 @@ function renderPaymentHistory() {
         <div><span>Plano</span><strong>${esc(getPaymentPlanLabel(payment.plano))}</strong></div>
         <div><span>Valor</span><strong>${formatBRL(payment.valor || 0)}</strong></div>
         <div><span>Status</span><strong class="account-payment-status ${status.className}">${esc(status.label)}</strong></div>
-        <div><span>Acao</span>${action}</div>
+        <div class="account-payment-action-cell"><span>Ação</span>${action}</div>
       </article>
     `;
   }).join('');
@@ -3660,6 +3730,7 @@ async function init() {
   });
   document.getElementById('accountQuickHistory')?.addEventListener('click', scrollToPaymentHistory);
   document.getElementById('accountReferralCopy')?.addEventListener('click', copyReferralLink);
+  document.getElementById('accountReferralShare')?.addEventListener('click', shareReferralLink);
   document.getElementById('exportCsvAction')?.addEventListener('click', (event) => handleExportClick('csv', event.currentTarget));
   document.getElementById('exportJsonAction')?.addEventListener('click', (event) => handleExportClick('json', event.currentTarget));
   document.getElementById('exportSummaryAction')?.addEventListener('click', (event) => handleExportClick('resumo', event.currentTarget));
@@ -3678,6 +3749,8 @@ async function init() {
   document.getElementById('accountPaymentHistory')?.addEventListener('click', (event) => {
     const button = event.target.closest('[data-receipt-id]');
     if (button) openPaymentReceipt(button.dataset.receiptId);
+    const pixButton = event.target.closest('[data-copy-pix]');
+    if (pixButton) copyTextToClipboard(pixButton.dataset.copyPix, 'Codigo Pix copiado.');
   });
   document.getElementById('onboardingNext')?.addEventListener('click', nextOnboardingStep);
   document.getElementById('onboardingBack')?.addEventListener('click', previousOnboardingStep);
