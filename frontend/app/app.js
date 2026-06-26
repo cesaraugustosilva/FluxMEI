@@ -3462,7 +3462,7 @@ function renderAiInsights() {
   if (!state.aiInsights.length) {
     root.innerHTML = `
       <article class="ai-insight-card info loading">
-        <span>FX</span>
+        <span>${getAiInsightIconSvg('info')}</span>
         <p>Carregando analise automatica das suas financas...</p>
       </article>
     `;
@@ -3471,11 +3471,36 @@ function renderAiInsights() {
 
   root.innerHTML = state.aiInsights.map((insight, index) => `
     <article class="ai-insight-card ${esc(insight.type || 'info')}" style="--delay:${index * 60}ms">
-      <span>${getAiInsightIcon(insight.type || 'info')}</span>
-      <p>${esc(insight.title)}</p>
-      ${insight.metric !== undefined ? `<strong>${typeof insight.metric === 'number' ? formatBRL(insight.metric) : esc(insight.metric)}</strong>` : ''}
+      <span>${getAiInsightIconSvg(insight.type || 'info')}</span>
+      <div>
+        <p>${esc(insight.title)}</p>
+        ${insight.metric !== undefined ? `<strong>${typeof insight.metric === 'number' ? formatBRL(insight.metric) : esc(insight.metric)}</strong>` : ''}
+        <small>${getAiInsightAction(insight.type || 'info')}</small>
+      </div>
     </article>
   `).join('');
+}
+
+function getAiInsightIconSvg(type) {
+  const icons = {
+    positive: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17l6-6 4 4 6-8"/><path d="M15 7h5v5"/></svg>',
+    warning: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 16H3L12 3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
+    danger: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6"/><path d="M12 17h.01"/></svg>',
+    info: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>',
+    goal: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M19 5l-3 3"/></svg>'
+  };
+  return icons[type] || icons.info;
+}
+
+function getAiInsightAction(type) {
+  const actions = {
+    positive: 'Continue acompanhando',
+    warning: 'Revise este ponto',
+    danger: 'Priorize agora',
+    goal: 'Planeje o proximo passo',
+    info: 'Veja no chat'
+  };
+  return actions[type] || actions.info;
 }
 
 function renderAiHistory() {
@@ -3523,8 +3548,8 @@ function renderAiMessages() {
             <circle cx="113" cy="32" r="5"></circle>
           </svg>
         </div>
-        <strong>Cadastre algumas receitas e despesas para a FluxIA gerar analises mais precisas.</strong>
-        <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">Adicionar movimentacao</button>
+        <strong>Cadastre algumas receitas e despesas para a FluxIA gerar análises mais precisas.</strong>
+        <button class="fm-btn fm-btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">Adicionar movimentação</button>
       </div>
     `;
     return;
@@ -3543,7 +3568,7 @@ function renderAiMessages() {
       <span class="ai-message-avatar">FX</span>
       <div>
         <strong class="ai-message-author">FluxIA</strong>
-        <p>analisando suas financas...</p>
+        <p>Analisando suas finanças...</p>
         <span></span><span></span><span></span>
       </div>
     </article>

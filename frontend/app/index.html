@@ -543,44 +543,70 @@
 
   <!-- ====== ASSISTENTE FINANCEIRO ====== -->
   <section class="page" id="page-assistente">
-    <div class="ai-hero">
+    <div class="ai-hero fm-card fm-card-premium">
       <div class="ai-hero-copy">
         <div class="ai-hero-kicker">
-          <span class="ai-badge">FluxIA</span>
-          <span>Especialista em MEIs brasileiros</span>
+          <span class="ai-badge fm-badge fm-badge-info">FluxIA</span>
+          <span class="ai-specialist-pill">Especialista em MEIs brasileiros</span>
         </div>
-        <h1 class="page-title">Assistente Financeiro</h1>
+        <h1 class="page-title">Assistente Financeiro Inteligente</h1>
+        <p class="ai-hero-subtitle">Analise suas finanças, encontre oportunidades e tome decisões melhores.</p>
         <p>Entenda seus números, descubra oportunidades e tome decisões melhores com IA.</p>
       </div>
-      <div class="ai-hero-visual" aria-hidden="true">
+      <div class="ai-hero-visual">
         <div class="ai-hero-panel">
           <span></span>
           <strong>FluxIA</strong>
           <small>receitas, despesas e metas</small>
           <div></div>
         </div>
+        <div class="ai-hero-privacy" id="aiPrivacyCard">
+          <strong>Privacidade</strong>
+          <p>Seus dados financeiros são usados apenas para gerar esta análise. Nunca enviamos CPF/CNPJ, cartão, tokens ou dados sensíveis para a IA.</p>
+        </div>
       </div>
     </div>
 
-    <section class="ai-insights-grid" id="aiInsightsGrid" aria-label="Insights do assistente financeiro"></section>
-
     <section class="ai-shell">
-      <aside class="ai-history-panel">
+      <aside class="ai-history-panel fm-card fm-card-simple">
         <div class="ai-history-header">
           <div>
             <strong>Conversas recentes</strong>
             <span>Continue uma análise ou comece do zero.</span>
           </div>
-          <button class="btn btn-primary btn-sm" type="button" id="aiNewConversation">Nova conversa</button>
+          <button class="fm-btn fm-btn-primary" type="button" id="aiNewConversation">Nova conversa</button>
         </div>
         <div class="ai-history-list" id="aiHistoryList"></div>
-        <div class="ai-privacy-card" id="aiPrivacyCard">
+        <div class="ai-suggestions-card">
+          <div class="ai-side-title">
+            <strong>Sugestões rápidas</strong>
+            <span>Escolha um ponto de partida.</span>
+          </div>
+          <div class="ai-suggestions" id="aiSuggestions">
+            <button type="button" data-ai-prompt="Analisar meu mês">Analisar meu mês</button>
+            <button type="button" data-ai-prompt="Como posso economizar?">Como posso economizar?</button>
+            <button type="button" data-ai-prompt="Qual minha maior despesa?">Qual minha maior despesa?</button>
+            <button type="button" data-ai-prompt="Estou lucrando?">Estou lucrando?</button>
+            <button type="button" data-ai-prompt="Como bater minha meta?">Como bater minha meta?</button>
+            <button type="button" data-ai-prompt="Prever próximo mês">Prever próximo mês</button>
+          </div>
+        </div>
+        <div class="ai-trust-card">
+          <span>Como a FluxIA usa seus dados</span>
+          <ul>
+            <li>Usa apenas seus dados financeiros do FluxMEI</li>
+            <li>Não envia CPF/CNPJ, cartão, tokens ou segredos</li>
+            <li>Não acessa dados de outros usuários</li>
+            <li>Gera recomendações com base no seu histórico</li>
+          </ul>
+        </div>
+        <div class="ai-privacy-card ai-privacy-card-legacy">
           <span>Privacidade</span>
           <p>Seus dados financeiros são usados apenas para gerar esta análise. Nunca enviamos CPF/CNPJ, cartão, tokens ou dados sensíveis para a IA.</p>
         </div>
       </aside>
 
-      <div class="ai-chat-panel">
+      <div class="ai-chat-panel fm-card fm-card-premium">
         <div class="ai-chat-header">
           <div class="ai-avatar" aria-hidden="true">FX</div>
           <div>
@@ -589,7 +615,9 @@
           </div>
         </div>
 
-        <div class="ai-suggestions" id="aiSuggestions">
+        <section class="ai-insights-grid" id="aiInsightsGrid" aria-label="Insights do assistente financeiro"></section>
+
+        <div class="ai-suggestions ai-suggestions-legacy" aria-hidden="true">
           <button type="button" data-ai-prompt="Analisar meu mês">Analisar meu mês</button>
           <button type="button" data-ai-prompt="Como posso economizar?">Como posso economizar?</button>
           <button type="button" data-ai-prompt="Qual minha maior despesa?">Qual minha maior despesa?</button>
@@ -617,7 +645,7 @@
 
         <form class="ai-chat-form" id="aiChatForm">
           <input id="aiChatInput" type="text" autocomplete="off" placeholder="Pergunte algo sobre suas finanças..." />
-          <button class="btn btn-primary ai-send-button" type="submit" id="aiChatSubmit" aria-label="Enviar pergunta">
+          <button class="fm-btn fm-btn-primary ai-send-button" type="submit" id="aiChatSubmit" aria-label="Enviar pergunta">
             <span>Enviar</span>
             <span aria-hidden="true">→</span>
           </button>
