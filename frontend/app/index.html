@@ -106,7 +106,7 @@
       <a href="#" class="nav-item" data-page="movimentacoes">
         <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 7h13"/><path d="M17 4l3 3-3 3"/><path d="M17 17H4"/><path d="M7 14l-3 3 3 3"/></svg></span><span class="nav-label">Movimentações</span>
       </a>
-      <a href="#" class="nav-item" data-page="relatorios">
+      <a href="#" class="nav-item" data-page="metas">
         <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v4"/><path d="M12 17v4"/><path d="M4.9 5.6l2.8 2.8"/><path d="M16.3 15.6l2.8 2.8"/><circle cx="12" cy="12" r="5"/></svg></span><span class="nav-label">Metas</span>
       </a>
       <a href="#" class="nav-item" data-page="assistente">
@@ -192,7 +192,7 @@
   <a href="#" class="bottom-item" data-page="clientes">
     <span class="bottom-icon">◎</span><span>Clientes</span>
   </a>
-  <a href="#" class="bottom-item" data-page="relatorios">
+  <a href="#" class="bottom-item" data-page="metas">
     <span class="bottom-icon">◈</span><span>Metas</span>
   </a>
 </nav>
@@ -317,7 +317,7 @@
         <div class="dashboard-quick-actions-grid">
           <button class="fm-btn fm-btn-outline" type="button" onclick="openNovaMovimentacao(); setTipo('entrada');">Adicionar receita</button>
           <button class="fm-btn fm-btn-outline" type="button" onclick="openNovaMovimentacao(); setTipo('saida');">Adicionar despesa</button>
-          <button class="fm-btn fm-btn-outline" type="button" onclick="showToast('Metas financeiras em breve.')">Criar meta</button>
+          <button class="fm-btn fm-btn-outline" type="button" onclick="navigate('metas'); openNovaMeta();">Criar meta</button>
           <button class="fm-btn fm-btn-outline" type="button" data-dashboard-export="resumo">Exportar dados</button>
           <button class="fm-btn fm-btn-ghost" type="button" onclick="navigate('assistente')">Abrir FluxIA</button>
         </div>
@@ -593,6 +593,83 @@
     </div>
   </section>
 
+  <!-- ====== METAS FINANCEIRAS ====== -->
+  <section class="page" id="page-metas">
+    <div class="goals-hero fm-card fm-card-premium">
+      <div class="goals-hero-copy">
+        <span class="fm-badge fm-badge-info">Planejamento</span>
+        <h1 class="page-title">Metas Financeiras</h1>
+        <p class="page-subtitle">Defina objetivos e acompanhe sua evolução financeira.</p>
+      </div>
+      <div class="goals-hero-stats" aria-label="Resumo das metas financeiras">
+        <div><span>Total de metas</span><strong id="goalsTotal">0</strong></div>
+        <div><span>Metas concluídas</span><strong id="goalsDone">0</strong></div>
+        <div><span>Meta mais próxima</span><strong id="goalsNearest">-</strong></div>
+        <div><span>Valor restante</span><strong id="goalsRemaining">R$ 0,00</strong></div>
+      </div>
+      <button class="fm-btn fm-btn-primary" type="button" id="newGoalButton" onclick="openNovaMeta()">Nova Meta</button>
+    </div>
+
+    <div class="goals-indicators" aria-label="Indicadores de metas">
+      <article class="goals-indicator-card">
+        <span>Total economizado</span>
+        <strong id="goalsSavedTotal">R$ 0,00</strong>
+      </article>
+      <article class="goals-indicator-card">
+        <span>Meta mais próxima</span>
+        <strong id="goalsNearestName">-</strong>
+      </article>
+      <article class="goals-indicator-card">
+        <span>Dias restantes</span>
+        <strong id="goalsDaysLeft">0</strong>
+      </article>
+      <article class="goals-indicator-card">
+        <span>Conclusão média</span>
+        <strong id="goalsAverageProgress">0%</strong>
+      </article>
+    </div>
+
+    <section class="goals-fluxia-card fm-card fm-card-simple" aria-labelledby="goalsFluxiaTitle">
+      <div>
+        <span class="fm-badge fm-badge-info">FluxIA recomenda</span>
+        <h2 id="goalsFluxiaTitle">Próximo passo financeiro</h2>
+        <p id="goalsFluxiaInsight">Cadastre movimentações para receber previsões da FluxIA.</p>
+      </div>
+      <button class="fm-btn fm-btn-outline" type="button" onclick="navigate('assistente')">Abrir FluxIA</button>
+    </section>
+
+    <section class="goals-examples-card fm-card fm-card-simple" aria-labelledby="goalsExamplesTitle">
+      <div>
+        <h2 id="goalsExamplesTitle">Exemplos rápidos</h2>
+        <p>Use um modelo para criar uma meta em poucos segundos.</p>
+      </div>
+      <div class="goals-example-chips" id="goalsExamples">
+        <button type="button" data-goal-example="notebook">Comprar notebook</button>
+        <button type="button" data-goal-example="capital">Capital de giro</button>
+        <button type="button" data-goal-example="reserva">Reserva de emergência</button>
+        <button type="button" data-goal-example="viagem">Viagem</button>
+        <button type="button" data-goal-example="veiculo">Troca de veículo</button>
+      </div>
+    </section>
+
+    <div class="goals-grid" id="goalsGrid"></div>
+
+    <div class="goals-empty-state fm-card fm-card-simple" id="goalsEmpty" hidden>
+      <svg viewBox="0 0 180 130" aria-hidden="true">
+        <circle cx="88" cy="66" r="46"></circle>
+        <circle cx="88" cy="66" r="28"></circle>
+        <circle cx="88" cy="66" r="10"></circle>
+        <path d="M120 34l28-12-12 28"></path>
+      </svg>
+      <strong>Você ainda não criou nenhuma meta financeira.</strong>
+      <p>Crie objetivos para organizar reservas, investimentos e próximos passos do seu MEI.</p>
+      <div>
+        <button class="fm-btn fm-btn-primary" type="button" onclick="openNovaMeta()">Criar primeira meta</button>
+        <button class="fm-btn fm-btn-outline" type="button" onclick="document.getElementById('goalsExamples')?.scrollIntoView({ behavior: 'smooth', block: 'center' })">Explorar exemplos</button>
+      </div>
+    </div>
+  </section>
+
   <!-- ====== ASSISTENTE FINANCEIRO ====== -->
   <section class="page" id="page-assistente">
     <div class="ai-hero fm-card fm-card-premium">
@@ -848,6 +925,53 @@
     <div class="modal-footer">
       <button class="fm-btn fm-btn-outline" type="button" onclick="closeModal('modalMovimentacao')">Cancelar</button>
       <button class="fm-btn fm-btn-primary" type="button" onclick="salvarMovimentacao()">Salvar movimentação</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Meta -->
+<div class="modal-backdrop" id="modalMeta">
+  <div class="modal goal-modal">
+    <div class="modal-header goal-modal-header">
+      <div>
+        <span class="fm-badge fm-badge-info">Meta financeira</span>
+        <h2 id="modalMetaTitle">Nova Meta</h2>
+      </div>
+      <button class="modal-close" type="button" onclick="closeModal('modalMeta')" aria-label="Fechar meta">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="metaId" />
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Nome *</label>
+          <input type="text" id="metaNome" class="form-input fm-input" placeholder="Ex: Reserva de emergência" />
+        </div>
+        <div class="form-group goal-value-field">
+          <label class="form-label">Objetivo *</label>
+          <input type="text" id="metaValor" class="form-input fm-input" placeholder="R$ 5.000,00" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Prazo *</label>
+          <input type="date" id="metaPrazo" class="form-input fm-input" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Descrição</label>
+          <input type="text" id="metaDescricao" class="form-input fm-input" placeholder="Explique o motivo da meta" />
+        </div>
+      </div>
+      <div class="goal-modal-examples" aria-label="Exemplos de metas">
+        <button type="button" data-goal-example="notebook">Comprar notebook</button>
+        <button type="button" data-goal-example="capital">Capital de giro</button>
+        <button type="button" data-goal-example="reserva">Reserva de emergência</button>
+        <button type="button" data-goal-example="viagem">Viagem</button>
+        <button type="button" data-goal-example="veiculo">Troca de veículo</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="fm-btn fm-btn-outline" type="button" onclick="closeModal('modalMeta')">Cancelar</button>
+      <button class="fm-btn fm-btn-primary" type="button" onclick="salvarMeta()">Salvar Meta</button>
     </div>
   </div>
 </div>

@@ -25,6 +25,7 @@ const DASHBOARD_MONTH_KEY = 'fluxmei_dashboard_mes';
 const DASHBOARD_PERIOD_KEY = 'fluxmei_dashboard_periodo';
 const CUSTOM_CATEGORIES_KEY = 'fluxmei_custom_categories';
 const MOV_CLIENT_LINKS_KEY = 'fluxmei_mov_client_links';
+const FINANCIAL_GOALS_KEY = 'fluxmei_financial_goals';
 const THEME_KEY = 'fluxmei_theme';
 const DEFAULT_ACCOUNT_PLANS = [
   {
@@ -107,6 +108,7 @@ let state = {
   aiActiveConversationId: null,
   aiLoaded: false,
   aiLoading: false,
+  metas: [],
   onboardingStep: 1,
   onboardingSaving: false,
   user: null,
@@ -125,6 +127,47 @@ let relChart = null;
 let dashboardMes = localStorage.getItem(DASHBOARD_MONTH_KEY) || '';
 let dashboardPeriodo = localStorage.getItem(DASHBOARD_PERIOD_KEY) || 'month';
 let subscriptionStatus = null;
+
+const APP_PAGES = new Set([
+  'dashboard',
+  'movimentacoes',
+  'metas',
+  'calendario',
+  'clientes',
+  'relatorios',
+  'assistente',
+  'configuracoes'
+]);
+const ROUTE_ALIASES = {
+  inicio: 'dashboard',
+  home: 'dashboard',
+  lancar: 'movimentacoes',
+  fluxia: 'assistente',
+  ai: 'assistente',
+  'assistente-financeiro': 'assistente',
+  'minha-conta': 'account',
+  conta: 'account',
+  account: 'account',
+  indique: 'referral',
+  'indique-e-ganhe': 'referral',
+  indicacao: 'referral',
+  exportar: 'export',
+  'exportar-dados': 'export',
+  suporte: 'support'
+};
+const PAGE_HASHES = {
+  dashboard: 'dashboard',
+  movimentacoes: 'movimentacoes',
+  metas: 'metas',
+  calendario: 'calendario',
+  clientes: 'clientes',
+  relatorios: 'relatorios',
+  assistente: 'fluxia',
+  configuracoes: 'configuracoes',
+  account: 'minha-conta',
+  referral: 'indique-e-ganhe',
+  export: 'exportar-dados'
+};
 
 function getSavedTheme() {
   return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light';
@@ -1426,25 +1469,82 @@ function fmtDate(ano, mes, dia) {
 }
 
 // ===== NAVIGATION =====
-function navigate(page) {
-  currentPage = page;
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+function normalizeRouteTarget(target) {
+  const raw = String(target || '')
+    .trim()
+    .replace(/^#/, '')
+    .replace(/^\/?app\/?#?/, '')
+    .replace(/^\/+/, '')
+    .toLowerCase();
+  return ROUTE_ALIASES[raw] || raw || 'dashboard';
+}
+
+function getInitialRoute() {
+  const hash = normalizeRouteTarget(window.location.hash || '');
+  return hash || 'dashboard';
+}
+
+function syncHashForRoute(route, { replace = false } = {}) {
+  if (!window.history) return;
+  const hash = PAGE_HASHES[route] || route;
+  if (!hash) return;
+  const next = `#${hash}`;
+  if (window.location.hash === next) return;
+  const method = replace ? 'replaceState' : 'pushState';
+  window.history[method](null, '', next);
+}
+
+function setActiveNavigation(page, action = '') {
   document.querySelectorAll('.nav-item, .bottom-item').forEach((n) => {
     n.classList.remove('active');
     n.removeAttribute('aria-current');
   });
 
+  if (page) {
+    document.querySelectorAll(`.nav-item[data-page="${page}"], .bottom-item[data-page="${page}"]`).forEach((el) => {
+      el.classList.add('active');
+      el.setAttribute('aria-current', 'page');
+    });
+  }
+
+  if (action) {
+    document.querySelectorAll(`.nav-item[data-sidebar-action="${action}"]`).forEach((el) => {
+      el.classList.add('active');
+      el.setAttribute('aria-current', 'page');
+    });
+  }
+}
+
+function navigate(page, options = {}) {
+  const route = normalizeRouteTarget(page);
+  if (['account', 'referral', 'export', 'payments', 'support'].includes(route)) {
+    setActiveNavigation('', route === 'payments' ? 'account' : route);
+    closeMobileMenu();
+    if (options.updateHash !== false && route !== 'support') syncHashForRoute(route, { replace: options.replaceHash });
+    handleSidebarAction(route);
+    return;
+  }
+
+  page = APP_PAGES.has(route) ? route : 'dashboard';
+  currentPage = page;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+
   const pg = document.getElementById('page-' + page);
-  if (pg) pg.classList.add('active');
+  if (pg) {
+    pg.classList.add('active');
+  } else {
+    page = 'dashboard';
+    currentPage = page;
+    document.getElementById('page-dashboard')?.classList.add('active');
+  }
 
-  document.querySelectorAll(`.nav-item[data-page="${page}"], .bottom-item[data-page="${page}"]`).forEach((el) => {
-    el.classList.add('active');
-    el.setAttribute('aria-current', 'page');
-  });
+  setActiveNavigation(page);
 
+  closeAccountPanel();
   closeMobileMenu();
   renderPage(page);
-  window.scrollTo(0, 0);
+  if (options.updateHash !== false) syncHashForRoute(page, { replace: options.replaceHash });
+  if (options.scroll !== false) window.scrollTo(0, 0);
 }
 
 function renderPage(page) {
@@ -1453,6 +1553,7 @@ function renderPage(page) {
     case 'movimentacoes':  renderMovimentacoes(); break;
     case 'calendario':     renderCalendario(); break;
     case 'clientes':       renderClientesEnhanced(); break;
+    case 'metas':          renderMetas(); break;
     case 'relatorios':     renderRelatorios(); break;
     case 'assistente':     renderAiAssistant(); break;
     case 'configuracoes':  renderConfiguracoes(); break;
@@ -1599,7 +1700,9 @@ async function previousOnboardingStep() {
 
 // ===== MODALS =====
 function openModal(id) {
-  document.getElementById(id).classList.add('open');
+  const modal = document.getElementById(id);
+  if (!modal) return;
+  modal.classList.add('open');
 }
 function closeModal(id) {
   const modal = document.getElementById(id);
@@ -1607,6 +1710,7 @@ function closeModal(id) {
   modal.classList.remove('open');
   if (id === 'modalMovimentacao') resetMovForm();
   if (id === 'modalCliente') resetClienteForm();
+  if (id === 'modalMeta') resetMetaForm();
 }
 
 // ===== TOAST =====
@@ -2377,6 +2481,280 @@ function limparFiltrosMovimentacoes() {
   if (min) min.value = '';
   if (max) max.value = '';
   applyFilters();
+}
+
+// ===== METAS FINANCEIRAS =====
+function loadFinancialGoals() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(FINANCIAL_GOALS_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveFinancialGoals() {
+  localStorage.setItem(FINANCIAL_GOALS_KEY, JSON.stringify(state.metas || []));
+}
+
+function getGoalExamples() {
+  return {
+    notebook: {
+      nome: 'Comprar notebook',
+      valor: 5000,
+      descricao: 'Equipamento para melhorar a produtividade do MEI.'
+    },
+    capital: {
+      nome: 'Capital de giro',
+      valor: 8000,
+      descricao: 'Reserva para manter o negócio saudável nos próximos meses.'
+    },
+    reserva: {
+      nome: 'Reserva de emergência',
+      valor: 12000,
+      descricao: 'Proteção para imprevistos pessoais e profissionais.'
+    },
+    viagem: {
+      nome: 'Viagem',
+      valor: 4500,
+      descricao: 'Planejamento financeiro para viajar sem comprometer o caixa.'
+    },
+    veiculo: {
+      nome: 'Troca de veículo',
+      valor: 25000,
+      descricao: 'Entrada ou complemento para trocar o veículo de trabalho.'
+    }
+  };
+}
+
+function getDefaultGoalDeadline(days = 90) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function calcGoalSavedSince(goal) {
+  const start = goal.createdAt ? String(goal.createdAt).slice(0, 10) : '';
+  const movs = start
+    ? state.movimentacoes.filter((mov) => mov.data >= start)
+    : state.movimentacoes;
+  const entradas = movs.filter(m => m.tipo === 'entrada').reduce((s, m) => s + m.valor, 0);
+  const saidas = movs.filter(m => m.tipo === 'saida').reduce((s, m) => s + m.valor, 0);
+  return Math.max(0, entradas - saidas);
+}
+
+function getGoalViewModel(goal) {
+  const alvo = Number(goal.valor || 0);
+  const atual = Math.min(alvo, calcGoalSavedSince(goal));
+  const percent = alvo > 0 ? Math.min(100, Math.round((atual / alvo) * 100)) : 0;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const deadline = goal.prazo ? new Date(`${goal.prazo}T00:00:00`) : null;
+  const daysLeft = deadline ? Math.ceil((deadline - today) / 86400000) : 0;
+  const concluida = percent >= 100;
+  const atrasada = !concluida && deadline && daysLeft < 0;
+  const status = concluida
+    ? { key: 'done', label: 'Concluída', className: 'done' }
+    : atrasada
+      ? { key: 'late', label: 'Atrasada', className: 'late' }
+      : { key: 'progress', label: 'Em andamento', className: 'progress' };
+
+  return {
+    ...goal,
+    alvo,
+    atual,
+    restante: Math.max(0, alvo - atual),
+    percent,
+    daysLeft,
+    status
+  };
+}
+
+function renderMetas() {
+  state.metas = loadFinancialGoals();
+  const metas = state.metas.map(getGoalViewModel);
+  const total = metas.length;
+  const concluidas = metas.filter(meta => meta.status.key === 'done').length;
+  const incompletas = metas.filter(meta => meta.status.key !== 'done');
+  const nearest = [...incompletas].sort((a, b) => (a.daysLeft || 99999) - (b.daysLeft || 99999))[0] || metas[0] || null;
+  const totalSaved = metas.reduce((sum, meta) => sum + meta.atual, 0);
+  const totalRemaining = metas.reduce((sum, meta) => sum + meta.restante, 0);
+  const avgProgress = total ? Math.round(metas.reduce((sum, meta) => sum + meta.percent, 0) / total) : 0;
+
+  setText('goalsTotal', String(total));
+  setText('goalsDone', String(concluidas));
+  setText('goalsNearest', nearest ? nearest.nome : '-');
+  setText('goalsRemaining', formatBRL(totalRemaining));
+  setText('goalsSavedTotal', formatBRL(totalSaved));
+  setText('goalsNearestName', nearest ? nearest.nome : '-');
+  setText('goalsDaysLeft', nearest ? formatGoalDaysLeft(nearest.daysLeft) : '0');
+  setText('goalsAverageProgress', `${avgProgress}%`);
+  renderGoalFluxiaInsight(nearest);
+
+  const grid = document.getElementById('goalsGrid');
+  const empty = document.getElementById('goalsEmpty');
+  if (!grid || !empty) return;
+  empty.hidden = metas.length > 0;
+  grid.innerHTML = metas.map(renderGoalCard).join('');
+}
+
+function setText(id, value) {
+  const element = document.getElementById(id);
+  if (element) element.textContent = value;
+}
+
+function renderGoalCard(meta) {
+  return `
+    <article class="goal-card ${meta.status.className}">
+      <div class="goal-card-header">
+        <div>
+          <span class="goal-status ${meta.status.className}">${meta.status.label}</span>
+          <h2>${esc(meta.nome)}</h2>
+          ${meta.descricao ? `<p>${esc(meta.descricao)}</p>` : ''}
+        </div>
+        <div class="goal-card-actions">
+          <button class="btn-action" type="button" onclick="editarMeta('${meta.id}')">Editar</button>
+          <button class="btn-action delete" type="button" onclick="excluirMeta('${meta.id}')">Excluir</button>
+        </div>
+      </div>
+      <div class="goal-progress-block" aria-label="${meta.percent}% concluído">
+        <div class="goal-progress-meta">
+          <strong>${meta.percent}%</strong>
+          <span>${formatBRL(meta.atual)} de ${formatBRL(meta.alvo)}</span>
+        </div>
+        <div class="goal-progress-track">
+          <span style="width:${meta.percent}%"></span>
+        </div>
+      </div>
+      <div class="goal-card-details">
+        <div><span>Valor alvo</span><strong>${formatBRL(meta.alvo)}</strong></div>
+        <div><span>Valor atual</span><strong>${formatBRL(meta.atual)}</strong></div>
+        <div><span>Prazo</span><strong>${meta.prazo ? formatDate(meta.prazo) : '-'}</strong></div>
+        <div><span>Restante</span><strong>${formatBRL(meta.restante)}</strong></div>
+      </div>
+    </article>
+  `;
+}
+
+function formatGoalDaysLeft(days) {
+  if (days < 0) return `${Math.abs(days)} atrasado`;
+  if (days === 0) return 'Hoje';
+  return `${days} dias`;
+}
+
+function renderGoalFluxiaInsight(nearest) {
+  const target = document.getElementById('goalsFluxiaInsight');
+  if (!target) return;
+  if (!state.movimentacoes.length) {
+    target.textContent = 'Cadastre movimentações para receber previsões da FluxIA.';
+    return;
+  }
+  if (!nearest) {
+    target.textContent = 'Crie uma meta para receber recomendações com base no seu histórico.';
+    return;
+  }
+
+  const recent = state.movimentacoes
+    .filter((mov) => mov.data >= getDateDaysAgo(30));
+  const entrada = recent.filter(m => m.tipo === 'entrada').reduce((s, m) => s + m.valor, 0);
+  const saida = recent.filter(m => m.tipo === 'saida').reduce((s, m) => s + m.valor, 0);
+  const average = Math.max(0, (entrada - saida) / 30);
+  if (average <= 0) {
+    target.textContent = 'Sua média recente ainda não gera previsão positiva. Revise despesas para acelerar esta meta.';
+    return;
+  }
+  const days = Math.ceil(nearest.restante / average);
+  target.textContent = `Se mantiver sua média atual, esta meta será atingida em aproximadamente ${days} dias.`;
+}
+
+function getDateDaysAgo(days) {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return date.toISOString().slice(0, 10);
+}
+
+function resetMetaForm() {
+  document.getElementById('modalMetaTitle').textContent = 'Nova Meta';
+  document.getElementById('metaId').value = '';
+  document.getElementById('metaNome').value = '';
+  document.getElementById('metaValor').value = '';
+  document.getElementById('metaPrazo').value = getDefaultGoalDeadline();
+  document.getElementById('metaDescricao').value = '';
+}
+
+function openNovaMeta() {
+  resetMetaForm();
+  openModal('modalMeta');
+}
+
+function preencherExemploMeta(key) {
+  const example = getGoalExamples()[key];
+  if (!example) return;
+  if (!document.getElementById('modalMeta')?.classList.contains('open')) {
+    resetMetaForm();
+    openModal('modalMeta');
+  }
+  document.getElementById('metaNome').value = example.nome;
+  document.getElementById('metaValor').value = formatBRL(example.valor).replace('R$', '').trim();
+  document.getElementById('metaPrazo').value = getDefaultGoalDeadline(key === 'reserva' || key === 'veiculo' ? 180 : 90);
+  document.getElementById('metaDescricao').value = example.descricao;
+}
+
+function editarMeta(id) {
+  const meta = state.metas.find(item => item.id === id);
+  if (!meta) return;
+  document.getElementById('modalMetaTitle').textContent = 'Editar Meta';
+  document.getElementById('metaId').value = meta.id;
+  document.getElementById('metaNome').value = meta.nome;
+  document.getElementById('metaValor').value = formatBRL(meta.valor).replace('R$', '').trim();
+  document.getElementById('metaPrazo').value = meta.prazo || getDefaultGoalDeadline();
+  document.getElementById('metaDescricao').value = meta.descricao || '';
+  openModal('modalMeta');
+}
+
+async function excluirMeta(id) {
+  const confirmed = await confirmarAcao({
+    title: 'Excluir meta',
+    message: 'Essa meta sera removida do seu painel financeiro.',
+    confirmText: 'Excluir',
+    danger: true
+  });
+  if (!confirmed) return;
+  state.metas = state.metas.filter(meta => meta.id !== id);
+  saveFinancialGoals();
+  renderMetas();
+  showToast('Meta excluida.', 'error');
+}
+
+function salvarMeta() {
+  const id = document.getElementById('metaId').value;
+  const nome = document.getElementById('metaNome').value.trim();
+  const valor = parseBRL(document.getElementById('metaValor').value);
+  const prazo = document.getElementById('metaPrazo').value;
+  const descricao = document.getElementById('metaDescricao').value.trim();
+
+  if (!nome) { showToast('Informe o nome da meta.', 'error'); return; }
+  if (!valor || valor <= 0) { showToast('Informe um objetivo valido.', 'error'); return; }
+  if (!prazo) { showToast('Informe o prazo da meta.', 'error'); return; }
+
+  const existing = state.metas.find(meta => meta.id === id);
+  const payload = {
+    id: id || `goal-${Date.now()}`,
+    nome,
+    valor,
+    prazo,
+    descricao,
+    createdAt: existing?.createdAt || new Date().toISOString()
+  };
+
+  state.metas = existing
+    ? state.metas.map(meta => meta.id === id ? payload : meta)
+    : [payload, ...state.metas];
+
+  saveFinancialGoals();
+  closeModal('modalMeta');
+  renderMetas();
+  showToast(existing ? 'Meta atualizada!' : 'Meta criada!');
 }
 
 // ===== MOVIMENTACAO FORM =====
@@ -3486,6 +3864,11 @@ function exposeGlobalHandlers() {
     excluirMov,
     salvarMovimentacao,
     criarCategoria,
+    openNovaMeta,
+    preencherExemploMeta,
+    editarMeta,
+    excluirMeta,
+    salvarMeta,
     criarClienteRapido,
     resetClienteForm,
     editarCliente,
@@ -3812,12 +4195,14 @@ async function init() {
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeMobileMenu();
   });
+  window.addEventListener('hashchange', () => {
+    navigate(getInitialRoute(), { updateHash: false });
+  });
 
   document.getElementById('accountMenuButton')?.addEventListener('click', openAccountPanel);
   document.querySelectorAll('[data-sidebar-action]').forEach((button) => {
     button.addEventListener('click', () => {
-      handleSidebarAction(button.dataset.sidebarAction);
-      closeMobileMenu();
+      navigate(button.dataset.sidebarAction);
     });
   });
   document.getElementById('accountModalClose')?.addEventListener('click', closeAccountPanel);
@@ -3875,6 +4260,7 @@ async function init() {
 
   // Valor mask
   document.getElementById('movValor').addEventListener('input', function(){ maskValor(this); });
+  document.getElementById('metaValor')?.addEventListener('input', function(){ maskValor(this); });
   document.getElementById('clienteTel').addEventListener('input', function(){ maskTelefone(this); });
   document.getElementById('movNovoClienteTel').addEventListener('input', function(){ maskTelefone(this); });
   document.getElementById('cfgDocumento').addEventListener('input', maskDocumentoConfig);
@@ -3922,6 +4308,9 @@ async function init() {
   document.getElementById('filtroValorMin')?.addEventListener('input', applyFilters);
   document.getElementById('filtroValorMax')?.addEventListener('input', applyFilters);
   document.getElementById('limparFiltrosMov')?.addEventListener('click', limparFiltrosMovimentacoes);
+  document.querySelectorAll('[data-goal-example]').forEach((button) => {
+    button.addEventListener('click', () => preencherExemploMeta(button.dataset.goalExample));
+  });
   document.getElementById('buscaCliente').addEventListener('input', renderClientesEnhanced);
   document.getElementById('ordemClientes').addEventListener('change', renderClientesEnhanced);
 
@@ -3958,7 +4347,7 @@ async function init() {
   relAno.innerHTML = anos.map(a=>`<option value="${a}">${a}</option>`).join('');
 
   // Render initial page
-  navigate('dashboard');
+  navigate(getInitialRoute(), { replaceHash: true });
   updateSidebarUser();
   window.setTimeout(openOnboarding, 180);
 }
