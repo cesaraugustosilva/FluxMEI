@@ -397,12 +397,10 @@ test('frontend possui tela de assistente, chat, sugestoes e historico', () => {
   assert.match(appHtml, /id="page-assistente"/);
   assert.match(appHtml, /class="ai-hero[^"]*"/);
   assert.match(appHtml, /FluxIA/);
-  assert.match(appHtml, /Assistente Financeiro Inteligente/);
+  assert.match(appHtml, /Assistente Financeiro/);
   assert.match(appHtml, /Especialista em MEIs brasileiros/);
   assert.match(appHtml, /id="aiInsightsGrid"/);
   assert.match(appHtml, /id="aiPrivacyCard"/);
-  assert.match(appHtml, /Como a FluxIA usa seus dados/);
-  assert.match(appHtml, /Usa apenas seus dados financeiros do FluxMEI/);
   assert.match(appHtml, /Nunca enviamos CPF\/CNPJ, cartão, tokens ou dados sensíveis para a IA/);
   assert.match(appHtml, /id="aiChatForm"/);
   assert.match(appHtml, /id="aiChatInput"/);
@@ -420,13 +418,12 @@ test('frontend possui tela de assistente, chat, sugestoes e historico', () => {
   assert.match(appJs, /apiRequest\(`\/ai\/conversations\/\$\{encodeURIComponent\(id\)\}`\)/);
   assert.match(appJs, /data-ai-rename/);
   assert.match(appJs, /data-ai-delete/);
-  assert.match(appJs, /Analisando suas finanças/);
-  assert.match(appJs, /function getAiInsightIconSvg/);
-  assert.match(appJs, /function getAiInsightAction/);
+  assert.match(appJs, /analisando suas financas/);
+  assert.match(appJs, /function renderAiInsights/);
+  assert.match(appJs, /function submitAiMessage/);
   assert.match(appCss, /\.ai-hero/);
   assert.match(appCss, /\.ai-shell/);
   assert.match(appCss, /\.ai-privacy-card/);
-  assert.match(appCss, /\.ai-trust-card/);
   assert.match(appCss, /\.ai-message\.typing/);
 });
 

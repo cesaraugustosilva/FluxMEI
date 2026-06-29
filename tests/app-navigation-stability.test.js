@@ -14,11 +14,12 @@ test('todos os itens data-page possuem uma tela correspondente', () => {
   assert.deepEqual(missing, []);
 });
 
-test('navegacao principal aponta para abas reais modernizadas', () => {
+test('navegacao principal aponta para abas reais restauradas', () => {
   assert.match(appHtml, /data-page="dashboard"/);
   assert.match(appHtml, /data-page="movimentacoes"/);
   assert.match(appHtml, /data-page="metas"/);
   assert.match(appHtml, /data-page="assistente"/);
+  assert.match(appHtml, /id="page-metas"/);
   assert.match(appHtml, /class="nav-item" data-page="metas"[\s\S]*?<span class="nav-label">Metas<\/span>/);
 });
 
@@ -40,26 +41,25 @@ test('apenas uma page fica ativa e sidebar acompanha a pagina', () => {
 });
 
 test('rotas de conta exportacao e indicacao abrem handlers existentes', () => {
-  assert.match(appHtml, /data-sidebar-action="account"/);
-  assert.match(appHtml, /data-sidebar-action="referral"/);
-  assert.match(appHtml, /data-sidebar-action="export"/);
   assert.match(appJs, /handleSidebarAction\(route\)/);
+  assert.match(appJs, /function handleSidebarAction\(action\)/);
   assert.match(appJs, /openAccountPanel\(\)/);
-  assert.match(appJs, /openAccountSection\(action\)/);
+  assert.match(appJs, /#accountReferralCard/);
+  assert.match(appJs, /\.account-export-card/);
+  assert.match(appHtml, /id="accountReferralCard"/);
+  assert.match(appHtml, /class="account-export-card"/);
 });
 
-test('botoes rapidos preservam destinos e modais principais', () => {
-  assert.match(appHtml, /onclick="navigate\('assistente'\)"/);
-  assert.match(appHtml, /onclick="navigate\('metas'\); openNovaMeta\(\);"/);
+test('botoes e modais principais permanecem disponiveis', () => {
+  assert.match(appHtml, /onclick="navigate\('movimentacoes'\)"/);
   assert.match(appHtml, /id="modalMovimentacao"/);
   assert.match(appHtml, /id="modalMeta"/);
   assert.match(appJs, /function openModal\(id\)/);
   assert.match(appJs, /if \(!modal\) return/);
 });
 
-test('CSS nao exibe FluxIA fora da aba ativa', () => {
-  assert.match(appCss, /#page-assistente\s*\{\s*display: none;/);
-  assert.match(appCss, /#page-assistente\.active\s*\{\s*display: grid;/);
-  assert.match(appCss, /#page-movimentacoes\.active\s*\{\s*display: grid;/);
-  assert.match(appCss, /#page-metas\.active\s*\{\s*display: grid;/);
+test('CSS usa regra antiga de paginas e nao força FluxIA fora da aba ativa', () => {
+  assert.match(appCss, /\.page \{ display: none;/);
+  assert.match(appCss, /\.page\.active \{ display: block;/);
+  assert.doesNotMatch(appCss, /#page-assistente\s*\{\s*display:\s*grid/);
 });

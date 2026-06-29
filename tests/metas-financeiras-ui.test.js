@@ -6,47 +6,42 @@ const appHtml = readFileSync(new URL('../frontend/app/index.html', import.meta.u
 const appJs = readFileSync(new URL('../frontend/app/app.js', import.meta.url), 'utf8');
 const appCss = readFileSync(new URL('../frontend/app/style.css', import.meta.url), 'utf8');
 
-test('Metas Financeiras renderiza hero premium e indicadores principais', () => {
+test('Metas Financeiras renderiza tela simples restaurada e indicadores principais', () => {
   assert.match(appHtml, /id="page-metas"/);
   assert.match(appHtml, /Metas Financeiras/);
-  assert.match(appHtml, /Defina objetivos e acompanhe sua evolução financeira\./);
+  assert.match(appHtml, /Defina objetivos e acompanhe sua evolucao financeira\./);
   assert.match(appHtml, /id="goalsTotal"/);
   assert.match(appHtml, /id="goalsDone"/);
-  assert.match(appHtml, /id="goalsNearest"/);
   assert.match(appHtml, /id="goalsRemaining"/);
   assert.match(appHtml, /id="newGoalButton"/);
 });
 
-test('Metas possui cards, barra de progresso e status semanticos', () => {
+test('Metas possui cards e barra de progresso sem depender de backend', () => {
   assert.match(appHtml, /id="goalsGrid"/);
-  assert.match(appJs, /function renderGoalCard/);
-  assert.match(appJs, /class="goal-card \$\{meta\.status\.className\}"/);
+  assert.match(appJs, /function renderMetas\(\)/);
+  assert.match(appJs, /class="dash-card goal-card"/);
   assert.match(appJs, /class="goal-progress-track"/);
-  assert.match(appJs, /\$\{meta\.percent\}%/);
-  assert.match(appJs, /Concluída/);
-  assert.match(appJs, /Em andamento/);
-  assert.match(appJs, /Atrasada/);
+  assert.match(appJs, /width:\$\{goal\.percent\}%/);
   assert.match(appCss, /\.goal-progress-track span/);
-  assert.match(appCss, /@keyframes goalProgressIn/);
 });
 
 test('Metas mostra FluxIA recomenda usando dados existentes', () => {
   assert.match(appHtml, /id="goalsFluxiaInsight"/);
   assert.match(appHtml, /FluxIA recomenda/);
   assert.match(appJs, /function renderGoalFluxiaInsight/);
-  assert.match(appJs, /Cadastre movimentações para receber previsões da FluxIA\./);
-  assert.match(appJs, /Se mantiver sua média atual/);
+  assert.match(appJs, /Cadastre movimentacoes para receber previsoes da FluxIA\./);
+  assert.match(appJs, /Se mantiver sua media atual/);
   assert.doesNotMatch(appJs, /\/api\/ai\/chat.*goalsFluxiaInsight/s);
 });
 
 test('Metas possui estado vazio e exemplos rapidos', () => {
   assert.match(appHtml, /id="goalsEmpty"/);
-  assert.match(appHtml, /Você ainda não criou nenhuma meta financeira\./);
+  assert.match(appHtml, /Voce ainda nao criou nenhuma meta financeira\./);
   assert.match(appHtml, /Criar primeira meta/);
   assert.match(appHtml, /Explorar exemplos/);
   assert.match(appHtml, /Comprar notebook/);
   assert.match(appHtml, /Capital de giro/);
-  assert.match(appHtml, /Reserva de emergência/);
+  assert.match(appHtml, /Reserva de emergencia/);
   assert.match(appJs, /function preencherExemploMeta/);
 });
 

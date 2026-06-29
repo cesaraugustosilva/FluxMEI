@@ -108,7 +108,6 @@ let state = {
   aiActiveConversationId: null,
   aiLoaded: false,
   aiLoading: false,
-  metas: [],
   onboardingStep: 1,
   onboardingSaving: false,
   user: null,
@@ -127,17 +126,7 @@ let relChart = null;
 let dashboardMes = localStorage.getItem(DASHBOARD_MONTH_KEY) || '';
 let dashboardPeriodo = localStorage.getItem(DASHBOARD_PERIOD_KEY) || 'month';
 let subscriptionStatus = null;
-
-const APP_PAGES = new Set([
-  'dashboard',
-  'movimentacoes',
-  'metas',
-  'calendario',
-  'clientes',
-  'relatorios',
-  'assistente',
-  'configuracoes'
-]);
+const APP_PAGES = new Set(['dashboard', 'movimentacoes', 'metas', 'calendario', 'clientes', 'relatorios', 'assistente', 'configuracoes']);
 const ROUTE_ALIASES = {
   inicio: 'dashboard',
   home: 'dashboard',
@@ -862,48 +851,6 @@ async function copyReferralLink() {
   }
 }
 
-async function shareReferralLink() {
-  const input = document.getElementById('accountReferralLink');
-  const link = input?.value || '';
-  if (!link || state.referralError) return;
-
-  try {
-    if (navigator.share) {
-      await navigator.share({
-        title: 'FluxMEI',
-        text: 'Conheca o FluxMEI para organizar as financas do MEI.',
-        url: link
-      });
-      return;
-    }
-    await copyReferralLink();
-  } catch {
-    showToast('Nao foi possivel compartilhar agora.', 'error');
-  }
-}
-
-async function copyTextToClipboard(text, successMessage) {
-  if (!text) return;
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-    } else {
-      const temp = document.createElement('textarea');
-      temp.value = text;
-      temp.setAttribute('readonly', '');
-      temp.style.position = 'fixed';
-      temp.style.opacity = '0';
-      document.body.appendChild(temp);
-      temp.select();
-      document.execCommand('copy');
-      temp.remove();
-    }
-    showToast(successMessage);
-  } catch {
-    showToast('Nao foi possivel copiar agora.', 'error');
-  }
-}
-
 function handleSmartAlertClick(event) {
   const closeButton = event.target.closest('[data-smart-alert-close]');
   if (closeButton) {
@@ -963,15 +910,10 @@ function renderAccountPanel() {
 
   document.getElementById('accountName').textContent = nome;
   document.getElementById('accountEmail').textContent = email;
-  const createdAt = document.getElementById('accountCreatedAt');
-  if (createdAt) createdAt.textContent = state.profile?.created_at || state.user?.created_at ? formatDate(state.profile?.created_at || state.user?.created_at) : '--';
   document.querySelectorAll('.account-avatar').forEach((avatar) => {
     avatar.textContent = nome.charAt(0).toUpperCase();
   });
-  const currentPlanLabel = getPlanShortLabel(currentPlanId) || currentPlan?.nome || getPlanLabel(status);
-  document.getElementById('accountCurrentPlan').textContent = currentPlanLabel;
-  const mirrorPlan = document.getElementById('accountCurrentPlanMirror');
-  if (mirrorPlan) mirrorPlan.textContent = currentPlanLabel;
+  document.getElementById('accountCurrentPlan').textContent = getPlanShortLabel(currentPlanId) || currentPlan?.nome || getPlanLabel(status);
   document.getElementById('accountCurrentValue').textContent = currentPlan ? formatPlanPrice(currentPlan) : '--';
   document.getElementById('accountNextDueDate').textContent = status.data_vencimento ? formatDate(status.data_vencimento) : '--';
   document.getElementById('accountDaysRemaining').textContent = status.dias_restantes != null ? `${Number(status.dias_restantes || 0)} dia(s)` : '--';
@@ -981,10 +923,6 @@ function renderAccountPanel() {
   const badge = document.getElementById('accountStatusBadge');
   badge.textContent = statusMeta.label;
   badge.className = `account-status-badge ${statusMeta.className}`;
-  const proBadge = document.getElementById('accountProBadge');
-  if (proBadge) proBadge.hidden = !['pro_mensal', 'pro_anual', 'mensal', 'anual'].includes(currentPlanId);
-  const indicator = document.getElementById('accountSubscriptionIndicator');
-  if (indicator) indicator.className = `account-subscription-indicator ${statusMeta.className}`;
 
   const statusText = estado === 'cancelamento_agendado'
     ? `Voce continuara com acesso ate ${status.data_vencimento ? formatDate(status.data_vencimento) : 'o fim do periodo ja pago'}.`
@@ -1104,22 +1042,13 @@ function renderReferralCard() {
   const codeEl = document.getElementById('accountReferralCode');
   const linkEl = document.getElementById('accountReferralLink');
   const copyButton = document.getElementById('accountReferralCopy');
-  const countEl = document.getElementById('accountReferralCount');
-  const daysEl = document.getElementById('accountReferralDays');
   if (!codeEl || !linkEl || !copyButton) return;
 
   const code = state.referral?.referral_code || '';
   const link = getReferralInviteLink(code);
-  const stats = state.referral?.stats || {};
-  const rewardedCount = Number(stats.rewarded || 0);
-  const convertedCount = Number(stats.converted || 0);
-  const pendingCount = Number(stats.pending || 0);
-  const totalReferrals = rewardedCount + convertedCount + pendingCount;
   codeEl.textContent = code || '--';
   linkEl.value = state.referralError || link || 'Gerando seu link de indicacao...';
   copyButton.disabled = !link;
-  if (countEl) countEl.textContent = String(totalReferrals);
-  if (daysEl) daysEl.textContent = String(rewardedCount * Number(state.referral?.reward_days || 15));
 }
 
 function renderPaymentHistory() {
@@ -1133,12 +1062,7 @@ function renderPaymentHistory() {
 
   const payments = Array.isArray(state.paymentHistory) ? state.paymentHistory : [];
   if (!payments.length) {
-    root.innerHTML = `
-      <div class="account-history-state account-empty-illustrated">
-        <svg viewBox="0 0 120 88" aria-hidden="true"><rect x="18" y="16" width="84" height="56" rx="14"/><path d="M34 38h52M34 52h32"/><circle cx="82" cy="52" r="7"/></svg>
-        <strong>Nenhum pagamento encontrado ainda.</strong>
-        <span>Quando houver pagamentos, eles aparecerão aqui com recibos e links úteis.</span>
-      </div>`;
+    root.innerHTML = '<div class="account-history-state">Nenhum pagamento encontrado ainda.</div>';
     return;
   }
 
@@ -1147,19 +1071,14 @@ function renderPaymentHistory() {
     const status = getPaymentStatusMeta(payment.status);
     const date = payment.paid_at || payment.created_at;
     const provider = payment.provider ? String(payment.provider).toUpperCase() : '--';
-    const pixCode = payment.pix_copia_cola || payment.pix_code || payment.qr_code || payment.copia_cola || '';
-    const isBoleto = String(payment.payment_method || '').toLowerCase().includes('boleto');
     const externalAction = payment.link
-      ? `<a class="account-payment-action" href="${esc(payment.link)}" target="_blank" rel="noopener">${isBoleto ? 'Abrir boleto' : 'Abrir'}</a>`
-      : '';
-    const pixAction = pixCode
-      ? `<button class="account-payment-action" type="button" data-copy-pix="${esc(pixCode)}">Copiar Pix</button>`
+      ? `<a class="account-payment-action" href="${esc(payment.link)}" target="_blank" rel="noopener">Abrir</a>`
       : '';
     const receiptAction = isReceiptEligible(payment.status)
       ? `<button class="account-payment-action receipt-link" type="button" data-receipt-id="${esc(payment.id)}">Ver recibo</button>`
       : '';
-    const action = externalAction || pixAction || receiptAction
-      ? `<div class="account-payment-actions">${externalAction}${pixAction}${receiptAction}</div>`
+    const action = externalAction || receiptAction
+      ? `<div class="account-payment-actions">${externalAction}${receiptAction}</div>`
       : '<span class="account-payment-action muted">--</span>';
 
     return `
@@ -1175,7 +1094,7 @@ function renderPaymentHistory() {
         <div><span>Plano</span><strong>${esc(getPaymentPlanLabel(payment.plano))}</strong></div>
         <div><span>Valor</span><strong>${formatBRL(payment.valor || 0)}</strong></div>
         <div><span>Status</span><strong class="account-payment-status ${status.className}">${esc(status.label)}</strong></div>
-        <div class="account-payment-action-cell"><span>Ação</span>${action}</div>
+        <div><span>Acao</span>${action}</div>
       </article>
     `;
   }).join('');
@@ -1272,6 +1191,27 @@ function openAccountPanel() {
   const modal = document.getElementById('accountModal');
   modal.classList.add('open');
   modal.setAttribute('aria-hidden', 'false');
+}
+
+function handleSidebarAction(action) {
+  if (action === 'support') {
+    showToast('Suporte em breve.', 'info');
+    return;
+  }
+
+  openAccountPanel();
+
+  const sectionSelector = {
+    referral: '#accountReferralCard',
+    export: '.account-export-card',
+    payments: '#accountPaymentHistorySection'
+  }[action];
+
+  if (sectionSelector) {
+    requestAnimationFrame(() => {
+      document.querySelector(sectionSelector)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
 }
 
 function closeAccountPanel() {
@@ -1480,8 +1420,7 @@ function normalizeRouteTarget(target) {
 }
 
 function getInitialRoute() {
-  const hash = normalizeRouteTarget(window.location.hash || '');
-  return hash || 'dashboard';
+  return normalizeRouteTarget(window.location.hash || '');
 }
 
 function syncHashForRoute(route, { replace = false } = {}) {
@@ -1490,35 +1429,23 @@ function syncHashForRoute(route, { replace = false } = {}) {
   if (!hash) return;
   const next = `#${hash}`;
   if (window.location.hash === next) return;
-  const method = replace ? 'replaceState' : 'pushState';
-  window.history[method](null, '', next);
+  window.history[replace ? 'replaceState' : 'pushState'](null, '', next);
 }
 
-function setActiveNavigation(page, action = '') {
+function setActiveNavigation(page) {
   document.querySelectorAll('.nav-item, .bottom-item').forEach((n) => {
     n.classList.remove('active');
     n.removeAttribute('aria-current');
   });
-
-  if (page) {
-    document.querySelectorAll(`.nav-item[data-page="${page}"], .bottom-item[data-page="${page}"]`).forEach((el) => {
-      el.classList.add('active');
-      el.setAttribute('aria-current', 'page');
-    });
-  }
-
-  if (action) {
-    document.querySelectorAll(`.nav-item[data-sidebar-action="${action}"]`).forEach((el) => {
-      el.classList.add('active');
-      el.setAttribute('aria-current', 'page');
-    });
-  }
+  document.querySelectorAll(`[data-page="${page}"]`).forEach((el) => {
+    el.classList.add('active');
+    el.setAttribute('aria-current', 'page');
+  });
 }
 
 function navigate(page, options = {}) {
   const route = normalizeRouteTarget(page);
   if (['account', 'referral', 'export', 'payments', 'support'].includes(route)) {
-    setActiveNavigation('', route === 'payments' ? 'account' : route);
     closeMobileMenu();
     if (options.updateHash !== false && route !== 'support') syncHashForRoute(route, { replace: options.replaceHash });
     handleSidebarAction(route);
@@ -1551,9 +1478,9 @@ function renderPage(page) {
   switch(page) {
     case 'dashboard':      renderDashboard(); break;
     case 'movimentacoes':  renderMovimentacoes(); break;
+    case 'metas':          renderMetas(); break;
     case 'calendario':     renderCalendario(); break;
     case 'clientes':       renderClientesEnhanced(); break;
-    case 'metas':          renderMetas(); break;
     case 'relatorios':     renderRelatorios(); break;
     case 'assistente':     renderAiAssistant(); break;
     case 'configuracoes':  renderConfiguracoes(); break;
@@ -1561,24 +1488,9 @@ function renderPage(page) {
 }
 
 // ===== MOBILE MENU =====
-function setMobileMenuState(open) {
-  const sidebar = document.getElementById('sidebar');
-  const overlay = document.getElementById('mobileOverlay');
-  const hamburger = document.getElementById('hamburger');
-  if (sidebar) sidebar.classList.toggle('mobile-open', open);
-  if (overlay) {
-    overlay.classList.toggle('active', open);
-    overlay.setAttribute('aria-hidden', open ? 'false' : 'true');
-  }
-  if (hamburger) hamburger.setAttribute('aria-expanded', open ? 'true' : 'false');
-}
-
-function openMobileMenu() {
-  setMobileMenuState(true);
-}
-
 function closeMobileMenu() {
-  setMobileMenuState(false);
+  document.getElementById('sidebar').classList.remove('mobile-open');
+  document.getElementById('mobileOverlay').classList.remove('active');
 }
 
 // ===== ONBOARDING =====
@@ -2096,58 +2008,6 @@ function renderDashboardInsights({ movPeriodo, monthlyTotals, periodTotals, said
   `).join('');
 }
 
-function getDashboardGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Bom dia';
-  if (hour < 18) return 'Boa tarde';
-  return 'Boa noite';
-}
-
-function getDashboardUserName() {
-  return state.profile?.nome
-    || state.config?.nome
-    || state.user?.user_metadata?.nome
-    || 'FluxMEI';
-}
-
-function renderDashboardHero() {
-  const greeting = document.getElementById('dashboardGreeting');
-  const planBadge = document.getElementById('dashboardPlanBadge');
-  const subscriptionStatusLabel = document.getElementById('dashboardSubscriptionStatus');
-
-  if (greeting) greeting.textContent = `${getDashboardGreeting()}, ${getDashboardUserName()}`;
-  if (planBadge) planBadge.textContent = getPlanLabel();
-
-  if (subscriptionStatusLabel) {
-    const estado = subscriptionStatus?.estado || subscriptionStatus?.status || 'ativo';
-    const blocked = subscriptionStatus?.bloqueado || ['expirado', 'bloqueado', 'vencido'].includes(estado);
-    subscriptionStatusLabel.textContent = blocked ? 'Acesso requer atenção' : 'Assinatura em dia';
-    subscriptionStatusLabel.classList.toggle('warning', blocked);
-  }
-}
-
-function renderDashboardFluxia({ movPeriodo, monthlyTotals, periodTotals }) {
-  const root = document.getElementById('dashboardFluxiaInsight');
-  if (!root) return;
-
-  if (!state.movimentacoes.length) {
-    root.textContent = 'Cadastre movimentações para receber análises inteligentes.';
-    return;
-  }
-
-  const categories = getExpenseCategories(movPeriodo);
-  const topCategory = categories[0];
-  if (monthlyTotals.lucro < 0) {
-    root.textContent = `Seu mês está negativo em ${formatBRL(Math.abs(monthlyTotals.lucro))}. A FluxIA pode ajudar a encontrar cortes rápidos.`;
-    return;
-  }
-  if (topCategory) {
-    root.textContent = `Maior gasto do período: ${topCategory.category}, com ${formatBRL(topCategory.value)}. Abra a FluxIA para ver oportunidades.`;
-    return;
-  }
-  root.textContent = `Resultado positivo no período: ${formatBRL(periodTotals.lucro)}. Peça uma análise da FluxIA para planejar o próximo passo.`;
-}
-
 function buildMonthlyDashboardSeries(months) {
   let runningBalance = 0;
   const firstMonth = months[0] || getDashboardMes();
@@ -2167,10 +2027,6 @@ function buildMonthlyDashboardSeries(months) {
 function renderRevenueExpenseChart(series) {
   const root = document.getElementById('revenueExpenseChart');
   if (!root) return;
-  if (!series.some((item) => item.entradas || item.saidas)) {
-    root.innerHTML = '<div class="chart-empty-state">Sem movimentações para comparar neste período.</div>';
-    return;
-  }
   const maxValue = Math.max(1, ...series.flatMap((item) => [item.entradas, item.saidas]));
   root.innerHTML = `
     <div class="bar-chart" data-chart="revenue-expense">
@@ -2191,10 +2047,6 @@ function renderRevenueExpenseChart(series) {
 function renderBalanceEvolutionChart(series) {
   const root = document.getElementById('balanceEvolutionChart');
   if (!root) return;
-  if (!series.some((item) => item.saldo)) {
-    root.innerHTML = '<div class="chart-empty-state">O saldo aparecerá quando houver movimentações.</div>';
-    return;
-  }
   const values = series.map((item) => item.saldo);
   const min = Math.min(0, ...values);
   const max = Math.max(1, ...values);
@@ -2223,7 +2075,7 @@ function renderExpenseCategoryChart(movPeriodo) {
   const categories = getExpenseCategories(movPeriodo).slice(0, 5);
   const max = Math.max(1, ...categories.map((item) => item.value));
   if (!categories.length) {
-    root.innerHTML = '<div class="chart-empty-state">Sem despesas no período.</div>';
+    root.innerHTML = '<div class="empty-state">Sem despesas no período.</div>';
     return;
   }
   root.innerHTML = categories.map((item) => `
@@ -2242,7 +2094,7 @@ function renderTopExpenses(movPeriodo) {
     .sort((a, b) => b.valor - a.valor)
     .slice(0, 5);
   if (!expenses.length) {
-    root.innerHTML = '<div class="chart-empty-state">Sem despesas no período.</div>';
+    root.innerHTML = '<div class="empty-state">Sem despesas no período.</div>';
     return;
   }
   root.innerHTML = expenses.map((mov, index) => `
@@ -2276,7 +2128,6 @@ function renderDashboard() {
   const periodTotals = calcTotals(movPeriodo);
   const saldoTotal = state.movimentacoes.reduce((sum, mov) => sum + (mov.tipo === 'entrada' ? mov.valor : -mov.valor), 0);
 
-  renderDashboardHero();
   renderSmartAlerts('dashboardSmartAlerts', { includeActive: true });
   document.getElementById('dashSubtitle').textContent = `${formatMesAno(mesSelecionado)} · ${getDashboardPeriodLabel(dashboardPeriodo)}`;
   document.getElementById('dashboardEmptyState').hidden = state.movimentacoes.length > 0;
@@ -2293,20 +2144,9 @@ function renderDashboard() {
   document.getElementById('kpiSaidasTrend').textContent = `${formatPercentChange(saidasChange)} vs mês anterior`;
   document.getElementById('kpiLucroLabel').textContent = `${monthlyTotals.lucro >= 0 ? 'Positivo' : 'Negativo'} · ${formatPercentChange(lucroChange)} vs mês anterior`;
   document.getElementById('kpiLucro').style.color = monthlyTotals.lucro >= 0 ? 'var(--green)' : 'var(--red)';
-  const variationValue = document.getElementById('kpiVariacao');
-  const variationTrend = document.getElementById('kpiVariacaoTrend');
-  if (variationValue) {
-    variationValue.textContent = formatPercentChange(lucroChange);
-    variationValue.classList.toggle('positive', lucroChange >= 0);
-    variationValue.classList.toggle('negative', lucroChange < 0);
-  }
-  if (variationTrend) {
-    variationTrend.textContent = `Lucro vs mês anterior · ${formatBRL(previousTotals.lucro)}`;
-  }
 
   renderDASInfo();
   renderDashboardInsights({ movPeriodo, monthlyTotals, periodTotals, saidasChange });
-  renderDashboardFluxia({ movPeriodo, monthlyTotals, periodTotals });
   renderDashboardCharts({ months, movPeriodo });
 
   const ultimas = [...movPeriodo].sort((a, b) => b.data.localeCompare(a.data)).slice(0, 8);
@@ -2333,8 +2173,6 @@ let movCurrentTipo = '';
 let movCurrentCat  = '';
 let movCurrentMes  = '';
 let movCurrentText = '';
-let movCurrentValorMin = 0;
-let movCurrentValorMax = 0;
 
 function renderMovimentacoes() {
   // Set default month filter
@@ -2349,22 +2187,12 @@ function applyFilters() {
   movCurrentCat  = document.getElementById('filtroCategoria').value;
   movCurrentMes  = document.getElementById('filtroMes').value;
   movCurrentText = document.getElementById('filtroTexto').value.toLowerCase();
-  movCurrentValorMin = parseBRL(document.getElementById('filtroValorMin')?.value || '');
-  movCurrentValorMax = parseBRL(document.getElementById('filtroValorMax')?.value || '');
-
-  updateMovCategoriaFilter();
 
   let movs = [...state.movimentacoes];
   if (movCurrentTipo) movs = movs.filter(m => m.tipo === movCurrentTipo);
   if (movCurrentCat)  movs = movs.filter(m => m.cat  === movCurrentCat);
   if (movCurrentMes)  movs = movs.filter(m => m.data && m.data.startsWith(movCurrentMes));
-  if (movCurrentText) movs = movs.filter(m =>
-    m.desc.toLowerCase().includes(movCurrentText) ||
-    (m.cat || '').toLowerCase().includes(movCurrentText) ||
-    (m.obs || '').toLowerCase().includes(movCurrentText)
-  );
-  if (movCurrentValorMin > 0) movs = movs.filter(m => m.valor >= movCurrentValorMin);
-  if (movCurrentValorMax > 0) movs = movs.filter(m => m.valor <= movCurrentValorMax);
+  if (movCurrentText) movs = movs.filter(m => m.desc.toLowerCase().includes(movCurrentText) || (m.obs||'').toLowerCase().includes(movCurrentText));
 
   movs.sort((a,b) => b.data.localeCompare(a.data));
 
@@ -2374,80 +2202,42 @@ function applyFilters() {
   document.getElementById('sumEntrada').textContent = formatBRL(ent);
   document.getElementById('sumSaida').textContent   = formatBRL(sai);
   document.getElementById('sumSaldo').textContent   = formatBRL(ent-sai);
-  const sumQuantidade = document.getElementById('sumQuantidade');
-  if (sumQuantidade) sumQuantidade.textContent = String(movs.length);
 
   const tbody = document.getElementById('movTableBody');
   const empty = document.getElementById('movEmpty');
-  const mobileList = document.getElementById('movMobileList');
 
   if (!movs.length) {
     tbody.innerHTML = '';
-    if (mobileList) mobileList.innerHTML = '';
     empty.style.display = 'block';
     return;
   }
   empty.style.display = 'none';
 
   tbody.innerHTML = movs.map(m => `
-    <tr class="movement-row ${m.tipo}">
+    <tr>
+      <td>${formatDate(m.data)}</td>
       <td>
-        <span class="movement-date">${formatDate(m.data)}</span>
-      </td>
-      <td>
-        <div class="movement-desc-cell">
-          <span class="movement-type-icon ${m.tipo}" aria-hidden="true">${getMovIconSvg(m.tipo)}</span>
-          <div>
-            <strong>${esc(m.desc)}</strong>
-            ${m.clienteId ? `<span>Cliente: ${esc(getClienteNome(m.clienteId))}</span>` : ''}
-            ${m.obs ? `<small>${esc(m.obs)}</small>` : ''}
-          </div>
-        </div>
+        <div style="font-weight:500">${esc(m.desc)}</div>
+        ${m.clienteId ? `<div style="font-size:.75rem;color:var(--primary)">Cliente: ${esc(getClienteNome(m.clienteId))}</div>` : ''}
+        ${m.obs ? `<div style="font-size:.75rem;color:var(--text-muted)">${esc(m.obs)}</div>` : ''}
       </td>
       <td><span class="badge-cat">${esc(m.cat)}</span></td>
-      <td><span class="movement-payment">${pagIcon(m.pag)} ${esc(getPaymentLabel(m.pag))}</span></td>
+      <td style="text-transform:capitalize">${pagIcon(m.pag)} ${m.pag||'—'}</td>
       <td><span class="badge-tipo ${m.tipo}">${m.tipo==='entrada'?'↑ Entrada':'↓ Saída'}</span></td>
-      <td class="movement-value ${m.tipo}">
+      <td style="font-weight:700;color:${m.tipo==='entrada'?'var(--green)':'var(--red)'}">
         ${m.tipo==='entrada'?'+':'-'}${formatBRL(m.valor)}
       </td>
       <td>
         <div class="action-btns">
-          <button class="btn-action" type="button" onclick="editarMov('${m.id}')">Editar</button>
-          <button class="btn-action" type="button" disabled aria-disabled="true">Duplicar</button>
-          <button class="btn-action delete" type="button" onclick="excluirMov('${m.id}')">Excluir</button>
+          <button class="btn-action" onclick="editarMov('${m.id}')">✏️ Editar</button>
+          <button class="btn-action delete" onclick="excluirMov('${m.id}')">🗑️ Excluir</button>
         </div>
       </td>
     </tr>
   `).join('');
 
-  if (mobileList) {
-    mobileList.innerHTML = movs.map(m => `
-      <article class="movement-mobile-card ${m.tipo}">
-        <div class="movement-mobile-main">
-          <span class="movement-type-icon ${m.tipo}" aria-hidden="true">${getMovIconSvg(m.tipo)}</span>
-          <div>
-            <strong>${esc(m.desc)}</strong>
-            <span>${formatDate(m.data)} · ${esc(m.cat)}</span>
-          </div>
-        </div>
-        <div class="movement-mobile-meta">
-          <span class="badge-tipo ${m.tipo}">${m.tipo==='entrada'?'Receita':'Despesa'}</span>
-          <strong class="movement-value ${m.tipo}">${m.tipo==='entrada'?'+':'-'}${formatBRL(m.valor)}</strong>
-        </div>
-        ${m.obs ? `<p>${esc(m.obs)}</p>` : ''}
-        <div class="action-btns">
-          <button class="btn-action" type="button" onclick="editarMov('${m.id}')">Editar</button>
-          <button class="btn-action" type="button" disabled aria-disabled="true">Duplicar</button>
-          <button class="btn-action delete" type="button" onclick="excluirMov('${m.id}')">Excluir</button>
-        </div>
-      </article>
-    `).join('');
-  }
-}
-
-function updateMovCategoriaFilter() {
+  // Update cat filter options
   const catSelect = document.getElementById('filtroCategoria');
-  if (!catSelect) return;
   const curCat = catSelect.value;
   const cats = [...new Set(state.movimentacoes.map(m=>m.cat))].sort();
   catSelect.innerHTML = '<option value="">Todas as categorias</option>' +
@@ -2457,30 +2247,6 @@ function updateMovCategoriaFilter() {
 function pagIcon(pag) {
   const icons = { pix:'⚡', dinheiro:'💵', cartao:'💳', boleto:'📄' };
   return icons[pag] || '';
-}
-
-function getPaymentLabel(pag) {
-  const labels = { pix: 'Pix', dinheiro: 'Dinheiro', cartao: 'Cartão', boleto: 'Boleto' };
-  return labels[pag] || 'Não informado';
-}
-
-function getMovIconSvg(tipo) {
-  if (tipo === 'entrada') {
-    return '<svg viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>';
-  }
-  return '<svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>';
-}
-
-function limparFiltrosMovimentacoes() {
-  document.getElementById('filtroTipo').value = '';
-  document.getElementById('filtroCategoria').value = '';
-  document.getElementById('filtroMes').value = getDashboardMes();
-  document.getElementById('filtroTexto').value = '';
-  const min = document.getElementById('filtroValorMin');
-  const max = document.getElementById('filtroValorMax');
-  if (min) min.value = '';
-  if (max) max.value = '';
-  applyFilters();
 }
 
 // ===== METAS FINANCEIRAS =====
@@ -2493,38 +2259,8 @@ function loadFinancialGoals() {
   }
 }
 
-function saveFinancialGoals() {
-  localStorage.setItem(FINANCIAL_GOALS_KEY, JSON.stringify(state.metas || []));
-}
-
-function getGoalExamples() {
-  return {
-    notebook: {
-      nome: 'Comprar notebook',
-      valor: 5000,
-      descricao: 'Equipamento para melhorar a produtividade do MEI.'
-    },
-    capital: {
-      nome: 'Capital de giro',
-      valor: 8000,
-      descricao: 'Reserva para manter o negócio saudável nos próximos meses.'
-    },
-    reserva: {
-      nome: 'Reserva de emergência',
-      valor: 12000,
-      descricao: 'Proteção para imprevistos pessoais e profissionais.'
-    },
-    viagem: {
-      nome: 'Viagem',
-      valor: 4500,
-      descricao: 'Planejamento financeiro para viajar sem comprometer o caixa.'
-    },
-    veiculo: {
-      nome: 'Troca de veículo',
-      valor: 25000,
-      descricao: 'Entrada ou complemento para trocar o veículo de trabalho.'
-    }
-  };
+function saveFinancialGoals(goals) {
+  localStorage.setItem(FINANCIAL_GOALS_KEY, JSON.stringify(goals || []));
 }
 
 function getDefaultGoalDeadline(days = 90) {
@@ -2533,144 +2269,94 @@ function getDefaultGoalDeadline(days = 90) {
   return date.toISOString().slice(0, 10);
 }
 
-function calcGoalSavedSince(goal) {
-  const start = goal.createdAt ? String(goal.createdAt).slice(0, 10) : '';
-  const movs = start
-    ? state.movimentacoes.filter((mov) => mov.data >= start)
-    : state.movimentacoes;
-  const entradas = movs.filter(m => m.tipo === 'entrada').reduce((s, m) => s + m.valor, 0);
-  const saidas = movs.filter(m => m.tipo === 'saida').reduce((s, m) => s + m.valor, 0);
-  return Math.max(0, entradas - saidas);
+function getGoalExamples() {
+  return {
+    notebook: { nome: 'Comprar notebook', valor: 5000, descricao: 'Equipamento para o MEI.' },
+    capital: { nome: 'Capital de giro', valor: 8000, descricao: 'Reserva para manter o caixa saudavel.' },
+    reserva: { nome: 'Reserva de emergencia', valor: 12000, descricao: 'Protecao para imprevistos.' },
+    viagem: { nome: 'Viagem', valor: 4500, descricao: 'Planejamento para viajar sem comprometer o caixa.' },
+    veiculo: { nome: 'Troca de veiculo', valor: 25000, descricao: 'Entrada ou complemento para trocar o veiculo.' }
+  };
 }
 
-function getGoalViewModel(goal) {
+function calcGoalCurrent(goal) {
+  const start = goal.createdAt ? String(goal.createdAt).slice(0, 10) : '';
+  const movs = start ? state.movimentacoes.filter((mov) => mov.data >= start) : state.movimentacoes;
+  const entrada = movs.filter(m => m.tipo === 'entrada').reduce((s, m) => s + m.valor, 0);
+  const saida = movs.filter(m => m.tipo === 'saida').reduce((s, m) => s + m.valor, 0);
+  return Math.max(0, entrada - saida);
+}
+
+function getGoalView(goal) {
   const alvo = Number(goal.valor || 0);
-  const atual = Math.min(alvo, calcGoalSavedSince(goal));
+  const atual = Math.min(alvo, calcGoalCurrent(goal));
   const percent = alvo > 0 ? Math.min(100, Math.round((atual / alvo) * 100)) : 0;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const deadline = goal.prazo ? new Date(`${goal.prazo}T00:00:00`) : null;
   const daysLeft = deadline ? Math.ceil((deadline - today) / 86400000) : 0;
-  const concluida = percent >= 100;
-  const atrasada = !concluida && deadline && daysLeft < 0;
-  const status = concluida
-    ? { key: 'done', label: 'Concluída', className: 'done' }
-    : atrasada
-      ? { key: 'late', label: 'Atrasada', className: 'late' }
-      : { key: 'progress', label: 'Em andamento', className: 'progress' };
-
-  return {
-    ...goal,
-    alvo,
-    atual,
-    restante: Math.max(0, alvo - atual),
-    percent,
-    daysLeft,
-    status
-  };
+  const status = percent >= 100 ? 'Concluida' : (deadline && daysLeft < 0 ? 'Atrasada' : 'Em andamento');
+  return { ...goal, alvo, atual, percent, daysLeft, restante: Math.max(0, alvo - atual), status };
 }
 
 function renderMetas() {
-  state.metas = loadFinancialGoals();
-  const metas = state.metas.map(getGoalViewModel);
-  const total = metas.length;
-  const concluidas = metas.filter(meta => meta.status.key === 'done').length;
-  const incompletas = metas.filter(meta => meta.status.key !== 'done');
-  const nearest = [...incompletas].sort((a, b) => (a.daysLeft || 99999) - (b.daysLeft || 99999))[0] || metas[0] || null;
-  const totalSaved = metas.reduce((sum, meta) => sum + meta.atual, 0);
-  const totalRemaining = metas.reduce((sum, meta) => sum + meta.restante, 0);
-  const avgProgress = total ? Math.round(metas.reduce((sum, meta) => sum + meta.percent, 0) / total) : 0;
-
-  setText('goalsTotal', String(total));
-  setText('goalsDone', String(concluidas));
-  setText('goalsNearest', nearest ? nearest.nome : '-');
-  setText('goalsRemaining', formatBRL(totalRemaining));
-  setText('goalsSavedTotal', formatBRL(totalSaved));
-  setText('goalsNearestName', nearest ? nearest.nome : '-');
-  setText('goalsDaysLeft', nearest ? formatGoalDaysLeft(nearest.daysLeft) : '0');
-  setText('goalsAverageProgress', `${avgProgress}%`);
-  renderGoalFluxiaInsight(nearest);
-
-  const grid = document.getElementById('goalsGrid');
+  const goals = loadFinancialGoals().map(getGoalView);
+  const root = document.getElementById('goalsGrid');
   const empty = document.getElementById('goalsEmpty');
-  if (!grid || !empty) return;
-  empty.hidden = metas.length > 0;
-  grid.innerHTML = metas.map(renderGoalCard).join('');
-}
+  const total = goals.length;
+  const done = goals.filter(goal => goal.percent >= 100).length;
+  const remaining = goals.reduce((sum, goal) => sum + goal.restante, 0);
 
-function setText(id, value) {
-  const element = document.getElementById(id);
-  if (element) element.textContent = value;
-}
+  document.getElementById('goalsTotal').textContent = String(total);
+  document.getElementById('goalsDone').textContent = String(done);
+  document.getElementById('goalsRemaining').textContent = formatBRL(remaining);
+  renderGoalFluxiaInsight(goals[0]);
 
-function renderGoalCard(meta) {
-  return `
-    <article class="goal-card ${meta.status.className}">
-      <div class="goal-card-header">
+  if (!root || !empty) return;
+  empty.hidden = total > 0;
+  root.innerHTML = goals.map((goal) => `
+    <article class="dash-card goal-card">
+      <div class="card-header">
         <div>
-          <span class="goal-status ${meta.status.className}">${meta.status.label}</span>
-          <h2>${esc(meta.nome)}</h2>
-          ${meta.descricao ? `<p>${esc(meta.descricao)}</p>` : ''}
+          <h3>${esc(goal.nome)}</h3>
+          <p>${esc(goal.status)}${goal.prazo ? ` - Prazo: ${formatDate(goal.prazo)}` : ''}</p>
         </div>
-        <div class="goal-card-actions">
-          <button class="btn-action" type="button" onclick="editarMeta('${meta.id}')">Editar</button>
-          <button class="btn-action delete" type="button" onclick="excluirMeta('${meta.id}')">Excluir</button>
-        </div>
-      </div>
-      <div class="goal-progress-block" aria-label="${meta.percent}% concluído">
-        <div class="goal-progress-meta">
-          <strong>${meta.percent}%</strong>
-          <span>${formatBRL(meta.atual)} de ${formatBRL(meta.alvo)}</span>
-        </div>
-        <div class="goal-progress-track">
-          <span style="width:${meta.percent}%"></span>
+        <div class="action-btns">
+          <button class="btn-action" type="button" onclick="editarMeta('${goal.id}')">Editar</button>
+          <button class="btn-action delete" type="button" onclick="excluirMeta('${goal.id}')">Excluir</button>
         </div>
       </div>
-      <div class="goal-card-details">
-        <div><span>Valor alvo</span><strong>${formatBRL(meta.alvo)}</strong></div>
-        <div><span>Valor atual</span><strong>${formatBRL(meta.atual)}</strong></div>
-        <div><span>Prazo</span><strong>${meta.prazo ? formatDate(meta.prazo) : '-'}</strong></div>
-        <div><span>Restante</span><strong>${formatBRL(meta.restante)}</strong></div>
+      <div class="goal-progress-meta">
+        <strong>${goal.percent}%</strong>
+        <span>${formatBRL(goal.atual)} de ${formatBRL(goal.alvo)}</span>
       </div>
+      <div class="goal-progress-track"><span style="width:${goal.percent}%"></span></div>
+      ${goal.descricao ? `<p class="page-subtitle">${esc(goal.descricao)}</p>` : ''}
     </article>
-  `;
+  `).join('');
 }
 
-function formatGoalDaysLeft(days) {
-  if (days < 0) return `${Math.abs(days)} atrasado`;
-  if (days === 0) return 'Hoje';
-  return `${days} dias`;
-}
-
-function renderGoalFluxiaInsight(nearest) {
+function renderGoalFluxiaInsight(goal) {
   const target = document.getElementById('goalsFluxiaInsight');
   if (!target) return;
   if (!state.movimentacoes.length) {
-    target.textContent = 'Cadastre movimentações para receber previsões da FluxIA.';
+    target.textContent = 'Cadastre movimentacoes para receber previsoes da FluxIA.';
     return;
   }
-  if (!nearest) {
-    target.textContent = 'Crie uma meta para receber recomendações com base no seu histórico.';
+  if (!goal) {
+    target.textContent = 'Crie uma meta para receber uma previsao com base no seu historico.';
     return;
   }
-
-  const recent = state.movimentacoes
-    .filter((mov) => mov.data >= getDateDaysAgo(30));
+  const recentStart = new Date();
+  recentStart.setDate(recentStart.getDate() - 30);
+  const recentIso = recentStart.toISOString().slice(0, 10);
+  const recent = state.movimentacoes.filter((mov) => mov.data >= recentIso);
   const entrada = recent.filter(m => m.tipo === 'entrada').reduce((s, m) => s + m.valor, 0);
   const saida = recent.filter(m => m.tipo === 'saida').reduce((s, m) => s + m.valor, 0);
   const average = Math.max(0, (entrada - saida) / 30);
-  if (average <= 0) {
-    target.textContent = 'Sua média recente ainda não gera previsão positiva. Revise despesas para acelerar esta meta.';
-    return;
-  }
-  const days = Math.ceil(nearest.restante / average);
-  target.textContent = `Se mantiver sua média atual, esta meta será atingida em aproximadamente ${days} dias.`;
-}
-
-function getDateDaysAgo(days) {
-  const date = new Date();
-  date.setDate(date.getDate() - days);
-  return date.toISOString().slice(0, 10);
+  target.textContent = average > 0
+    ? `Se mantiver sua media atual, esta meta sera atingida em aproximadamente ${Math.ceil(goal.restante / average)} dias.`
+    : 'Sua media recente ainda nao gera previsao positiva. Revise despesas para acelerar esta meta.';
 }
 
 function resetMetaForm() {
@@ -2690,10 +2376,7 @@ function openNovaMeta() {
 function preencherExemploMeta(key) {
   const example = getGoalExamples()[key];
   if (!example) return;
-  if (!document.getElementById('modalMeta')?.classList.contains('open')) {
-    resetMetaForm();
-    openModal('modalMeta');
-  }
+  if (!document.getElementById('modalMeta')?.classList.contains('open')) openNovaMeta();
   document.getElementById('metaNome').value = example.nome;
   document.getElementById('metaValor').value = formatBRL(example.valor).replace('R$', '').trim();
   document.getElementById('metaPrazo').value = getDefaultGoalDeadline(key === 'reserva' || key === 'veiculo' ? 180 : 90);
@@ -2701,14 +2384,14 @@ function preencherExemploMeta(key) {
 }
 
 function editarMeta(id) {
-  const meta = state.metas.find(item => item.id === id);
-  if (!meta) return;
+  const goal = loadFinancialGoals().find(item => item.id === id);
+  if (!goal) return;
   document.getElementById('modalMetaTitle').textContent = 'Editar Meta';
-  document.getElementById('metaId').value = meta.id;
-  document.getElementById('metaNome').value = meta.nome;
-  document.getElementById('metaValor').value = formatBRL(meta.valor).replace('R$', '').trim();
-  document.getElementById('metaPrazo').value = meta.prazo || getDefaultGoalDeadline();
-  document.getElementById('metaDescricao').value = meta.descricao || '';
+  document.getElementById('metaId').value = goal.id;
+  document.getElementById('metaNome').value = goal.nome;
+  document.getElementById('metaValor').value = formatBRL(goal.valor).replace('R$', '').trim();
+  document.getElementById('metaPrazo').value = goal.prazo || getDefaultGoalDeadline();
+  document.getElementById('metaDescricao').value = goal.descricao || '';
   openModal('modalMeta');
 }
 
@@ -2720,8 +2403,7 @@ async function excluirMeta(id) {
     danger: true
   });
   if (!confirmed) return;
-  state.metas = state.metas.filter(meta => meta.id !== id);
-  saveFinancialGoals();
+  saveFinancialGoals(loadFinancialGoals().filter(goal => goal.id !== id));
   renderMetas();
   showToast('Meta excluida.', 'error');
 }
@@ -2732,12 +2414,11 @@ function salvarMeta() {
   const valor = parseBRL(document.getElementById('metaValor').value);
   const prazo = document.getElementById('metaPrazo').value;
   const descricao = document.getElementById('metaDescricao').value.trim();
-
   if (!nome) { showToast('Informe o nome da meta.', 'error'); return; }
   if (!valor || valor <= 0) { showToast('Informe um objetivo valido.', 'error'); return; }
   if (!prazo) { showToast('Informe o prazo da meta.', 'error'); return; }
-
-  const existing = state.metas.find(meta => meta.id === id);
+  const goals = loadFinancialGoals();
+  const existing = goals.find(goal => goal.id === id);
   const payload = {
     id: id || `goal-${Date.now()}`,
     nome,
@@ -2746,12 +2427,7 @@ function salvarMeta() {
     descricao,
     createdAt: existing?.createdAt || new Date().toISOString()
   };
-
-  state.metas = existing
-    ? state.metas.map(meta => meta.id === id ? payload : meta)
-    : [payload, ...state.metas];
-
-  saveFinancialGoals();
+  saveFinancialGoals(existing ? goals.map(goal => goal.id === id ? payload : goal) : [payload, ...goals]);
   closeModal('modalMeta');
   renderMetas();
   showToast(existing ? 'Meta atualizada!' : 'Meta criada!');
@@ -3736,97 +3412,10 @@ function updateDasPreview() {
 }
 
 function updateSidebarUser() {
-  const nome = state.config.nome || state.profile?.nome || state.user?.user_metadata?.nome || 'FluxMEI';
-  const email = state.user?.email || 'email@exemplo.com';
-  const statusMeta = getSidebarSubscriptionMeta();
+  const nome = state.config.nome || 'FluxMEI';
   document.querySelectorAll('.user-name').forEach(el=>el.textContent=nome);
   document.querySelectorAll('.user-avatar').forEach(el=>el.textContent=nome.charAt(0).toUpperCase());
   document.querySelectorAll('.user-plan').forEach(el=>el.textContent=getPlanLabel());
-  document.querySelectorAll('.user-email').forEach(el=>el.textContent=email);
-  document.querySelectorAll('.user-status').forEach((el) => {
-    el.textContent = statusMeta.label;
-    el.classList.toggle('warning', statusMeta.warning);
-  });
-  renderSidebarUpgradeCta();
-}
-
-function getSidebarSubscriptionMeta(status = subscriptionStatus) {
-  const estado = status?.estado || status?.status || '';
-  const dias = Number(status?.dias_restantes || 0);
-  if (status?.bloqueado || ['expirado', 'bloqueado', 'vencido'].includes(estado)) {
-    return { label: 'Acesso requer atenção', warning: true };
-  }
-  if (['pendente_pagamento', 'pendente'].includes(estado)) {
-    return { label: 'Pagamento pendente', warning: true };
-  }
-  if (estado === 'teste_gratis') {
-    return { label: dias ? `Trial: ${dias} dia(s)` : 'Trial ativo', warning: dias <= 3 };
-  }
-  if (estado === 'ativo') {
-    return { label: dias ? `Ativo: ${dias} dia(s)` : 'Assinatura ativa', warning: dias <= 7 };
-  }
-  return { label: 'Status da assinatura', warning: false };
-}
-
-function renderSidebarUpgradeCta(status = subscriptionStatus) {
-  const root = document.getElementById('sidebarUpgradeCta');
-  if (!root) return;
-  const text = document.getElementById('sidebarUpgradeText');
-  const action = document.getElementById('sidebarUpgradeAction');
-  const estado = status?.estado || status?.status || '';
-  const dias = Number(status?.dias_restantes || 0);
-  const isBlocked = status?.bloqueado || ['expirado', 'bloqueado', 'vencido'].includes(estado);
-  const isTrial = estado === 'teste_gratis';
-  const needsRenewal = estado === 'ativo' && dias > 0 && dias <= 7;
-  const isPending = ['pendente_pagamento', 'pendente'].includes(estado);
-
-  if (!isBlocked && !isTrial && !needsRenewal && !isPending) {
-    root.hidden = true;
-    return;
-  }
-
-  root.hidden = false;
-  if (text) {
-    text.textContent = isBlocked
-      ? 'Renove para continuar acessando seus dados.'
-      : isPending
-        ? 'Finalize o pagamento para manter seu acesso.'
-        : needsRenewal
-          ? `Seu plano vence em ${dias} dia(s).`
-          : 'Assine para continuar após o período gratuito.';
-  }
-  if (action) {
-    action.textContent = isBlocked || needsRenewal || isPending ? 'Renovar' : 'Assinar agora';
-    action.href = getCheckoutUrlForPlan(getCurrentPlanId(status) !== 'gratuito' ? getCurrentPlanId(status) : 'pro_mensal');
-  }
-}
-
-function openAccountSection(section) {
-  openAccountPanel();
-  const selectors = {
-    referral: '#accountReferralCard',
-    export: '.account-export-card',
-    payments: '#accountPaymentHistorySection'
-  };
-  const selector = selectors[section];
-  if (!selector) return;
-  window.setTimeout(() => {
-    document.querySelector(selector)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, 120);
-}
-
-function handleSidebarAction(action) {
-  if (action === 'account') {
-    openAccountPanel();
-    return;
-  }
-  if (action === 'referral' || action === 'export' || action === 'payments') {
-    openAccountSection(action);
-    return;
-  }
-  if (action === 'support') {
-    showToast('Fale com o suporte pelo e-mail suporte@fluxmei.com.br.');
-  }
 }
 
 async function limparTudo() {
@@ -3919,7 +3508,7 @@ function renderAiInsights() {
   if (!state.aiInsights.length) {
     root.innerHTML = `
       <article class="ai-insight-card info loading">
-        <span>${getAiInsightIconSvg('info')}</span>
+        <span>FX</span>
         <p>Carregando analise automatica das suas financas...</p>
       </article>
     `;
@@ -3928,36 +3517,11 @@ function renderAiInsights() {
 
   root.innerHTML = state.aiInsights.map((insight, index) => `
     <article class="ai-insight-card ${esc(insight.type || 'info')}" style="--delay:${index * 60}ms">
-      <span>${getAiInsightIconSvg(insight.type || 'info')}</span>
-      <div>
-        <p>${esc(insight.title)}</p>
-        ${insight.metric !== undefined ? `<strong>${typeof insight.metric === 'number' ? formatBRL(insight.metric) : esc(insight.metric)}</strong>` : ''}
-        <small>${getAiInsightAction(insight.type || 'info')}</small>
-      </div>
+      <span>${getAiInsightIcon(insight.type || 'info')}</span>
+      <p>${esc(insight.title)}</p>
+      ${insight.metric !== undefined ? `<strong>${typeof insight.metric === 'number' ? formatBRL(insight.metric) : esc(insight.metric)}</strong>` : ''}
     </article>
   `).join('');
-}
-
-function getAiInsightIconSvg(type) {
-  const icons = {
-    positive: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17l6-6 4 4 6-8"/><path d="M15 7h5v5"/></svg>',
-    warning: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 16H3L12 3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
-    danger: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6"/><path d="M12 17h.01"/></svg>',
-    info: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>',
-    goal: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M19 5l-3 3"/></svg>'
-  };
-  return icons[type] || icons.info;
-}
-
-function getAiInsightAction(type) {
-  const actions = {
-    positive: 'Continue acompanhando',
-    warning: 'Revise este ponto',
-    danger: 'Priorize agora',
-    goal: 'Planeje o proximo passo',
-    info: 'Veja no chat'
-  };
-  return actions[type] || actions.info;
 }
 
 function renderAiHistory() {
@@ -4005,8 +3569,8 @@ function renderAiMessages() {
             <circle cx="113" cy="32" r="5"></circle>
           </svg>
         </div>
-        <strong>Cadastre algumas receitas e despesas para a FluxIA gerar análises mais precisas.</strong>
-        <button class="fm-btn fm-btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">Adicionar movimentação</button>
+        <strong>Cadastre algumas receitas e despesas para a FluxIA gerar analises mais precisas.</strong>
+        <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">Adicionar movimentacao</button>
       </div>
     `;
     return;
@@ -4025,7 +3589,7 @@ function renderAiMessages() {
       <span class="ai-message-avatar">FX</span>
       <div>
         <strong class="ai-message-author">FluxIA</strong>
-        <p>Analisando suas finanças...</p>
+        <p>analisando suas financas...</p>
         <span></span><span></span><span></span>
       </div>
     </article>
@@ -4188,23 +3752,15 @@ async function init() {
 
   // Hamburger
   document.getElementById('hamburger').addEventListener('click', () => {
-    const sidebar = document.getElementById('sidebar');
-    setMobileMenuState(!sidebar?.classList.contains('mobile-open'));
+    document.getElementById('sidebar').classList.toggle('mobile-open');
+    document.getElementById('mobileOverlay').classList.toggle('active');
   });
   document.getElementById('mobileOverlay').addEventListener('click', closeMobileMenu);
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeMobileMenu();
-  });
   window.addEventListener('hashchange', () => {
     navigate(getInitialRoute(), { updateHash: false });
   });
 
   document.getElementById('accountMenuButton')?.addEventListener('click', openAccountPanel);
-  document.querySelectorAll('[data-sidebar-action]').forEach((button) => {
-    button.addEventListener('click', () => {
-      navigate(button.dataset.sidebarAction);
-    });
-  });
   document.getElementById('accountModalClose')?.addEventListener('click', closeAccountPanel);
   document.getElementById('accountPlanSwitchAction')?.addEventListener('click', (event) => {
     confirmPlanSwitch(event.currentTarget.dataset.targetPlan);
@@ -4214,13 +3770,9 @@ async function init() {
   });
   document.getElementById('accountQuickHistory')?.addEventListener('click', scrollToPaymentHistory);
   document.getElementById('accountReferralCopy')?.addEventListener('click', copyReferralLink);
-  document.getElementById('accountReferralShare')?.addEventListener('click', shareReferralLink);
   document.getElementById('exportCsvAction')?.addEventListener('click', (event) => handleExportClick('csv', event.currentTarget));
   document.getElementById('exportJsonAction')?.addEventListener('click', (event) => handleExportClick('json', event.currentTarget));
   document.getElementById('exportSummaryAction')?.addEventListener('click', (event) => handleExportClick('resumo', event.currentTarget));
-  document.querySelectorAll('[data-dashboard-export]').forEach((button) => {
-    button.addEventListener('click', (event) => handleExportClick(event.currentTarget.dataset.dashboardExport || 'resumo', event.currentTarget));
-  });
   document.getElementById('aiChatForm')?.addEventListener('submit', submitAiMessage);
   document.getElementById('aiNewConversation')?.addEventListener('click', newAiConversation);
   document.getElementById('aiHistoryList')?.addEventListener('click', handleAiHistoryClick);
@@ -4233,8 +3785,6 @@ async function init() {
   document.getElementById('accountPaymentHistory')?.addEventListener('click', (event) => {
     const button = event.target.closest('[data-receipt-id]');
     if (button) openPaymentReceipt(button.dataset.receiptId);
-    const pixButton = event.target.closest('[data-copy-pix]');
-    if (pixButton) copyTextToClipboard(pixButton.dataset.copyPix, 'Codigo Pix copiado.');
   });
   document.getElementById('onboardingNext')?.addEventListener('click', nextOnboardingStep);
   document.getElementById('onboardingBack')?.addEventListener('click', previousOnboardingStep);
@@ -4305,9 +3855,6 @@ async function init() {
   document.getElementById('filtroCategoria').addEventListener('change', applyFilters);
   document.getElementById('filtroMes').addEventListener('change', applyFilters);
   document.getElementById('filtroTexto').addEventListener('input', applyFilters);
-  document.getElementById('filtroValorMin')?.addEventListener('input', applyFilters);
-  document.getElementById('filtroValorMax')?.addEventListener('input', applyFilters);
-  document.getElementById('limparFiltrosMov')?.addEventListener('click', limparFiltrosMovimentacoes);
   document.querySelectorAll('[data-goal-example]').forEach((button) => {
     button.addEventListener('click', () => preencherExemploMeta(button.dataset.goalExample));
   });

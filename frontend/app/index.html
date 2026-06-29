@@ -54,7 +54,6 @@
       document.addEventListener('DOMContentLoaded', () => syncButtons(getTheme()));
     }());
   </script>
-  <link rel="stylesheet" href="/styles/design-system.css?v=20260626-1" />
   <link rel="stylesheet" href="style.css?v=20260523-17" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
@@ -83,88 +82,55 @@
 <!-- SIDEBAR (Desktop) -->
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-brand">
-    <a href="#" class="brand-lockup" data-page="dashboard" aria-label="Ir para o Dashboard">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" role="img"><path d="M5 17V7.8C5 6.2 6.2 5 7.8 5H19v4H9.5v3H17v3.8H9.5V21H5v-4Z"/><path d="M14 21l5-5h-5v5Z"/></svg>
-      </span>
-      <span>
-        <span class="brand-name">FluxMEI</span>
-        <span class="brand-subtitle">Finanças para MEI</span>
-      </span>
-    </a>
+    <span class="brand-name">FluxMEI</span>
     <button class="theme-toggle" type="button" data-theme-toggle aria-label="Ativar modo escuro">
       <span class="theme-toggle-icon" aria-hidden="true"></span>
       <span class="theme-toggle-text">Escuro</span>
     </button>
   </div>
-  <nav class="sidebar-nav" aria-label="Navegação principal">
-    <div class="nav-group">
-      <span class="nav-group-label">Principal</span>
-      <a href="#" class="nav-item active" data-page="dashboard" aria-current="page">
-        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="8" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="15" width="7" height="6" rx="2"/></svg></span><span class="nav-label">Dashboard</span>
-      </a>
-      <a href="#" class="nav-item" data-page="movimentacoes">
-        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 7h13"/><path d="M17 4l3 3-3 3"/><path d="M17 17H4"/><path d="M7 14l-3 3 3 3"/></svg></span><span class="nav-label">Movimentações</span>
-      </a>
-      <a href="#" class="nav-item" data-page="metas">
-        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v4"/><path d="M12 17v4"/><path d="M4.9 5.6l2.8 2.8"/><path d="M16.3 15.6l2.8 2.8"/><circle cx="12" cy="12" r="5"/></svg></span><span class="nav-label">Metas</span>
-      </a>
-      <a href="#" class="nav-item" data-page="assistente">
-        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l1.4 4.2L18 9l-4.6 1.8L12 15l-1.4-4.2L6 9l4.6-1.8L12 3Z"/><path d="M5 16l.8 2.2L8 19l-2.2.8L5 22l-.8-2.2L2 19l2.2-.8L5 16Z"/><path d="M19 14l.7 1.8 1.8.7-1.8.7L19 19l-.7-1.8-1.8-.7 1.8-.7L19 14Z"/></svg></span><span class="nav-label">FluxIA</span>
-      </a>
-    </div>
-
-    <div class="nav-group">
-      <span class="nav-group-label">Conta</span>
-      <button class="nav-item" type="button" data-sidebar-action="account">
-        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/></svg></span><span class="nav-label">Minha Conta</span>
-      </button>
-      <button class="nav-item" type="button" data-sidebar-action="referral">
-        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 12v8H4v-8"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H8.5A2.5 2.5 0 1 1 11 4.5c0 1.5 1 2.5 1 2.5Z"/><path d="M12 7h3.5A2.5 2.5 0 1 0 13 4.5c0 1.5-1 2.5-1 2.5Z"/></svg></span><span class="nav-label">Indique e Ganhe</span>
-      </button>
-      <button class="nav-item" type="button" data-sidebar-action="export">
-        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></span><span class="nav-label">Exportar Dados</span>
-      </button>
-    </div>
-
-    <div class="nav-group">
-      <span class="nav-group-label">Sistema</span>
-      <a href="#" class="nav-item" data-page="configuracoes">
-        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2 3.5-.2-.1a1.7 1.7 0 0 0-1.9.3 1.7 1.7 0 0 0-.8 1.6V22H9v-.3a1.7 1.7 0 0 0-.8-1.6 1.7 1.7 0 0 0-1.9-.3l-.2.1-2-3.5.1-.1A1.7 1.7 0 0 0 4.6 15 1.7 1.7 0 0 0 3 14H3v-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2-3.5.2.1a1.7 1.7 0 0 0 1.9-.3A1.7 1.7 0 0 0 9 1.7V1h6v.7a1.7 1.7 0 0 0 .8 1.6 1.7 1.7 0 0 0 1.9.3l.2-.1 2 3.5-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.1v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg></span><span class="nav-label">Configurações</span>
-      </a>
-      <button class="nav-item" type="button" data-sidebar-action="support">
-        <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 16 0v4a3 3 0 0 1-3 3h-2"/><path d="M6 15h2v-5H6a2 2 0 0 0-2 2v1a2 2 0 0 0 2 2Z"/><path d="M18 15h-2v-5h2a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2Z"/><path d="M13 19h-2"/></svg></span><span class="nav-label">Suporte</span>
-      </button>
-    </div>
+  <nav class="sidebar-nav">
+    <a href="#" class="nav-item active" data-page="dashboard">
+      <span class="nav-icon">▦</span><span class="nav-label">Dashboard</span>
+    </a>
+    <a href="#" class="nav-item" data-page="movimentacoes">
+      <span class="nav-icon">⇅</span><span class="nav-label">Movimentações</span>
+    </a>
+    <a href="#" class="nav-item" data-page="calendario">
+      <span class="nav-icon">◫</span><span class="nav-label">Calendário</span>
+    </a>
+    <a href="#" class="nav-item" data-page="clientes">
+      <span class="nav-icon">◎</span><span class="nav-label">Clientes</span>
+    </a>
+    <a href="#" class="nav-item" data-page="metas">
+      <span class="nav-icon">M</span><span class="nav-label">Metas</span>
+    </a>
+    <a href="#" class="nav-item" data-page="relatorios">
+      <span class="nav-icon">◈</span><span class="nav-label">Relatórios</span>
+    </a>
+    <a href="#" class="nav-item" data-page="assistente">
+      <span class="nav-icon">AI</span><span class="nav-label">Assistente Financeiro</span>
+    </a>
+    <a href="#" class="nav-item" data-page="configuracoes">
+      <span class="nav-icon">◉</span><span class="nav-label">Configurações</span>
+    </a>
   </nav>
   <div class="sidebar-footer">
-    <section class="sidebar-upgrade-card" id="sidebarUpgradeCta" hidden>
-      <span>Continue usando o FluxMEI Pro</span>
-      <p id="sidebarUpgradeText">Evite interrupções no controle financeiro.</p>
-      <a class="fm-btn fm-btn-primary" href="/checkout/" id="sidebarUpgradeAction">Assinar agora</a>
-    </section>
-    <button class="sidebar-user" type="button" id="accountMenuButton" aria-haspopup="dialog" aria-controls="accountModal" aria-label="Abrir Minha Conta">
-      <div class="user-avatar" aria-hidden="true">M</div>
+    <button class="sidebar-user" type="button" id="accountMenuButton" aria-haspopup="dialog" aria-controls="accountModal">
+      <div class="user-avatar">M</div>
       <div class="user-info">
-        <span class="user-name" id="sidebarUserName">FluxMEI</span>
-        <span class="user-email" id="sidebarUserEmail">email@exemplo.com</span>
-        <span class="user-plan" id="sidebarUserPlan">Carregando plano...</span>
-        <span class="user-status" id="sidebarUserStatus">Status da assinatura</span>
+        <span class="user-name">FluxMEI</span>
+        <span class="user-plan">Carregando plano...</span>
       </div>
-      <span class="sidebar-account-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span>
     </button>
   </div>
 </aside>
 
 <!-- MOBILE HEADER -->
 <header class="mobile-header">
-  <button class="hamburger" id="hamburger" type="button" aria-label="Abrir menu principal" aria-controls="sidebar" aria-expanded="false">
+  <button class="hamburger" id="hamburger">
     <span></span><span></span><span></span>
   </button>
   <div class="mobile-brand">
-    <span class="brand-mark" aria-hidden="true">
-      <svg viewBox="0 0 24 24" role="img"><path d="M5 17V7.8C5 6.2 6.2 5 7.8 5H19v4H9.5v3H17v3.8H9.5V21H5v-4Z"/><path d="M14 21l5-5h-5v5Z"/></svg>
-    </span>
     <span>FluxMEI</span>
   </div>
   <div class="mobile-header-right">
@@ -176,7 +142,7 @@
 </header>
 
 <!-- MOBILE NAV OVERLAY -->
-<div class="mobile-overlay" id="mobileOverlay" aria-hidden="true"></div>
+<div class="mobile-overlay" id="mobileOverlay"></div>
 
 <!-- BOTTOM NAV (Mobile) -->
 <nav class="bottom-nav">
@@ -193,7 +159,7 @@
     <span class="bottom-icon">◎</span><span>Clientes</span>
   </a>
   <a href="#" class="bottom-item" data-page="metas">
-    <span class="bottom-icon">◈</span><span>Metas</span>
+    <span class="bottom-icon">◈</span><span>Relatórios</span>
   </a>
 </nav>
 
@@ -202,127 +168,74 @@
 
   <!-- ====== DASHBOARD ====== -->
   <section class="page active" id="page-dashboard">
-    <section class="dashboard-hero fm-card fm-card-premium">
-      <div class="dashboard-hero-main">
-        <div class="dashboard-hero-kicker">
-          <span class="fm-badge fm-badge-success" id="dashboardPlanBadge">Plano</span>
-          <span class="dashboard-status-dot" id="dashboardSubscriptionStatus">Status da assinatura</span>
-        </div>
-        <h1 class="page-title" id="dashboardGreeting">Bom dia, FluxMEI</h1>
-        <p class="page-subtitle">Aqui está o resumo financeiro do seu MEI.</p>
-        <p class="dashboard-period-label" id="dashSubtitle">Visão geral do seu negócio</p>
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Dashboard</h1>
+        <p class="page-subtitle" id="dashSubtitle">Visão geral do seu negócio</p>
       </div>
-      <div class="dashboard-hero-side">
-        <div class="dashboard-actions">
-          <input type="month" id="dashboardMes" class="filter-select fm-input" aria-label="Mês do dashboard" />
-          <select id="dashboardPeriodo" class="filter-select fm-select" aria-label="Período do dashboard">
-            <option value="month">Este mês</option>
-            <option value="3m">Últimos 3 meses</option>
-            <option value="6m">Últimos 6 meses</option>
-            <option value="year">Este ano</option>
-          </select>
-        </div>
-        <div class="dashboard-hero-actions">
-          <button class="fm-btn fm-btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">
-            Nova movimentação
-          </button>
-          <button class="fm-btn fm-btn-outline" type="button" onclick="navigate('assistente')">
-            Abrir FluxIA
-          </button>
-        </div>
+      <div class="dashboard-actions">
+        <input type="month" id="dashboardMes" class="filter-select" aria-label="Mês do dashboard" />
+        <select id="dashboardPeriodo" class="filter-select" aria-label="Período do dashboard">
+          <option value="month">Este mês</option>
+          <option value="3m">Últimos 3 meses</option>
+          <option value="6m">Últimos 6 meses</option>
+          <option value="year">Este ano</option>
+        </select>
+        <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">
+        + Nova Movimentação
+        </button>
       </div>
-    </section>
+    </div>
 
     <section class="smart-alerts" id="dashboardSmartAlerts" aria-label="Avisos importantes"></section>
 
     <!-- DAS Alert -->
     <div class="das-alert" id="dasAlert" style="display:none"></div>
 
-    <section class="dashboard-empty-state fm-card fm-card-premium" id="dashboardEmptyState" hidden>
-      <div class="dashboard-empty-visual" aria-hidden="true">
-        <svg viewBox="0 0 180 130" role="img">
-          <rect x="24" y="20" width="132" height="90" rx="18"></rect>
-          <path d="M48 82h84M48 60h42M48 42h64"></path>
-          <circle cx="130" cy="42" r="8"></circle>
-          <circle cx="116" cy="82" r="8"></circle>
-        </svg>
-      </div>
-      <div class="dashboard-empty-copy">
+    <section class="dashboard-empty-state" id="dashboardEmptyState" hidden>
+      <div>
         <span class="empty-kicker">Primeiro passo</span>
         <h2>Comece cadastrando sua primeira receita ou despesa.</h2>
         <p>Com alguns lançamentos, o FluxMEI monta gráficos, insights e acompanha seu saldo automaticamente.</p>
       </div>
-      <button class="fm-btn fm-btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">Adicionar primeira movimentação</button>
+      <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">Adicionar movimentação</button>
     </section>
 
     <!-- KPI Cards -->
     <div class="kpi-grid">
-      <div class="kpi-card kpi-saldo fm-card fm-card-hover">
+      <div class="kpi-card kpi-saldo">
         <div class="kpi-header">
-          <span class="kpi-label">Saldo atual</span>
-          <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16v10H4z"></path><path d="M7 10h4"></path><path d="M17 14h.01"></path></svg></span>
+          <span class="kpi-label">Saldo Atual</span>
+          <span class="kpi-icon">◈</span>
         </div>
         <div class="kpi-value" id="kpiSaldo">R$ 0,00</div>
         <div class="kpi-trend" id="kpiSaldoTrend"></div>
       </div>
-      <div class="kpi-card kpi-entrada fm-card fm-card-hover">
+      <div class="kpi-card kpi-entrada">
         <div class="kpi-header">
-          <span class="kpi-label">Receitas do mês</span>
-          <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 19V5"></path><path d="M6 11l6-6 6 6"></path></svg></span>
+          <span class="kpi-label">Entradas do Mês</span>
+          <span class="kpi-icon">↑</span>
         </div>
         <div class="kpi-value" id="kpiEntradas">R$ 0,00</div>
         <div class="kpi-trend" id="kpiEntradasTrend"></div>
       </div>
-      <div class="kpi-card kpi-saida fm-card fm-card-hover">
+      <div class="kpi-card kpi-saida">
         <div class="kpi-header">
-          <span class="kpi-label">Despesas do mês</span>
-          <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14"></path><path d="M18 13l-6 6-6-6"></path></svg></span>
+          <span class="kpi-label">Saídas do Mês</span>
+          <span class="kpi-icon">↓</span>
         </div>
         <div class="kpi-value" id="kpiSaidas">R$ 0,00</div>
         <div class="kpi-trend" id="kpiSaidasTrend"></div>
       </div>
-      <div class="kpi-card kpi-lucro fm-card fm-card-hover">
+      <div class="kpi-card kpi-lucro">
         <div class="kpi-header">
-          <span class="kpi-label">Lucro do mês</span>
-          <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 17l6-6 4 4 6-8"></path><path d="M15 7h5v5"></path></svg></span>
+          <span class="kpi-label">Resultado do Mês</span>
+          <span class="kpi-icon">◆</span>
         </div>
         <div class="kpi-value" id="kpiLucro">R$ 0,00</div>
         <div class="kpi-trend" id="kpiLucroLabel"></div>
       </div>
-      <div class="kpi-card kpi-variacao fm-card fm-card-hover">
-        <div class="kpi-header">
-          <span class="kpi-label">Variação vs mês anterior</span>
-          <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 18V6"></path><path d="M8 18V9"></path><path d="M12 18v-5"></path><path d="M16 18V7"></path><path d="M20 18v-8"></path></svg></span>
-        </div>
-        <div class="kpi-value" id="kpiVariacao">0%</div>
-        <div class="kpi-trend" id="kpiVariacaoTrend">Resultado do mês</div>
-      </div>
     </div>
-
-    <section class="dashboard-feature-grid" aria-label="Ações e análise inteligente">
-      <article class="dashboard-fluxia-card fm-card fm-card-premium" id="dashboardFluxiaCard">
-        <div>
-          <span class="fm-badge fm-badge-info">FluxIA</span>
-          <h2>Análise da FluxIA</h2>
-          <p id="dashboardFluxiaInsight">Cadastre movimentações para receber análises inteligentes.</p>
-        </div>
-        <button class="fm-btn fm-btn-primary" type="button" onclick="navigate('assistente')">Abrir Assistente Financeiro</button>
-      </article>
-
-      <article class="dashboard-quick-actions fm-card fm-card-simple">
-        <div class="dashboard-section-heading">
-          <span class="fm-caption">Atalhos</span>
-          <h2>Ações rápidas</h2>
-        </div>
-        <div class="dashboard-quick-actions-grid">
-          <button class="fm-btn fm-btn-outline" type="button" onclick="openNovaMovimentacao(); setTipo('entrada');">Adicionar receita</button>
-          <button class="fm-btn fm-btn-outline" type="button" onclick="openNovaMovimentacao(); setTipo('saida');">Adicionar despesa</button>
-          <button class="fm-btn fm-btn-outline" type="button" onclick="navigate('metas'); openNovaMeta();">Criar meta</button>
-          <button class="fm-btn fm-btn-outline" type="button" data-dashboard-export="resumo">Exportar dados</button>
-          <button class="fm-btn fm-btn-ghost" type="button" onclick="navigate('assistente')">Abrir FluxIA</button>
-        </div>
-      </article>
-    </section>
 
     <section class="dashboard-insights" id="dashboardInsights" aria-label="Insights financeiros"></section>
 
@@ -397,78 +310,40 @@
 
   <!-- ====== MOVIMENTAÇÕES ====== -->
   <section class="page" id="page-movimentacoes">
-    <div class="page-header movements-hero fm-card fm-card-premium">
-      <div class="movements-hero-copy">
-        <span class="fm-badge fm-badge-info">Fluxo financeiro</span>
+    <div class="page-header">
+      <div>
         <h1 class="page-title">Movimentações</h1>
-        <p class="page-subtitle">Controle receitas, despesas e acompanhe o fluxo do seu MEI.</p>
+        <p class="page-subtitle">Controle de entradas e saídas</p>
       </div>
-      <div class="movements-hero-actions">
-        <button class="fm-btn fm-btn-primary" type="button" onclick="openNovaMovimentacao(); setTipo('entrada');">Nova receita</button>
-        <button class="fm-btn fm-btn-secondary" type="button" onclick="openNovaMovimentacao(); setTipo('saida');">Nova despesa</button>
-        <button class="fm-btn fm-btn-outline" type="button" disabled aria-disabled="true">Importar extrato <span>Em breve</span></button>
+      <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">+ Nova</button>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-bar">
+      <div class="filter-group">
+        <select id="filtroTipo" class="filter-select">
+          <option value="">Todos os tipos</option>
+          <option value="entrada">Entradas</option>
+          <option value="saida">Saídas</option>
+        </select>
+        <select id="filtroCategoria" class="filter-select">
+          <option value="">Todas as categorias</option>
+        </select>
+        <input type="month" id="filtroMes" class="filter-select" />
+      </div>
+      <div class="filter-search">
+        <input type="text" id="filtroTexto" placeholder="Buscar descrição…" class="filter-input" />
       </div>
     </div>
 
     <!-- Summary -->
-    <div class="mov-summary movements-summary-grid" aria-label="Resumo das movimentações filtradas">
-      <article class="movement-summary-card movement-summary-income">
-        <span class="movement-summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></span>
-        <div><span>Total de receitas</span><strong id="sumEntrada">R$ 0,00</strong></div>
-      </article>
-      <article class="movement-summary-card movement-summary-expense">
-        <span class="movement-summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg></span>
-        <div><span>Total de despesas</span><strong id="sumSaida">R$ 0,00</strong></div>
-      </article>
-      <article class="movement-summary-card movement-summary-balance">
-        <span class="movement-summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 17h16"/><path d="M7 12h10"/></svg></span>
-        <div><span>Saldo do período</span><strong id="sumSaldo">R$ 0,00</strong></div>
-      </article>
-      <article class="movement-summary-card movement-summary-count">
-        <span class="movement-summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg></span>
-        <div><span>Movimentações</span><strong id="sumQuantidade">0</strong></div>
-      </article>
+    <div class="mov-summary">
+      <span class="sum-entrada">Entradas: <strong id="sumEntrada">R$ 0,00</strong></span>
+      <span class="sum-saida">Saídas: <strong id="sumSaida">R$ 0,00</strong></span>
+      <span class="sum-saldo">Saldo: <strong id="sumSaldo">R$ 0,00</strong></span>
     </div>
 
-    <!-- Filters -->
-    <div class="filter-bar movements-filter-card fm-card fm-card-simple">
-      <div class="filter-search movements-search">
-        <label for="filtroTexto">Buscar</label>
-        <input type="text" id="filtroTexto" placeholder="Descrição, categoria ou observação" class="filter-input fm-input" />
-      </div>
-      <div class="filter-group movements-filter-grid">
-        <label>Tipo
-          <select id="filtroTipo" class="filter-select fm-select">
-            <option value="">Todos</option>
-            <option value="entrada">Receitas</option>
-            <option value="saida">Despesas</option>
-          </select>
-        </label>
-        <label>Período
-          <input type="month" id="filtroMes" class="filter-select fm-input" />
-        </label>
-        <label>Categoria
-          <select id="filtroCategoria" class="filter-select fm-select">
-            <option value="">Todas as categorias</option>
-          </select>
-        </label>
-        <label>Valor mínimo
-          <input type="text" id="filtroValorMin" placeholder="R$ 0,00" class="filter-input fm-input" />
-        </label>
-        <label>Valor máximo
-          <input type="text" id="filtroValorMax" placeholder="Sem limite" class="filter-input fm-input" />
-        </label>
-        <button class="fm-btn fm-btn-ghost" type="button" id="limparFiltrosMov">Limpar filtros</button>
-      </div>
-    </div>
-
-    <div class="table-wrap movements-table-card fm-card fm-card-simple">
-      <div class="movements-table-header">
-        <div>
-          <h2>Lista de movimentações</h2>
-          <p>Visualize, filtre e gerencie lançamentos do período.</p>
-        </div>
-      </div>
+    <div class="table-wrap">
       <table class="data-table" id="movTable">
         <thead>
           <tr>
@@ -483,21 +358,7 @@
         </thead>
         <tbody id="movTableBody"></tbody>
       </table>
-      <div class="movements-mobile-list" id="movMobileList" aria-label="Movimentações em cards"></div>
-      <div class="empty-state movements-empty-state" id="movEmpty" style="display:none">
-        <svg viewBox="0 0 160 120" aria-hidden="true">
-          <rect x="28" y="24" width="104" height="72" rx="14"></rect>
-          <path d="M46 47h68M46 62h42M46 77h56"></path>
-          <circle cx="118" cy="80" r="17"></circle>
-          <path d="M118 70v20M108 80h20"></path>
-        </svg>
-        <strong>Você ainda não cadastrou nenhuma movimentação.</strong>
-        <p>Adicione uma receita ou despesa para acompanhar melhor o fluxo do seu MEI.</p>
-        <div>
-          <button class="fm-btn fm-btn-primary" type="button" onclick="openNovaMovimentacao(); setTipo('entrada');">Adicionar receita</button>
-          <button class="fm-btn fm-btn-secondary" type="button" onclick="openNovaMovimentacao(); setTipo('saida');">Adicionar despesa</button>
-        </div>
-      </div>
+      <div class="empty-state" id="movEmpty" style="display:none">Nenhuma movimentação encontrada.</div>
     </div>
   </section>
 
@@ -593,149 +454,86 @@
     </div>
   </section>
 
-  <!-- ====== METAS FINANCEIRAS ====== -->
+  <!-- ====== METAS ====== -->
   <section class="page" id="page-metas">
-    <div class="goals-hero fm-card fm-card-premium">
-      <div class="goals-hero-copy">
-        <span class="fm-badge fm-badge-info">Planejamento</span>
+    <div class="page-header">
+      <div>
         <h1 class="page-title">Metas Financeiras</h1>
-        <p class="page-subtitle">Defina objetivos e acompanhe sua evolução financeira.</p>
+        <p class="page-subtitle">Defina objetivos e acompanhe sua evolucao financeira.</p>
       </div>
-      <div class="goals-hero-stats" aria-label="Resumo das metas financeiras">
-        <div><span>Total de metas</span><strong id="goalsTotal">0</strong></div>
-        <div><span>Metas concluídas</span><strong id="goalsDone">0</strong></div>
-        <div><span>Meta mais próxima</span><strong id="goalsNearest">-</strong></div>
-        <div><span>Valor restante</span><strong id="goalsRemaining">R$ 0,00</strong></div>
-      </div>
-      <button class="fm-btn fm-btn-primary" type="button" id="newGoalButton" onclick="openNovaMeta()">Nova Meta</button>
+      <button class="btn btn-primary" type="button" id="newGoalButton" onclick="openNovaMeta()">+ Nova Meta</button>
     </div>
 
-    <div class="goals-indicators" aria-label="Indicadores de metas">
-      <article class="goals-indicator-card">
-        <span>Total economizado</span>
-        <strong id="goalsSavedTotal">R$ 0,00</strong>
-      </article>
-      <article class="goals-indicator-card">
-        <span>Meta mais próxima</span>
-        <strong id="goalsNearestName">-</strong>
-      </article>
-      <article class="goals-indicator-card">
-        <span>Dias restantes</span>
-        <strong id="goalsDaysLeft">0</strong>
-      </article>
-      <article class="goals-indicator-card">
-        <span>Conclusão média</span>
-        <strong id="goalsAverageProgress">0%</strong>
-      </article>
+    <div class="mov-summary">
+      <span>Total de metas: <strong id="goalsTotal">0</strong></span>
+      <span>Concluidas: <strong id="goalsDone">0</strong></span>
+      <span>Valor restante: <strong id="goalsRemaining">R$ 0,00</strong></span>
     </div>
 
-    <section class="goals-fluxia-card fm-card fm-card-simple" aria-labelledby="goalsFluxiaTitle">
-      <div>
-        <span class="fm-badge fm-badge-info">FluxIA recomenda</span>
-        <h2 id="goalsFluxiaTitle">Próximo passo financeiro</h2>
-        <p id="goalsFluxiaInsight">Cadastre movimentações para receber previsões da FluxIA.</p>
+    <div class="dash-card" id="goalsFluxiaCard">
+      <div class="card-header">
+        <h3>FluxIA recomenda</h3>
       </div>
-      <button class="fm-btn fm-btn-outline" type="button" onclick="navigate('assistente')">Abrir FluxIA</button>
-    </section>
+      <p id="goalsFluxiaInsight">Cadastre movimentacoes para receber previsoes da FluxIA.</p>
+    </div>
 
-    <section class="goals-examples-card fm-card fm-card-simple" aria-labelledby="goalsExamplesTitle">
-      <div>
-        <h2 id="goalsExamplesTitle">Exemplos rápidos</h2>
-        <p>Use um modelo para criar uma meta em poucos segundos.</p>
-      </div>
-      <div class="goals-example-chips" id="goalsExamples">
-        <button type="button" data-goal-example="notebook">Comprar notebook</button>
-        <button type="button" data-goal-example="capital">Capital de giro</button>
-        <button type="button" data-goal-example="reserva">Reserva de emergência</button>
-        <button type="button" data-goal-example="viagem">Viagem</button>
-        <button type="button" data-goal-example="veiculo">Troca de veículo</button>
-      </div>
-    </section>
+    <div class="filter-bar goal-examples" id="goalsExamples">
+      <button class="btn btn-sm btn-outline" type="button" data-goal-example="notebook">Comprar notebook</button>
+      <button class="btn btn-sm btn-outline" type="button" data-goal-example="capital">Capital de giro</button>
+      <button class="btn btn-sm btn-outline" type="button" data-goal-example="reserva">Reserva de emergencia</button>
+      <button class="btn btn-sm btn-outline" type="button" data-goal-example="viagem">Viagem</button>
+      <button class="btn btn-sm btn-outline" type="button" data-goal-example="veiculo">Troca de veiculo</button>
+    </div>
 
     <div class="goals-grid" id="goalsGrid"></div>
 
-    <div class="goals-empty-state fm-card fm-card-simple" id="goalsEmpty" hidden>
-      <svg viewBox="0 0 180 130" aria-hidden="true">
-        <circle cx="88" cy="66" r="46"></circle>
-        <circle cx="88" cy="66" r="28"></circle>
-        <circle cx="88" cy="66" r="10"></circle>
-        <path d="M120 34l28-12-12 28"></path>
-      </svg>
-      <strong>Você ainda não criou nenhuma meta financeira.</strong>
-      <p>Crie objetivos para organizar reservas, investimentos e próximos passos do seu MEI.</p>
-      <div>
-        <button class="fm-btn fm-btn-primary" type="button" onclick="openNovaMeta()">Criar primeira meta</button>
-        <button class="fm-btn fm-btn-outline" type="button" onclick="document.getElementById('goalsExamples')?.scrollIntoView({ behavior: 'smooth', block: 'center' })">Explorar exemplos</button>
-      </div>
+    <div class="empty-state goals-empty-state" id="goalsEmpty" hidden>
+      Voce ainda nao criou nenhuma meta financeira.<br><br>
+      <button class="btn btn-primary" type="button" onclick="openNovaMeta()">Criar primeira meta</button>
+      <button class="btn btn-outline" type="button" onclick="document.getElementById('goalsExamples')?.scrollIntoView({ behavior: 'smooth', block: 'center' })">Explorar exemplos</button>
     </div>
   </section>
 
   <!-- ====== ASSISTENTE FINANCEIRO ====== -->
   <section class="page" id="page-assistente">
-    <div class="ai-hero fm-card fm-card-premium">
+    <div class="ai-hero">
       <div class="ai-hero-copy">
         <div class="ai-hero-kicker">
-          <span class="ai-badge fm-badge fm-badge-info">FluxIA</span>
-          <span class="ai-specialist-pill">Especialista em MEIs brasileiros</span>
+          <span class="ai-badge">FluxIA</span>
+          <span>Especialista em MEIs brasileiros</span>
         </div>
-        <h1 class="page-title">Assistente Financeiro Inteligente</h1>
-        <p class="ai-hero-subtitle">Analise suas finanças, encontre oportunidades e tome decisões melhores.</p>
+        <h1 class="page-title">Assistente Financeiro</h1>
         <p>Entenda seus números, descubra oportunidades e tome decisões melhores com IA.</p>
       </div>
-      <div class="ai-hero-visual">
+      <div class="ai-hero-visual" aria-hidden="true">
         <div class="ai-hero-panel">
           <span></span>
           <strong>FluxIA</strong>
           <small>receitas, despesas e metas</small>
           <div></div>
         </div>
-        <div class="ai-hero-privacy" id="aiPrivacyCard">
-          <strong>Privacidade</strong>
-          <p>Seus dados financeiros são usados apenas para gerar esta análise. Nunca enviamos CPF/CNPJ, cartão, tokens ou dados sensíveis para a IA.</p>
-        </div>
       </div>
     </div>
 
+    <section class="ai-insights-grid" id="aiInsightsGrid" aria-label="Insights do assistente financeiro"></section>
+
     <section class="ai-shell">
-      <aside class="ai-history-panel fm-card fm-card-simple">
+      <aside class="ai-history-panel">
         <div class="ai-history-header">
           <div>
             <strong>Conversas recentes</strong>
             <span>Continue uma análise ou comece do zero.</span>
           </div>
-          <button class="fm-btn fm-btn-primary" type="button" id="aiNewConversation">Nova conversa</button>
+          <button class="btn btn-primary btn-sm" type="button" id="aiNewConversation">Nova conversa</button>
         </div>
         <div class="ai-history-list" id="aiHistoryList"></div>
-        <div class="ai-suggestions-card">
-          <div class="ai-side-title">
-            <strong>Sugestões rápidas</strong>
-            <span>Escolha um ponto de partida.</span>
-          </div>
-          <div class="ai-suggestions" id="aiSuggestions">
-            <button type="button" data-ai-prompt="Analisar meu mês">Analisar meu mês</button>
-            <button type="button" data-ai-prompt="Como posso economizar?">Como posso economizar?</button>
-            <button type="button" data-ai-prompt="Qual minha maior despesa?">Qual minha maior despesa?</button>
-            <button type="button" data-ai-prompt="Estou lucrando?">Estou lucrando?</button>
-            <button type="button" data-ai-prompt="Como bater minha meta?">Como bater minha meta?</button>
-            <button type="button" data-ai-prompt="Prever próximo mês">Prever próximo mês</button>
-          </div>
-        </div>
-        <div class="ai-trust-card">
-          <span>Como a FluxIA usa seus dados</span>
-          <ul>
-            <li>Usa apenas seus dados financeiros do FluxMEI</li>
-            <li>Não envia CPF/CNPJ, cartão, tokens ou segredos</li>
-            <li>Não acessa dados de outros usuários</li>
-            <li>Gera recomendações com base no seu histórico</li>
-          </ul>
-        </div>
-        <div class="ai-privacy-card ai-privacy-card-legacy">
+        <div class="ai-privacy-card" id="aiPrivacyCard">
           <span>Privacidade</span>
           <p>Seus dados financeiros são usados apenas para gerar esta análise. Nunca enviamos CPF/CNPJ, cartão, tokens ou dados sensíveis para a IA.</p>
         </div>
       </aside>
 
-      <div class="ai-chat-panel fm-card fm-card-premium">
+      <div class="ai-chat-panel">
         <div class="ai-chat-header">
           <div class="ai-avatar" aria-hidden="true">FX</div>
           <div>
@@ -744,9 +542,7 @@
           </div>
         </div>
 
-        <section class="ai-insights-grid" id="aiInsightsGrid" aria-label="Insights do assistente financeiro"></section>
-
-        <div class="ai-suggestions ai-suggestions-legacy" aria-hidden="true">
+        <div class="ai-suggestions" id="aiSuggestions">
           <button type="button" data-ai-prompt="Analisar meu mês">Analisar meu mês</button>
           <button type="button" data-ai-prompt="Como posso economizar?">Como posso economizar?</button>
           <button type="button" data-ai-prompt="Qual minha maior despesa?">Qual minha maior despesa?</button>
@@ -774,7 +570,7 @@
 
         <form class="ai-chat-form" id="aiChatForm">
           <input id="aiChatInput" type="text" autocomplete="off" placeholder="Pergunte algo sobre suas finanças..." />
-          <button class="fm-btn fm-btn-primary ai-send-button" type="submit" id="aiChatSubmit" aria-label="Enviar pergunta">
+          <button class="btn btn-primary ai-send-button" type="submit" id="aiChatSubmit" aria-label="Enviar pergunta">
             <span>Enviar</span>
             <span aria-hidden="true">→</span>
           </button>
@@ -853,59 +649,48 @@
 
 <!-- Modal Movimentação -->
 <div class="modal-backdrop" id="modalMovimentacao">
-  <div class="modal movement-modal">
-    <div class="modal-header movement-modal-header">
-      <div>
-        <span class="fm-badge fm-badge-info">Movimentação</span>
-        <h2 id="modalMovTitle">Nova Movimentação</h2>
-      </div>
-      <button class="modal-close" type="button" onclick="closeModal('modalMovimentacao')" aria-label="Fechar movimentação">✕</button>
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalMovTitle">Nova Movimentação</h2>
+      <button class="modal-close" type="button" onclick="closeModal('modalMovimentacao')">✕</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="movId" />
-      <div class="tipo-toggle movement-type-cards" aria-label="Tipo da movimentação">
-        <button class="tipo-btn active" id="btnEntrada" type="button" onclick="setTipo('entrada')">
-          <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></span>
-          <strong>Receita</strong>
-          <small>Entrada de dinheiro</small>
-        </button>
-        <button class="tipo-btn" id="btnSaida" type="button" onclick="setTipo('saida')">
-          <span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg></span>
-          <strong>Despesa</strong>
-          <small>Saída de dinheiro</small>
-        </button>
+      <div class="tipo-toggle">
+        <button class="tipo-btn active" id="btnEntrada" type="button" onclick="setTipo('entrada')">↑ Entrada</button>
+        <button class="tipo-btn" id="btnSaida" type="button" onclick="setTipo('saida')">↓ Saída</button>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Descrição *</label>
-          <input type="text" id="movDesc" class="form-input fm-input" placeholder="Ex: Venda de produto" />
+          <input type="text" id="movDesc" class="form-input" placeholder="Ex: Venda de produto" />
         </div>
-        <div class="form-group movement-value-field">
+        <div class="form-group">
           <label class="form-label">Valor *</label>
-          <input type="text" id="movValor" class="form-input fm-input" placeholder="0,00" />
+          <input type="text" id="movValor" class="form-input" placeholder="0,00" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Categoria *</label>
-          <select id="movCategoria" class="form-input fm-select"></select>
+          <select id="movCategoria" class="form-input"></select>
           <div class="category-create">
-            <input type="text" id="novaCategoria" class="form-input fm-input" placeholder="Nova categoria" />
-            <button class="fm-btn fm-btn-outline" type="button" onclick="criarCategoria()">Criar</button>
+            <input type="text" id="novaCategoria" class="form-input" placeholder="Nova categoria" />
+            <button class="btn btn-outline" type="button" onclick="criarCategoria()">+ Criar</button>
           </div>
         </div>
         <div class="form-group">
           <label class="form-label">Data *</label>
-          <input type="date" id="movData" class="form-input fm-input" />
+          <input type="date" id="movData" class="form-input" />
         </div>
       </div>
       <div class="form-group">
         <label class="form-label">Cliente</label>
-        <select id="movCliente" class="form-input fm-select"></select>
+        <select id="movCliente" class="form-input"></select>
         <div class="inline-create">
-          <input type="text" id="movNovoClienteNome" class="form-input fm-input" placeholder="Novo cliente" />
-          <input type="text" id="movNovoClienteTel" class="form-input fm-input" placeholder="WhatsApp" />
-          <button class="fm-btn fm-btn-outline" type="button" onclick="criarClienteRapido()">Criar</button>
+          <input type="text" id="movNovoClienteNome" class="form-input" placeholder="Novo cliente" />
+          <input type="text" id="movNovoClienteTel" class="form-input" placeholder="WhatsApp" />
+          <button class="btn btn-outline" type="button" onclick="criarClienteRapido()">+ Criar</button>
         </div>
       </div>
       <div class="form-group">
@@ -919,59 +704,54 @@
       </div>
       <div class="form-group">
         <label class="form-label">Observação</label>
-        <textarea id="movObs" class="form-input fm-textarea" rows="2" placeholder="Opcional…"></textarea>
+        <textarea id="movObs" class="form-input" rows="2" placeholder="Opcional…"></textarea>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="fm-btn fm-btn-outline" type="button" onclick="closeModal('modalMovimentacao')">Cancelar</button>
-      <button class="fm-btn fm-btn-primary" type="button" onclick="salvarMovimentacao()">Salvar movimentação</button>
+      <button class="btn btn-outline" type="button" onclick="closeModal('modalMovimentacao')">Cancelar</button>
+      <button class="btn btn-primary" type="button" onclick="salvarMovimentacao()">Salvar</button>
     </div>
   </div>
 </div>
 
 <!-- Modal Meta -->
 <div class="modal-backdrop" id="modalMeta">
-  <div class="modal goal-modal">
-    <div class="modal-header goal-modal-header">
-      <div>
-        <span class="fm-badge fm-badge-info">Meta financeira</span>
-        <h2 id="modalMetaTitle">Nova Meta</h2>
-      </div>
-      <button class="modal-close" type="button" onclick="closeModal('modalMeta')" aria-label="Fechar meta">✕</button>
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalMetaTitle">Nova Meta</h2>
+      <button class="modal-close" type="button" onclick="closeModal('modalMeta')">x</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="metaId" />
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Nome *</label>
-          <input type="text" id="metaNome" class="form-input fm-input" placeholder="Ex: Reserva de emergência" />
+          <input type="text" id="metaNome" class="form-input" placeholder="Ex: Reserva de emergencia" />
         </div>
-        <div class="form-group goal-value-field">
+        <div class="form-group">
           <label class="form-label">Objetivo *</label>
-          <input type="text" id="metaValor" class="form-input fm-input" placeholder="R$ 5.000,00" />
+          <input type="text" id="metaValor" class="form-input" placeholder="0,00" />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Prazo *</label>
-          <input type="date" id="metaPrazo" class="form-input fm-input" />
+          <input type="date" id="metaPrazo" class="form-input" />
         </div>
         <div class="form-group">
-          <label class="form-label">Descrição</label>
-          <input type="text" id="metaDescricao" class="form-input fm-input" placeholder="Explique o motivo da meta" />
+          <label class="form-label">Descricao</label>
+          <input type="text" id="metaDescricao" class="form-input" placeholder="Opcional" />
         </div>
       </div>
-      <div class="goal-modal-examples" aria-label="Exemplos de metas">
-        <button type="button" data-goal-example="notebook">Comprar notebook</button>
-        <button type="button" data-goal-example="capital">Capital de giro</button>
-        <button type="button" data-goal-example="reserva">Reserva de emergência</button>
-        <button type="button" data-goal-example="viagem">Viagem</button>
-        <button type="button" data-goal-example="veiculo">Troca de veículo</button>
+      <div class="filter-group goal-examples">
+        <button class="btn btn-sm btn-outline" type="button" data-goal-example="notebook">Comprar notebook</button>
+        <button class="btn btn-sm btn-outline" type="button" data-goal-example="capital">Capital de giro</button>
+        <button class="btn btn-sm btn-outline" type="button" data-goal-example="reserva">Reserva de emergencia</button>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="fm-btn fm-btn-outline" type="button" onclick="closeModal('modalMeta')">Cancelar</button>
-      <button class="fm-btn fm-btn-primary" type="button" onclick="salvarMeta()">Salvar Meta</button>
+      <button class="btn btn-outline" type="button" onclick="closeModal('modalMeta')">Cancelar</button>
+      <button class="btn btn-primary" type="button" onclick="salvarMeta()">Salvar Meta</button>
     </div>
   </div>
 </div>
@@ -1056,38 +836,27 @@
     <header class="account-modal-header">
       <div>
         <p class="eyebrow">Minha conta</p>
-        <h2 id="accountModalTitle">Painel da conta</h2>
+        <h2 id="accountModalTitle">Conta e plano</h2>
       </div>
       <button class="modal-close" type="button" id="accountModalClose" aria-label="Fechar">x</button>
     </header>
 
-    <section class="account-summary account-profile-hero fm-card fm-card-premium" aria-label="Perfil da conta">
+    <div class="account-summary">
       <div class="account-avatar user-avatar">M</div>
-      <div class="account-profile-copy">
-        <div class="account-profile-kicker">
-          <span class="fm-badge fm-badge-info" id="accountProBadge" hidden>FluxMEI Pro</span>
-        </div>
+      <div>
         <strong id="accountName">FluxMEI</strong>
         <span id="accountEmail">email@exemplo.com</span>
-        <div class="account-profile-meta">
-          <span>Cadastro: <strong id="accountCreatedAt">--</strong></span>
-        </div>
       </div>
-      <button class="fm-btn fm-btn-secondary" type="button" id="accountEditProfileAction" aria-label="Editar perfil">Editar Perfil</button>
-    </section>
+    </div>
 
     <section class="smart-alerts account-smart-alerts" id="accountSmartAlerts" aria-label="Avisos importantes da assinatura"></section>
 
-    <div class="account-layout-grid">
-      <div class="account-main-column">
-    <section class="account-subscription-hero fm-card fm-card-premium" aria-label="Minha assinatura">
+    <section class="account-subscription-hero" aria-label="Minha assinatura">
       <div class="account-hero-copy">
         <span>Minha assinatura</span>
-        <h3>Gerenciamento do plano</h3>
         <strong id="accountCurrentPlan">Carregando...</strong>
         <p id="accountStatusText"></p>
       </div>
-      <span class="account-subscription-indicator" id="accountSubscriptionIndicator" aria-label="Indicador da assinatura"></span>
       <span class="account-status-badge" id="accountStatusBadge">Status</span>
     </section>
 
@@ -1099,10 +868,6 @@
       <span class="account-status-badge" id="accountStatusBadgeLegacy">Status</span>
     </section>
     <section class="account-plan-overview">
-      <div>
-        <span>Plano</span>
-        <strong id="accountCurrentPlanMirror">--</strong>
-      </div>
       <div>
         <span>Valor atual</span>
         <strong id="accountCurrentValue">--</strong>
@@ -1134,93 +899,61 @@
       <button class="btn btn-primary" type="button" id="accountReactivateAction" hidden>Reativar assinatura</button>
     </section>
 
-    <section class="account-switch-card fm-card fm-card-simple" id="accountSwitchCard">
+    <section class="account-switch-card" id="accountSwitchCard">
       <div>
         <span class="account-section-title inline">Troca de plano</span>
         <strong id="accountSwitchTitle">Trocar plano</strong>
         <p id="accountSwitchText"></p>
         <p class="account-pending-warning" id="accountPendingWarning" hidden></p>
       </div>
-      <button class="fm-btn fm-btn-primary" type="button" id="accountPlanSwitchAction">Trocar plano</button>
+      <button class="btn btn-primary" type="button" id="accountPlanSwitchAction">Trocar plano</button>
     </section>
 
-    <section class="account-payment-history fm-card fm-card-simple" id="accountPaymentHistorySection" aria-label="Histórico financeiro">
-      <div class="account-section-title">Histórico financeiro</div>
-      <div class="account-payment-list" id="accountPaymentHistory">
-        <div class="account-history-state">Carregando pagamentos...</div>
-      </div>
-    </section>
-      </div>
-      <aside class="account-side-column">
-
-    <section class="account-referral-card fm-card fm-card-premium" id="accountReferralCard" aria-label="Indique e ganhe">
+    <section class="account-referral-card" id="accountReferralCard" aria-label="Indique e ganhe">
       <div class="account-referral-copy">
-        <span class="account-section-title inline">Programa de indicação</span>
+        <span class="account-section-title inline">Indique e ganhe</span>
         <strong>Indique outro MEI e ganhe 15 dias gratis</strong>
         <p>Quando a pessoa indicada assinar o FluxMEI, voce ganha 15 dias extras de assinatura.</p>
-      </div>
-      <div class="account-referral-stats">
-        <div><span>Indicações</span><strong id="accountReferralCount">0</strong></div>
-        <div><span>Dias ganhos</span><strong id="accountReferralDays">0</strong></div>
       </div>
       <div class="account-referral-box">
         <label for="accountReferralLink">Seu link de convite</label>
         <div class="account-referral-input">
           <input id="accountReferralLink" type="text" readonly value="Carregando..." />
-          <button class="fm-btn fm-btn-primary" type="button" id="accountReferralCopy">Copiar link</button>
+          <button class="btn btn-primary" type="button" id="accountReferralCopy">Copiar link</button>
         </div>
         <div class="account-referral-code">Codigo: <strong id="accountReferralCode">--</strong></div>
-        <button class="fm-btn fm-btn-outline" type="button" id="accountReferralShare">Compartilhar</button>
       </div>
     </section>
 
-    <section class="account-plans-card fm-card fm-card-simple">
+    <section>
       <div class="account-section-title">Planos disponiveis</div>
       <div class="account-plans" id="accountPlans"></div>
     </section>
 
-    <section class="account-export-card fm-card fm-card-premium" aria-label="Exportar meus dados">
+    <section class="account-export-card" aria-label="Exportar meus dados">
       <div>
         <span class="account-section-title inline">Exportar meus dados</span>
         <strong>Backup financeiro FluxMEI</strong>
         <p>Baixe suas movimentações e um resumo financeiro para controle próprio.</p>
       </div>
       <div class="account-export-actions">
-        <button class="account-export-option" type="button" id="exportCsvAction"><strong>Exportar CSV</strong><span>Movimentações em planilha.</span></button>
-        <button class="account-export-option" type="button" id="exportJsonAction"><strong>Exportar JSON</strong><span>Dados estruturados completos.</span></button>
-        <button class="account-export-option primary" type="button" id="exportSummaryAction"><strong>Resumo Financeiro</strong><span>Totais, período e indicadores.</span></button>
+        <button class="btn btn-outline" type="button" id="exportCsvAction">Baixar CSV</button>
+        <button class="btn btn-outline" type="button" id="exportJsonAction">Baixar JSON</button>
+        <button class="btn btn-primary" type="button" id="exportSummaryAction">Baixar resumo</button>
       </div>
     </section>
 
-    <section class="account-security-card fm-card fm-card-simple" aria-label="Segurança da conta">
-      <div class="account-section-title">Segurança</div>
-      <div class="account-preference-list">
-        <div><span>Último login</span><strong id="accountLastLogin">Sessão atual</strong></div>
-        <div><span>Sessão atual</span><strong>Protegida</strong></div>
-        <div><span>Email verificado</span><strong id="accountEmailVerified">Em breve</strong></div>
-      </div>
-      <div class="account-card-actions">
-        <button class="fm-btn fm-btn-outline" type="button" id="accountChangePasswordAction" disabled>Alterar senha</button>
-        <button class="fm-btn fm-btn-ghost" type="button" id="accountLogoutAllAction" disabled>Sair de todos os dispositivos</button>
+    <section class="account-payment-history" id="accountPaymentHistorySection" aria-label="Historico de pagamentos">
+      <div class="account-section-title">Historico de pagamentos</div>
+      <div class="account-payment-list" id="accountPaymentHistory">
+        <div class="account-history-state">Carregando pagamentos...</div>
       </div>
     </section>
-
-    <section class="account-preferences-card fm-card fm-card-simple" aria-label="Preferências da conta">
-      <div class="account-section-title">Preferências</div>
-      <div class="account-preference-list">
-        <div><span>Tema</span><strong>Claro/Escuro</strong></div>
-        <div><span>Idioma</span><strong>Português BR</strong></div>
-        <div><span>Notificações</span><strong>Em breve</strong></div>
-        <div><span>Moeda</span><strong>BRL</strong></div>
-      </div>
-    </section>
-      </aside>
-    </div>
 
     <footer class="account-actions">
-      <a class="fm-btn fm-btn-primary" href="/checkout/" id="accountSubscribeAction">Assinar agora</a>
-      <a class="fm-btn fm-btn-outline" href="/checkout/" id="accountManageAction">Gerenciar plano</a>
-      <button class="fm-btn fm-btn-ghost" type="button" data-logout>Sair</button>
+      <a class="btn btn-primary" href="/checkout/" id="accountSubscribeAction">Assinar agora</a>
+      <a class="btn btn-outline" href="/checkout/" id="accountManageAction">Gerenciar plano</a>
+      <button class="btn btn-outline" type="button" data-logout>Sair</button>
     </footer>
   </section>
 </div>
