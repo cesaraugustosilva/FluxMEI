@@ -1055,8 +1055,6 @@ body {
   flex: 1; justify-content: center;
 }
 .bottom-item.active { color: var(--primary); background: var(--primary-light); }
-.bottom-item[data-page="metas"] span:last-child { font-size: 0; }
-.bottom-item[data-page="metas"] span:last-child::after { content: "Metas"; font-size: 0.68rem; }
 .bottom-icon { font-size: 1.1rem; }
 
 /* ========= MAIN CONTENT ========= */
@@ -2267,47 +2265,6 @@ body {
 .btn-action:hover { background: var(--primary-light); color: var(--primary-dark); border-color: #a8dcc0; }
 .btn-action.delete:hover { background: var(--red-light); color: var(--red); border-color: var(--red); }
 
-/* ========= METAS ========= */
-.goals-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-  margin-top: 1rem;
-}
-.goal-card {
-  margin-bottom: 0;
-}
-.goal-progress-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  font-size: 0.9rem;
-  margin: 0.5rem 0;
-}
-.goal-progress-meta strong {
-  color: var(--primary);
-  font-size: 1.35rem;
-}
-.goal-progress-track {
-  height: 10px;
-  border-radius: 999px;
-  background: var(--border);
-  overflow: hidden;
-  margin-bottom: 0.75rem;
-}
-.goal-progress-track span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--primary), var(--primary-light));
-}
-.goals-empty-state[hidden] {
-  display: none;
-}
-.goal-examples {
-  justify-content: flex-start;
-}
-
 /* ========= CALENDAR ========= */
 .calendar-grid-wrap {
   background: linear-gradient(180deg, #ffffff 0%, #f8fcfa 100%);
@@ -3385,7 +3342,6 @@ textarea.form-input { resize: vertical; }
   .category-create { grid-template-columns: 1fr; }
   .inline-create { grid-template-columns: 1fr; }
   .payment-grid { grid-template-columns: repeat(2, 1fr); }
-  .goals-grid { grid-template-columns: 1fr; }
 
   .rel-summary-grid { grid-template-columns: repeat(2, 1fr); }
 

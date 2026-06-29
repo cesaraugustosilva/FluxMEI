@@ -41,8 +41,8 @@ test('apenas uma page fica ativa e sidebar acompanha a pagina', () => {
 });
 
 test('rotas de conta exportacao e indicacao abrem handlers existentes', () => {
-  assert.match(appJs, /handleSidebarAction\(route\)/);
-  assert.match(appJs, /function handleSidebarAction\(action\)/);
+  assert.match(appJs, /handleRouteAction\(route\)/);
+  assert.match(appJs, /function handleRouteAction\(action\)/);
   assert.match(appJs, /openAccountPanel\(\)/);
   assert.match(appJs, /#accountReferralCard/);
   assert.match(appJs, /\.account-export-card/);
@@ -53,7 +53,7 @@ test('rotas de conta exportacao e indicacao abrem handlers existentes', () => {
 test('botoes e modais principais permanecem disponiveis', () => {
   assert.match(appHtml, /onclick="navigate\('movimentacoes'\)"/);
   assert.match(appHtml, /id="modalMovimentacao"/);
-  assert.match(appHtml, /id="modalMeta"/);
+  assert.doesNotMatch(appHtml, /id="modalMeta"/);
   assert.match(appJs, /function openModal\(id\)/);
   assert.match(appJs, /if \(!modal\) return/);
 });

@@ -102,10 +102,7 @@
       <span class="nav-icon">◎</span><span class="nav-label">Clientes</span>
     </a>
     <a href="#" class="nav-item" data-page="metas">
-      <span class="nav-icon">M</span><span class="nav-label">Metas</span>
-    </a>
-    <a href="#" class="nav-item" data-page="relatorios">
-      <span class="nav-icon">◈</span><span class="nav-label">Relatórios</span>
+      <span class="nav-icon">◈</span><span class="nav-label">Metas</span>
     </a>
     <a href="#" class="nav-item" data-page="assistente">
       <span class="nav-icon">AI</span><span class="nav-label">Assistente Financeiro</span>
@@ -159,7 +156,7 @@
     <span class="bottom-icon">◎</span><span>Clientes</span>
   </a>
   <a href="#" class="bottom-item" data-page="metas">
-    <span class="bottom-icon">◈</span><span>Relatórios</span>
+    <span class="bottom-icon">◈</span><span>Metas</span>
   </a>
 </nav>
 
@@ -412,12 +409,12 @@
     <div class="empty-state" id="clientesEmpty" style="display:none">Nenhum cliente cadastrado.</div>
   </section>
 
-  <!-- ====== RELATÓRIOS ====== -->
-  <section class="page" id="page-relatorios">
+  <!-- ====== METAS ====== -->
+  <section class="page" id="page-metas">
     <div class="page-header">
       <div>
-        <h1 class="page-title">Relatórios</h1>
-        <p class="page-subtitle">Análise financeira do seu negócio</p>
+        <h1 class="page-title">Metas</h1>
+        <p class="page-subtitle">Acompanhe metas e análises financeiras</p>
       </div>
       <div class="filter-group">
         <select id="relatorioPeriodo" class="filter-select">
@@ -451,46 +448,6 @@
         <div class="card-header"><h3>Resumo por Categoria</h3></div>
         <div id="relCategorias" class="rank-list"></div>
       </div>
-    </div>
-  </section>
-
-  <!-- ====== METAS ====== -->
-  <section class="page" id="page-metas">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Metas Financeiras</h1>
-        <p class="page-subtitle">Defina objetivos e acompanhe sua evolucao financeira.</p>
-      </div>
-      <button class="btn btn-primary" type="button" id="newGoalButton" onclick="openNovaMeta()">+ Nova Meta</button>
-    </div>
-
-    <div class="mov-summary">
-      <span>Total de metas: <strong id="goalsTotal">0</strong></span>
-      <span>Concluidas: <strong id="goalsDone">0</strong></span>
-      <span>Valor restante: <strong id="goalsRemaining">R$ 0,00</strong></span>
-    </div>
-
-    <div class="dash-card" id="goalsFluxiaCard">
-      <div class="card-header">
-        <h3>FluxIA recomenda</h3>
-      </div>
-      <p id="goalsFluxiaInsight">Cadastre movimentacoes para receber previsoes da FluxIA.</p>
-    </div>
-
-    <div class="filter-bar goal-examples" id="goalsExamples">
-      <button class="btn btn-sm btn-outline" type="button" data-goal-example="notebook">Comprar notebook</button>
-      <button class="btn btn-sm btn-outline" type="button" data-goal-example="capital">Capital de giro</button>
-      <button class="btn btn-sm btn-outline" type="button" data-goal-example="reserva">Reserva de emergencia</button>
-      <button class="btn btn-sm btn-outline" type="button" data-goal-example="viagem">Viagem</button>
-      <button class="btn btn-sm btn-outline" type="button" data-goal-example="veiculo">Troca de veiculo</button>
-    </div>
-
-    <div class="goals-grid" id="goalsGrid"></div>
-
-    <div class="empty-state goals-empty-state" id="goalsEmpty" hidden>
-      Voce ainda nao criou nenhuma meta financeira.<br><br>
-      <button class="btn btn-primary" type="button" onclick="openNovaMeta()">Criar primeira meta</button>
-      <button class="btn btn-outline" type="button" onclick="document.getElementById('goalsExamples')?.scrollIntoView({ behavior: 'smooth', block: 'center' })">Explorar exemplos</button>
     </div>
   </section>
 
@@ -710,48 +667,6 @@
     <div class="modal-footer">
       <button class="btn btn-outline" type="button" onclick="closeModal('modalMovimentacao')">Cancelar</button>
       <button class="btn btn-primary" type="button" onclick="salvarMovimentacao()">Salvar</button>
-    </div>
-  </div>
-</div>
-
-<!-- Modal Meta -->
-<div class="modal-backdrop" id="modalMeta">
-  <div class="modal">
-    <div class="modal-header">
-      <h2 id="modalMetaTitle">Nova Meta</h2>
-      <button class="modal-close" type="button" onclick="closeModal('modalMeta')">x</button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="metaId" />
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Nome *</label>
-          <input type="text" id="metaNome" class="form-input" placeholder="Ex: Reserva de emergencia" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Objetivo *</label>
-          <input type="text" id="metaValor" class="form-input" placeholder="0,00" />
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Prazo *</label>
-          <input type="date" id="metaPrazo" class="form-input" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Descricao</label>
-          <input type="text" id="metaDescricao" class="form-input" placeholder="Opcional" />
-        </div>
-      </div>
-      <div class="filter-group goal-examples">
-        <button class="btn btn-sm btn-outline" type="button" data-goal-example="notebook">Comprar notebook</button>
-        <button class="btn btn-sm btn-outline" type="button" data-goal-example="capital">Capital de giro</button>
-        <button class="btn btn-sm btn-outline" type="button" data-goal-example="reserva">Reserva de emergencia</button>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-outline" type="button" onclick="closeModal('modalMeta')">Cancelar</button>
-      <button class="btn btn-primary" type="button" onclick="salvarMeta()">Salvar Meta</button>
     </div>
   </div>
 </div>
