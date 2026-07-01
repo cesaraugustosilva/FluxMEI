@@ -87,7 +87,9 @@ button {
 .brand img {
   width: 150px;
   height: 48px;
-  object-fit: contain;
+  object-fit: cover;
+  object-position: 50% 50%;
+  border-radius: 12px;
 }
 
 .main-nav {
@@ -282,10 +284,25 @@ h3 {
   min-height: 650px;
 }
 
+.brand-art {
+  position: absolute;
+  top: 0;
+  left: 24px;
+  z-index: 1;
+  width: min(310px, 54%);
+  aspect-ratio: 3 / 2;
+  border: 1px solid rgba(7, 19, 13, 0.10);
+  border-radius: 26px;
+  object-fit: cover;
+  object-position: 50% 50%;
+  box-shadow: 0 22px 58px rgba(12, 35, 22, 0.16);
+}
+
 .mock-window {
   position: absolute;
   top: 40px;
   right: 0;
+  z-index: 2;
   width: min(650px, 100%);
   min-height: 500px;
   display: grid;
@@ -856,8 +873,10 @@ details p {
 
 .footer-brand img {
   width: min(220px, 72vw);
-  height: auto;
+  height: 74px;
   margin-bottom: 16px;
+  object-fit: cover;
+  object-position: 50% 50%;
 }
 
 .footer nav,
@@ -983,6 +1002,15 @@ details p {
   .mock-window {
     position: relative;
     top: auto;
+  }
+
+  .brand-art {
+    position: relative;
+    top: auto;
+    left: auto;
+    display: block;
+    width: min(100%, 360px);
+    margin: 0 auto 18px;
   }
 
   .phone-mock {
