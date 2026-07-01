@@ -7,6 +7,7 @@ const adminRoutes = readFileSync(new URL('../backend/src/routes/adminRoutes.js',
 const serverSource = readFileSync(new URL('../backend/src/server.js', import.meta.url), 'utf8');
 const schemaSql = readFileSync(new URL('../backend/database/schema.sql', import.meta.url), 'utf8');
 const migrationSql = readFileSync(new URL('../backend/database/migrate_coupons.sql', import.meta.url), 'utf8');
+const atomicCouponMigrationSql = readFileSync(new URL('../backend/database/migrate_atomic_coupon_usage.sql', import.meta.url), 'utf8');
 const checkoutHtml = readFileSync(new URL('../frontend/checkout/index.html', import.meta.url), 'utf8');
 const checkoutJs = readFileSync(new URL('../frontend/checkout/checkout.js', import.meta.url), 'utf8');
 const adminHtml = readFileSync(new URL('../frontend/admin/index.html', import.meta.url), 'utf8');
@@ -36,6 +37,7 @@ async function withCouponMock(row, fn) {
     import(`../backend/src/services/couponService.js?coupon-${Date.now()}-${Math.random()}`)
   ]);
   const originalFrom = supabaseAdmin.from;
+  const originalRpc = supabaseAdmin.rpc;
   let updatedPayload = null;
 
   supabaseAdmin.from = (table) => {
@@ -64,6 +66,30 @@ async function withCouponMock(row, fn) {
     await fn({ service, getUpdatedPayload: () => updatedPayload });
   } finally {
     supabaseAdmin.from = originalFrom;
+    supabaseAdmin.rpc = originalRpc;
+  }
+}
+
+async function withCouponRpcMock(responses, fn) {
+  const [{ supabaseAdmin }, service] = await Promise.all([
+    import('../backend/src/config/supabase.js'),
+    import(`../backend/src/services/couponService.js?coupon-rpc-${Date.now()}-${Math.random()}`)
+  ]);
+  const originalRpc = supabaseAdmin.rpc;
+  const calls = [];
+  let index = 0;
+
+  supabaseAdmin.rpc = async (rpcName, params) => {
+    calls.push({ rpcName, params });
+    const response = responses[Math.min(index, responses.length - 1)];
+    index += 1;
+    return response;
+  };
+
+  try {
+    await fn({ service, calls });
+  } finally {
+    supabaseAdmin.rpc = originalRpc;
   }
 }
 
@@ -73,6 +99,12 @@ test('schema e migration criam tabela de cupons', () => {
     assert.match(source, /discount_type text not null check/);
     assert.match(source, /current_uses integer not null default 0/);
     assert.match(source, /alter table public\.coupons enable row level security/);
+  }
+  for (const source of [schemaSql, atomicCouponMigrationSql]) {
+    assert.match(source, /create or replace function public\.increment_coupon_usage_atomic\(p_coupon_id uuid\)/);
+    assert.match(source, /set current_uses = current_uses \+ 1/);
+    assert.match(source, /max_uses is null or current_uses < max_uses/);
+    assert.match(source, /grant execute on function public\.increment_coupon_usage_atomic\(uuid\) to service_role/);
   }
 });
 
@@ -137,12 +169,42 @@ test('rejeita cupom acima do limite e desconto negativo', async () => {
   );
 });
 
-test('registra uso do cupom', async () => {
-  await withCouponMock(couponRow({ current_uses: 2 }), async ({ service, getUpdatedPayload }) => {
+test('cupom valido incrementa uso de forma atomica', async () => {
+  await withCouponRpcMock([{ data: couponRow({ current_uses: 3 }), error: null }], async ({ service, calls }) => {
     const updated = await service.incrementCouponUsage('coupon-1');
 
-    assert.equal(getUpdatedPayload().current_uses, 3);
+    assert.equal(calls[0].rpcName, 'increment_coupon_usage_atomic');
+    assert.deepEqual(calls[0].params, { p_coupon_id: 'coupon-1' });
     assert.equal(updated.current_uses, 3);
+  });
+});
+
+test('ultimo uso de cupom so permite uma chamada atomica', async () => {
+  await withCouponRpcMock([
+    { data: couponRow({ max_uses: 1, current_uses: 1 }), error: null },
+    { data: null, error: { message: 'Cupom atingiu o limite de usos.' } }
+  ], async ({ service }) => {
+    const first = await service.incrementCouponUsage('coupon-1');
+    assert.equal(first.current_uses, 1);
+
+    await assert.rejects(
+      () => service.incrementCouponUsage('coupon-1'),
+      /limite de usos/
+    );
+  });
+});
+
+test('incremento atomico rejeita cupom inativo expirado e limite atingido', async () => {
+  await withCouponRpcMock([{ data: null, error: { message: 'Cupom inativo.' } }], async ({ service }) => {
+    await assert.rejects(() => service.incrementCouponUsage('coupon-1'), /Cupom inativo/);
+  });
+
+  await withCouponRpcMock([{ data: null, error: { message: 'Cupom expirado.' } }], async ({ service }) => {
+    await assert.rejects(() => service.incrementCouponUsage('coupon-1'), /Cupom expirado/);
+  });
+
+  await withCouponRpcMock([{ data: null, error: { message: 'Cupom atingiu o limite de usos.' } }], async ({ service }) => {
+    await assert.rejects(() => service.incrementCouponUsage('coupon-1'), /limite de usos/);
   });
 });
 
@@ -164,4 +226,5 @@ test('pagamento registra uso e auditoria de cupom', () => {
   assert.match(pagamentoController, /recordCouponUsed/);
   assert.match(pagamentoController, /incrementCouponUsage/);
   assert.match(pagamentoController, /action: 'coupon\.used'/);
+  assert.doesNotMatch(pagamentoController, /usage_increment_failed/);
 });

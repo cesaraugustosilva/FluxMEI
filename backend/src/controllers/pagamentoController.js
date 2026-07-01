@@ -88,21 +88,12 @@ async function applyCouponIfPresent(body, plan) {
   const couponCode = getCouponCode(body);
   if (!couponCode) return { plan, coupon: null };
   const coupon = await validateCouponForPlan(couponCode, plan.id);
+  await incrementCouponUsage(coupon.coupon.id);
   return { plan: buildDiscountedPlan(plan, coupon), coupon };
 }
 
 async function recordCouponUsed({ req, coupon, plan, paymentId, provider, method, assinatura }) {
   if (!coupon?.coupon?.id) return;
-  try {
-    await incrementCouponUsage(coupon.coupon.id);
-  } catch (error) {
-    console.warn('[coupon]', {
-      outcome: 'usage_increment_failed',
-      code: coupon.coupon.code,
-      message: error?.message || 'unknown_error'
-    });
-  }
-
   await safelyRecordAuditLog({
     req,
     userId: req.user?.id,

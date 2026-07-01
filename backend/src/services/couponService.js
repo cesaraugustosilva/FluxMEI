@@ -114,23 +114,20 @@ export function buildDiscountedPlan(plan, validation) {
 
 export async function incrementCouponUsage(couponId) {
   if (!couponId) return null;
-  const { data: coupon, error } = await supabaseAdmin
-    .from('coupons')
-    .select('id,current_uses')
-    .eq('id', couponId)
-    .maybeSingle();
+  const { data, error } = await supabaseAdmin.rpc('increment_coupon_usage_atomic', {
+    p_coupon_id: couponId
+  });
 
-  if (error) throw new AppError('Erro ao consultar uso do cupom.', 500, error.message);
-  if (!coupon) return null;
+  if (error) {
+    const message = String(error.message || '');
+    if (/nao encontrado/i.test(message)) throw new AppError('Cupom nao encontrado.', 404);
+    if (/inativo/i.test(message)) throw new AppError('Cupom inativo.', 400);
+    if (/ainda nao esta vigente/i.test(message)) throw new AppError('Cupom ainda nao esta vigente.', 400);
+    if (/expirado/i.test(message)) throw new AppError('Cupom expirado.', 400);
+    if (/limite de usos/i.test(message)) throw new AppError('Cupom atingiu o limite de usos.', 400);
+    throw new AppError('Erro ao registrar uso do cupom.', 500, error.message);
+  }
 
-  const { data, error: updateError } = await supabaseAdmin
-    .from('coupons')
-    .update({ current_uses: Number(coupon.current_uses || 0) + 1 })
-    .eq('id', couponId)
-    .select()
-    .single();
-
-  if (updateError) throw new AppError('Erro ao registrar uso do cupom.', 500, updateError.message);
   return data;
 }
 
