@@ -80,12 +80,22 @@ Configuracoes:
 - Build Command: `npm run build`
 - Output Directory: `.`
 
-Variavel de ambiente:
+Variaveis obrigatorias na Vercel:
 
 ```env
 FLUXMEI_API_URL=https://api.seudominio.com/api
 FLUXMEI_PAYMENT_GATEWAY=asaas
 ```
+
+`FLUXMEI_API_URL` e obrigatoria em producao/Vercel. Com Root Directory `frontend`, o comando `npm run build` executa `node scripts/write-env.js` e gera `/env.js`. Se a Vercel for configurada com a raiz do repositorio, use `npm run build`, que executa `node frontend/scripts/write-env.js`.
+
+Depois do deploy, confirme no navegador:
+
+```text
+https://www.fluxmei.com.br/env.js
+```
+
+O arquivo deve conter `window.FLUXMEI_CONFIG` com `API_URL` apontando para a API correta e apenas variaveis publicas: `API_URL`, `PAYMENT_GATEWAY`, `EFI_PAYEE_CODE` e `EFI_ENVIRONMENT`.
 
 `FLUXMEI_PAYMENT_GATEWAY=asaas` faz o checkout chamar as rotas Asaas de Pix, boleto e cartao. Nunca coloque `ASAAS_API_KEY`, `EFI_CLIENT_SECRET`, certificado ou chave Pix na Vercel.
 

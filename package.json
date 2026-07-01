@@ -8,6 +8,8 @@
   "scripts": {
     "start": "node backend/src/server.js",
     "dev": "node backend/src/server.js",
+    "build": "node frontend/scripts/write-env.js",
+    "build:frontend": "node frontend/scripts/write-env.js",
     "test": "node --test tests/*.test.js"
   },
   "dependencies": {
