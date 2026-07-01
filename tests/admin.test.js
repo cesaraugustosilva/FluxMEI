@@ -23,7 +23,21 @@ function createRes() {
 }
 
 function createMockFrom({ profiles = [], subscriptions = [] } = {}) {
+  const auditLogs = [];
   return (table) => {
+    if (table === 'audit_logs') {
+      return {
+        insert(payload) {
+          auditLogs.push(payload);
+          this.payload = payload;
+          return this;
+        },
+        select() { return this; },
+        single() {
+          return Promise.resolve({ data: { id: `audit-${auditLogs.length}`, ...this.payload }, error: null });
+        }
+      };
+    }
     const rows = table === 'profiles' ? profiles : subscriptions;
     const chain = {
       filters: [],

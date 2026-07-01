@@ -16,7 +16,7 @@ const registerAlias = readFileSync(new URL('../frontend/auth/register.html', imp
 const adminJs = readFileSync(new URL('../frontend/admin/admin.js', import.meta.url), 'utf8');
 
 function createReferralMock({ profile = null, referral = null, assinatura = null } = {}) {
-  const stats = { profileUpdate: null, referralUpsert: null, referralUpdate: null, assinaturaUpdate: null, tables: [] };
+  const stats = { profileUpdate: null, referralUpsert: null, referralUpdate: null, assinaturaUpdate: null, auditLogs: [], tables: [] };
 
   const from = (table) => {
     stats.tables.push(table);
@@ -50,6 +50,11 @@ function createReferralMock({ profile = null, referral = null, assinatura = null
         stats.referralUpsert = payload;
         return this;
       },
+      insert(payload) {
+        if (table === 'audit_logs') stats.auditLogs.push(payload);
+        this.payload = payload;
+        return this;
+      },
       maybeSingle() {
         if (table === 'profiles') {
           const codeFilter = this.filters.find(([column]) => column === 'referral_code');
@@ -67,6 +72,7 @@ function createReferralMock({ profile = null, referral = null, assinatura = null
         if (table === 'profiles') return Promise.resolve({ data: { referral_code: stats.profileUpdate.referral_code }, error: null });
         if (table === 'referrals') return Promise.resolve({ data: { ...referral, ...stats.referralUpdate }, error: null });
         if (table === 'assinaturas') return Promise.resolve({ data: { ...assinatura, ...stats.assinaturaUpdate }, error: null });
+        if (table === 'audit_logs') return Promise.resolve({ data: { id: `audit-${stats.auditLogs.length}`, ...this.payload }, error: null });
         return Promise.resolve({ data: null, error: null });
       }
     };
@@ -127,6 +133,7 @@ test('novo cadastro com ref cria referral pending sem quebrar codigo invalido', 
     assert.equal(stats.referralUpsert.referrer_user_id, 'referrer-1');
     assert.equal(stats.referralUpsert.referred_user_id, 'new-user');
     assert.equal(stats.referralUpsert.reward_days, 15);
+    assert.equal(stats.auditLogs[0].action, 'referral.created');
 
     const invalid = await createReferralFromCode({ referralCode: 'https://evil.example', referredUserId: 'new-user' });
     assert.equal(invalid, null);
@@ -167,6 +174,7 @@ test('pagamento confirmado recompensa indicador com 15 dias e nao duplica sem re
     assert.equal(stats.assinaturaUpdate.status, 'ativo');
     assert.equal(stats.referralUpdate.status, 'rewarded');
     assert.ok(stats.referralUpdate.rewarded_at);
+    assert.equal(stats.auditLogs[0].action, 'referral.rewarded');
   });
 
   const noPendingMock = createReferralMock({ referral: null, assinatura });

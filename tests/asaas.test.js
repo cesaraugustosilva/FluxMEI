@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { asaasService } from '../backend/src/services/asaasService.js';
+import { createSupabaseMock } from './helpers/supabaseMock.js';
 
 function createMockResponse() {
   return {
@@ -138,6 +139,11 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
 
   const originalFrom = supabaseAdmin.from;
   const originalRpc = supabaseAdmin.rpc;
+  const originalGetUserById = supabaseAdmin.auth.admin.getUserById;
+  const originalFetch = global.fetch;
+  const originalEmailProvider = process.env.EMAIL_PROVIDER;
+  const originalResendApiKey = process.env.RESEND_API_KEY;
+  const originalEmailFrom = process.env.EMAIL_FROM;
   const originalCriarOuBuscarCliente = asaasService.criarOuBuscarCliente;
   const originalCriarCobranca = asaasService.criarCobranca;
   const originalObterPixQrCode = asaasService.obterPixQrCode;
@@ -154,8 +160,17 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
     lastPaymentMethod: null
   };
   const profile = options.profile ?? { nome: 'Cliente FluxMEI', cpf: '12345678901' };
+  const sideEffects = createSupabaseMock({
+    rowsByTable: {
+      audit_logs: [],
+      notification_events: [],
+      referrals: options.referrals || [],
+      assinaturas: options.referralAssinaturas || []
+    }
+  });
 
   supabaseAdmin.from = (table) => {
+    if (['audit_logs', 'notification_events', 'referrals'].includes(table)) return sideEffects.from(table);
     const filters = [];
     const query = {
       _payload: null,
@@ -193,6 +208,15 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
     };
     return query;
   };
+  supabaseAdmin.auth.admin.getUserById = async () => ({ data: { user: { email: 'cliente@example.com' } }, error: null });
+  process.env.EMAIL_PROVIDER = 'resend';
+  process.env.RESEND_API_KEY = 'resend-test-key';
+  process.env.EMAIL_FROM = 'FluxMEI <no-reply@fluxmei.test>';
+  global.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ id: 'email-test' })
+  });
 
   supabaseAdmin.rpc = async (fn) => {
     if (fn === 'acquire_payment_attempt_lock') {
@@ -242,10 +266,19 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
   };
 
   try {
+    stats.sideEffects = sideEffects.stats;
     await fn({ ...controller, stats });
   } finally {
     supabaseAdmin.from = originalFrom;
     supabaseAdmin.rpc = originalRpc;
+    supabaseAdmin.auth.admin.getUserById = originalGetUserById;
+    global.fetch = originalFetch;
+    if (originalEmailProvider === undefined) delete process.env.EMAIL_PROVIDER;
+    else process.env.EMAIL_PROVIDER = originalEmailProvider;
+    if (originalResendApiKey === undefined) delete process.env.RESEND_API_KEY;
+    else process.env.RESEND_API_KEY = originalResendApiKey;
+    if (originalEmailFrom === undefined) delete process.env.EMAIL_FROM;
+    else process.env.EMAIL_FROM = originalEmailFrom;
     asaasService.criarOuBuscarCliente = originalCriarOuBuscarCliente;
     asaasService.criarCobranca = originalCriarCobranca;
     asaasService.obterPixQrCode = originalObterPixQrCode;

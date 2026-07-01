@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createSupabaseMock as createSupabaseMockBase } from './helpers/supabaseMock.js';
 
 const exportRoutes = readFileSync(new URL('../backend/src/routes/exportRoutes.js', import.meta.url), 'utf8');
 const serverSource = readFileSync(new URL('../backend/src/server.js', import.meta.url), 'utf8');
@@ -60,10 +61,12 @@ function createRes() {
 }
 
 function createSupabaseMock() {
-  const stats = { userId: null, selected: null };
+  const sideEffects = createSupabaseMockBase({ rowsByTable: { audit_logs: [] } });
+  const stats = { userId: null, selected: null, sideEffects: sideEffects.stats };
   return {
     stats,
     from(table) {
+      if (table === 'audit_logs') return sideEffects.from(table);
       assert.equal(table, 'movimentacoes');
       return {
         select(fields) {
@@ -117,6 +120,8 @@ test('CSV contem apenas dados do usuario e campos seguros', async () => {
     assert.match(res.body, /Projeto site/);
     assert.match(res.body, /Plano fibra/);
     assert.doesNotMatch(res.body, /Nao exportar|provider_raw|secret|user-2/);
+    assert.equal(stats.sideEffects.inserts[0].table, 'audit_logs');
+    assert.equal(stats.sideEffects.inserts[0].payload.action, 'export.movimentacoes_csv');
   });
 });
 
@@ -149,10 +154,16 @@ test('resumo calcula corretamente totais e periodo', async () => {
   });
 });
 
-test('controller registra auditoria de exportacao', () => {
+test('controller registra auditoria de exportacao', async () => {
   assert.match(exportController, /export\.movimentacoes_csv/);
   assert.match(exportController, /export\.movimentacoes_json/);
   assert.match(exportController, /export\.resumo_json/);
+  await withExportController(async ({ exportResumoJson }, stats) => {
+    const res = createRes();
+    await exportResumoJson({ user: { id: 'user-1' }, headers: {}, ip: '127.0.0.1' }, res);
+    assert.equal(stats.sideEffects.inserts[0].payload.action, 'export.resumo_json');
+    assert.equal(stats.sideEffects.inserts[0].payload.entity_type, 'export');
+  });
 });
 
 test('frontend renderiza botoes de exportacao e nomes de arquivo', () => {

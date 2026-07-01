@@ -24,7 +24,7 @@ function createRes() {
 }
 
 function createProfileMock(current = { id: 'user-1', onboarding_step: 0, onboarding_completed: false }) {
-  const stats = { updates: [] };
+  const stats = { updates: [], auditLogs: [] };
   return {
     stats,
     from(table) {
@@ -50,8 +50,10 @@ function createProfileMock(current = { id: 'user-1', onboarding_step: 0, onboard
           }
           return Promise.resolve({ data: null, error: null });
         },
-        insert() {
-          return Promise.resolve({ data: null, error: null });
+        insert(payload) {
+          if (table === 'audit_logs') stats.auditLogs.push(payload);
+          this.payload = payload;
+          return this;
         }
       };
     }
@@ -116,6 +118,7 @@ test('controller marca progresso e conclusao', async () => {
     assert.equal(res.payload.success, true);
     assert.equal(stats.updates[0].onboarding_step, 3);
     assert.equal(stats.updates[0].onboarding_completed, false);
+    assert.equal(stats.auditLogs[0].action, 'onboarding.started');
   });
 
   const completeMock = createProfileMock({ id: 'user-1', onboarding_step: 3, onboarding_completed: false });
@@ -127,6 +130,7 @@ test('controller marca progresso e conclusao', async () => {
     );
     assert.equal(res.payload.profile.onboarding_completed, true);
     assert.equal(stats.updates[0].onboarding_step, 6);
+    assert.equal(stats.auditLogs[0].action, 'onboarding.completed');
   });
 });
 

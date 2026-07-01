@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createSupabaseMock } from './helpers/supabaseMock.js';
 import { efiBankService } from '../backend/src/services/efiBankService.js';
 import { PAYMENT_PLANS } from '../backend/src/services/paymentStatusRules.js';
 import { AppError } from '../backend/src/middlewares/errorMiddleware.js';
@@ -383,6 +384,11 @@ async function withMockedEfiEnvironment(assinatura, fn, options = {}) {
 
   const originalFrom = supabaseAdmin.from;
   const originalRpc = supabaseAdmin.rpc;
+  const originalGetUserById = supabaseAdmin.auth.admin.getUserById;
+  const originalFetch = global.fetch;
+  const originalEmailProvider = process.env.EMAIL_PROVIDER;
+  const originalResendApiKey = process.env.RESEND_API_KEY;
+  const originalEmailFrom = process.env.EMAIL_FROM;
   const originalCriarPix = efiBankService.criarPix;
   const originalCriarCartao = efiBankService.criarCartao;
   const originalCriarBoleto = efiBankService.criarBoleto;
@@ -392,8 +398,17 @@ async function withMockedEfiEnvironment(assinatura, fn, options = {}) {
   const profile = { nome: 'Cliente FluxMEI', cpf: '12345678901' };
   const assinaturaSequence = options.assinaturaSequence || null;
   let assinaturaReadIndex = 0;
+  const sideEffects = createSupabaseMock({
+    rowsByTable: {
+      audit_logs: [],
+      notification_events: [],
+      referrals: options.referrals || [],
+      assinaturas: options.referralAssinaturas || []
+    }
+  });
 
   supabaseAdmin.from = (table) => {
+    if (['audit_logs', 'notification_events', 'referrals'].includes(table)) return sideEffects.from(table);
     const query = createQueryResult({
       assinatura,
       profile,
@@ -405,6 +420,15 @@ async function withMockedEfiEnvironment(assinatura, fn, options = {}) {
     query._table = table;
     return query;
   };
+  supabaseAdmin.auth.admin.getUserById = async () => ({ data: { user: { email: 'cliente@example.com' } }, error: null });
+  process.env.EMAIL_PROVIDER = 'resend';
+  process.env.RESEND_API_KEY = 'resend-test-key';
+  process.env.EMAIL_FROM = 'FluxMEI <no-reply@fluxmei.test>';
+  global.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ id: 'email-test' })
+  });
 
   supabaseAdmin.rpc = async (fn) => {
     if (fn === 'acquire_payment_attempt_lock') {
@@ -492,10 +516,19 @@ async function withMockedEfiEnvironment(assinatura, fn, options = {}) {
   };
 
   try {
+    stats.sideEffects = sideEffects.stats;
     await fn({ ...controller, stats });
   } finally {
     supabaseAdmin.from = originalFrom;
     supabaseAdmin.rpc = originalRpc;
+    supabaseAdmin.auth.admin.getUserById = originalGetUserById;
+    global.fetch = originalFetch;
+    if (originalEmailProvider === undefined) delete process.env.EMAIL_PROVIDER;
+    else process.env.EMAIL_PROVIDER = originalEmailProvider;
+    if (originalResendApiKey === undefined) delete process.env.RESEND_API_KEY;
+    else process.env.RESEND_API_KEY = originalResendApiKey;
+    if (originalEmailFrom === undefined) delete process.env.EMAIL_FROM;
+    else process.env.EMAIL_FROM = originalEmailFrom;
     efiBankService.criarPix = originalCriarPix;
     efiBankService.criarCartao = originalCriarCartao;
     efiBankService.criarBoleto = originalCriarBoleto;
