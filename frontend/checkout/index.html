@@ -199,7 +199,7 @@
           <div class="card-panel-head">
             <div>
               <strong>Pagamento com cartao</strong>
-              <p>Pague a vista ou parcele em ate 12x. Os dados sao usados somente para esta cobranca.</p>
+              <p>Voce sera redirecionado para o ambiente seguro do Asaas para informar os dados do cartao.</p>
             </div>
             <span class="secure-mini">Ambiente seguro - dados protegidos</span>
           </div>
@@ -208,63 +208,8 @@
             <span>Mastercard</span>
             <span>Elo</span>
           </div>
-          <div class="card-form-grid">
-            <label>
-              <span>Nome impresso no cartao</span>
-              <input id="cardHolderName" type="text" autocomplete="cc-name" maxlength="120" />
-            </label>
-            <label>
-              <span>CPF/CNPJ</span>
-              <input id="cardHolderDocument" type="text" autocomplete="off" inputmode="numeric" maxlength="18" />
-            </label>
-            <label>
-              <span>E-mail</span>
-              <input id="cardHolderEmail" type="email" autocomplete="email" maxlength="254" />
-            </label>
-            <label>
-              <span>Telefone</span>
-              <input id="cardHolderPhone" type="text" autocomplete="tel" inputmode="numeric" maxlength="11" />
-            </label>
-            <label>
-              <span>CEP</span>
-              <input id="cardPostalCode" type="text" autocomplete="postal-code" inputmode="numeric" maxlength="9" />
-            </label>
-            <label>
-              <span>Numero do endereco</span>
-              <input id="cardAddressNumber" type="text" autocomplete="address-line2" maxlength="20" />
-            </label>
-            <label class="card-number-field">
-              <span>Numero do cartao</span>
-              <input id="cardNumber" type="text" autocomplete="cc-number" inputmode="numeric" maxlength="23" />
-            </label>
-            <label>
-              <span>Validade</span>
-              <input id="cardExpiry" type="text" autocomplete="cc-exp" inputmode="numeric" maxlength="7" placeholder="MM/AAAA" />
-            </label>
-            <label>
-              <span>CVV</span>
-              <input id="cardCvv" type="password" autocomplete="cc-csc" inputmode="numeric" maxlength="4" />
-            </label>
-            <label class="installments-field">
-              <span>Parcelas</span>
-              <select id="cardInstallments">
-                <option value="1">1x</option>
-                <option value="2">2x</option>
-                <option value="3">3x</option>
-                <option value="4">4x</option>
-                <option value="5">5x</option>
-                <option value="6">6x</option>
-                <option value="7">7x</option>
-                <option value="8">8x</option>
-                <option value="9">9x</option>
-                <option value="10">10x</option>
-                <option value="11">11x</option>
-                <option value="12">12x</option>
-              </select>
-            </label>
-          </div>
-          <p class="card-security-note">Pagamento processado com seguranca. O FluxMEI nunca salva numero, CVV ou validade do cartao.</p>
-          <button class="pix-button" type="button" id="payCardButton">Finalizar pagamento</button>
+          <p class="card-security-note">O FluxMEI cria apenas a cobranca e nunca recebe numero, validade ou CVV do cartao.</p>
+          <button class="pix-button" type="button" id="payCardButton">Pagar com cartao no ambiente seguro Asaas</button>
         </section>
 
         <section class="boleto-generate-panel" id="boletoGeneratePanel" hidden aria-label="Gerar boleto">

@@ -286,7 +286,7 @@ test('checkout principal usa Asaas para Pix e boleto ativos', () => {
   assert.match(checkoutHtml, /id="payCardButton"/);
   assert.match(checkoutHtml, /Gerar QR Code Pix/);
   assert.match(checkoutHtml, /Emitir boleto/);
-  assert.match(checkoutHtml, /Finalizar pagamento/);
+  assert.match(checkoutHtml, /Pagar com cartao no ambiente seguro Asaas/);
   assert.match(checkoutHtml, /id="pixPanel"/);
   assert.match(checkoutHtml, /id="pixCode"/);
   assert.doesNotMatch(checkoutHtml, /name="paymentProvider"/);
@@ -450,9 +450,13 @@ test('checkout exibe Cartao quando gateway ativo e Asaas', () => {
   assert.equal(harness.elements.get('cardMethodButton').hidden, false);
 });
 
-test('checkout HTML traz opcoes de parcelas ate 12x', () => {
-  assert.match(checkoutHtml, /<option value="1">1x<\/option>/);
-  assert.match(checkoutHtml, /<option value="12">12x<\/option>/);
+test('checkout HTML usa ambiente seguro Asaas para cartao', () => {
+  assert.match(checkoutHtml, /ambiente seguro do Asaas/);
+  assert.match(checkoutHtml, /nunca recebe numero, validade ou CVV/);
+  assert.doesNotMatch(checkoutHtml, /id="cardNumber"/);
+  assert.doesNotMatch(checkoutHtml, /id="cardExpiry"/);
+  assert.doesNotMatch(checkoutHtml, /id="cardCvv"/);
+  assert.doesNotMatch(checkoutHtml, /autocomplete="cc-number"/);
 });
 
 test('checkout gera parcelas do cartao com valor aproximado do plano anual', () => {
@@ -493,28 +497,27 @@ test('checkout oculta Cartao quando gateway ativo e EFI', () => {
   assert.equal(harness.elements.get('cardMethodButton').hidden, true);
 });
 
-test('cartao Asaas chama backend e limpa campos sensiveis', async () => {
-  const { api, elements, fetchCalls, setFetchData } = createCheckoutHarness({ paymentGateway: 'asaas' });
+test('cartao Asaas chama backend sem dados crus e abre ambiente hospedado', async () => {
+  const { api, elements, fetchCalls, location, setFetchData } = createCheckoutHarness({ paymentGateway: 'asaas' });
   setFetchData({
     success: true,
     provider: 'asaas',
     payment_id: 'pay_card_1',
-    payment_status: 'CONFIRMED',
+    payment_status: 'PENDING',
     payment_method_id: 'CREDIT_CARD',
-    assinatura: { status: 'ativo' }
+    invoice_url: 'https://asaas.example/invoice',
+    assinatura: { status: 'pendente' }
   });
 
   await api.submitAsaasCardPayment();
 
   assert.equal(fetchCalls.at(-1).url, 'http://127.0.0.1/api/pagamentos/asaas/criar-cartao');
   const body = JSON.parse(fetchCalls.at(-1).options.body);
-  assert.equal(body.payment.number, '4111111111111111');
-  assert.equal(body.payment.cvv, '123');
-  assert.equal(body.payment.cpfCnpj, '12345678909');
-  assert.equal(elements.get('cardNumber').value, '');
-  assert.equal(elements.get('cardCvv').value, '');
-  assert.equal(elements.get('cardExpiry').value, '');
-  assert.match(elements.get('checkoutAlert').textContent, /Pagamento aprovado/i);
+  assert.equal(body.cpfCnpj, '12345678901');
+  assert.equal(body.payment, undefined);
+  assert.doesNotMatch(JSON.stringify(body), /4111111111111111|12\/2030|cardNumber|cardCvv|cvv|number|expiry/i);
+  assert.equal(location.href, 'https://asaas.example/invoice');
+  assert.match(elements.get('checkoutAlert').textContent, /ambiente seguro do Asaas/i);
 });
 
 test('cartao Asaas aprovado abre tela de sucesso', async () => {

@@ -140,7 +140,6 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
   const originalRpc = supabaseAdmin.rpc;
   const originalCriarOuBuscarCliente = asaasService.criarOuBuscarCliente;
   const originalCriarCobranca = asaasService.criarCobranca;
-  const originalCriarCobrancaCartao = asaasService.criarCobrancaCartao;
   const originalObterPixQrCode = asaasService.obterPixQrCode;
   const originalConsultarPagamento = asaasService.consultarPagamento;
   const stats = {
@@ -152,7 +151,7 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
     locksReleased: 0,
     lastUpdate: null,
     customerCpfCnpj: null,
-    lastCardPayload: null
+    lastPaymentMethod: null
   };
   const profile = options.profile ?? { nome: 'Cliente FluxMEI', cpf: '12345678901' };
 
@@ -199,37 +198,22 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
     return { id: 'cus_1' };
   };
   asaasService.criarCobranca = async ({ method }) => {
+    stats.lastPaymentMethod = method;
     if (method === 'boleto') stats.boletoCreated += 1;
+    else if (method === 'cartao') stats.cardCreated += 1;
     else stats.pixCreated += 1;
+    const status = method === 'cartao' ? (options.cardStatus || 'PENDING') : 'PENDING';
     return {
-      id: method === 'boleto' ? 'pay_boleto_1' : 'pay_pix_1',
+      id: method === 'boleto' ? 'pay_boleto_1' : method === 'cartao' ? 'pay_card_1' : 'pay_pix_1',
       customer: 'cus_1',
-      status: 'PENDING',
-      billingType: method === 'boleto' ? 'BOLETO' : 'PIX',
+      status,
+      billingType: method === 'boleto' ? 'BOLETO' : method === 'cartao' ? 'CREDIT_CARD' : 'PIX',
       value: 49.9,
       dueDate: '2026-06-26',
       invoiceUrl: 'https://asaas.example/invoice',
       bankSlipUrl: method === 'boleto' ? 'https://asaas.example/boleto' : undefined,
       identificationField: method === 'boleto' ? '00190.00009' : undefined,
       externalReference: 'user-1:sub-1:pro_mensal'
-    };
-  };
-  asaasService.criarCobrancaCartao = async (payload) => {
-    stats.cardCreated += 1;
-    stats.lastCardPayload = payload;
-    const status = options.cardStatus || 'CONFIRMED';
-    return {
-      id: 'pay_card_1',
-      customer: payload.customerId,
-      status,
-      billingType: 'CREDIT_CARD',
-      value: 49.9,
-      dueDate: '2026-06-23',
-      externalReference: 'user-1:sub-1:pro_mensal',
-      creditCard: {
-        creditCardNumber: '1111',
-        creditCardBrand: 'VISA'
-      }
     };
   };
   asaasService.obterPixQrCode = async () => ({ payload: '000201-asaas-pix', encodedImage: 'base64-pix' });
@@ -249,7 +233,6 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
     supabaseAdmin.rpc = originalRpc;
     asaasService.criarOuBuscarCliente = originalCriarOuBuscarCliente;
     asaasService.criarCobranca = originalCriarCobranca;
-    asaasService.criarCobrancaCartao = originalCriarCobrancaCartao;
     asaasService.obterPixQrCode = originalObterPixQrCode;
     asaasService.consultarPagamento = originalConsultarPagamento;
   }
@@ -294,28 +277,13 @@ test('Boleto Asaas criado retorna link linha e vencimento', async () => {
   });
 });
 
-test('Cartao Asaas aprovado registra tentativa saneada e ativa assinatura', async () => {
+test('Cartao Asaas hospedado registra tentativa saneada e retorna invoice_url', async () => {
   await withMockedAsaasEnvironment(assinaturaBase(), async ({ criarCartaoAsaas, stats }) => {
     const response = createMockResponse();
     await criarCartaoAsaas({
-      headers: { 'x-forwarded-for': '203.0.113.10' },
-      ip: '127.0.0.1',
       body: {
         plano: 'pro_mensal',
-        payment: {
-          holderName: 'Cliente FluxMEI',
-          number: '4111111111111111',
-          expiryMonth: '12',
-          expiryYear: '2030',
-          cvv: '123',
-          cpfCnpj: '123.456.789-09',
-          name: 'Cliente FluxMEI',
-          email: 'cliente@example.com',
-          phone: '11999998888',
-          postalCode: '01310-000',
-          addressNumber: '100',
-          installments: 1
-        }
+        cpfCnpj: '123.456.789-09'
       },
       user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
     }, response);
@@ -324,12 +292,12 @@ test('Cartao Asaas aprovado registra tentativa saneada e ativa assinatura', asyn
     assert.equal(response.payload.provider, 'asaas');
     assert.equal(response.payload.payment_id, 'pay_card_1');
     assert.equal(response.payload.payment_method_id, 'credit_card');
+    assert.equal(response.payload.invoice_url, 'https://asaas.example/invoice');
     assert.equal(stats.cardCreated, 1);
+    assert.equal(stats.lastPaymentMethod, 'cartao');
     assert.equal(stats.customerCpfCnpj, '12345678909');
-    assert.equal(stats.lastCardPayload.remoteIp, '203.0.113.10');
-    assert.equal(stats.lastUpdate.status, 'ativo');
-    assert.equal(stats.lastUpdate.bloqueado, false);
-    assert.ok(stats.lastUpdate.paid_at);
+    assert.equal(stats.lastUpdate.status, 'pendente');
+    assert.equal(stats.lastUpdate.bloqueado, true);
     const raw = JSON.stringify(stats.lastUpdate.provider_raw);
     assert.doesNotMatch(raw, /4111111111111111|2030|creditCard|creditCardHolderInfo|holderName|ccv|cvv/);
     assert.doesNotMatch(raw, /creditCard|ccv|cvv|holderName|number/);
@@ -344,19 +312,7 @@ test('Cartao Asaas pendente nao ativa assinatura antes do webhook', async () => 
       ip: '127.0.0.1',
       body: {
         plano: 'pro_mensal',
-        payment: {
-          holderName: 'Cliente FluxMEI',
-          number: '4111111111111111',
-          expiryMonth: '12',
-          expiryYear: '2030',
-          cvv: '123',
-          cpfCnpj: '12345678909',
-          name: 'Cliente FluxMEI',
-          email: 'cliente@example.com',
-          phone: '11999998888',
-          postalCode: '01310000',
-          addressNumber: '100'
-        }
+        cpfCnpj: '12345678909'
       },
       user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
     }, response);
@@ -364,10 +320,10 @@ test('Cartao Asaas pendente nao ativa assinatura antes do webhook', async () => 
     assert.equal(response.statusCode, 201);
     assert.equal(stats.lastUpdate.status, 'pendente');
     assert.equal(stats.lastUpdate.bloqueado, true);
-  }, { cardStatus: 'PENDING' });
+  });
 });
 
-test('Cartao Asaas com dados invalidos retorna erro claro antes do gateway', async () => {
+test('Cartao Asaas rejeita dados crus antes do gateway', async () => {
   await withMockedAsaasEnvironment(assinaturaBase(), async ({ criarCartaoAsaas, stats }) => {
     const response = createMockResponse();
 
@@ -377,22 +333,15 @@ test('Cartao Asaas com dados invalidos retorna erro claro antes do gateway', asy
         body: {
           plano: 'pro_mensal',
           payment: {
-            holderName: 'Cliente FluxMEI',
             number: '4111111111111112',
-            expiryMonth: '12',
-            expiryYear: '2030',
-            cvv: '123',
-            cpfCnpj: '12345678909',
-            name: 'Cliente FluxMEI',
-            email: 'cliente@example.com',
-            phone: '11999998888',
-            postalCode: '01310000',
-            addressNumber: '100'
+            expirationMonth: '12',
+            expirationYear: '2030',
+            cvv: '123'
           }
         },
         user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
       }, response),
-      /Numero do cartao invalido/
+      /Campo de cartao nao permitido/
     );
 
     assert.equal(stats.cardCreated, 0);

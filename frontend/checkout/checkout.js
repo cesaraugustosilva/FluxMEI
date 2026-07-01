@@ -912,30 +912,16 @@ function clearCardFields() {
 async function submitAsaasCardPayment() {
   clearAlert();
   setCardLoading(true);
-  showStatus('pending', 'Processando cartao pelo Asaas.');
+  showStatus('pending', 'Preparando ambiente seguro do Asaas.');
 
   try {
-    const cardData = getCardFormData();
     const data = await request(getPaymentGateway().cardPath, {
       method: 'POST',
       body: JSON.stringify({
         plano: selectedPlan.id,
         valor: getPayableAmount(),
         ...getCouponPayload(),
-        payment: {
-          holderName: cardData.holderName,
-          number: cardData.number,
-          expiryMonth: cardData.expirationMonth,
-          expiryYear: cardData.expirationYear,
-          cvv: cardData.cvv,
-          cpfCnpj: cardData.holderDocument,
-          name: cardData.holderName,
-          email: cardData.holderEmail,
-          phone: cardData.holderPhone,
-          postalCode: cardData.postalCode,
-          addressNumber: cardData.addressNumber,
-          installments: cardData.installments
-        }
+        cpfCnpj: getBillingDocument()
       })
     });
 
@@ -952,10 +938,16 @@ async function submitAsaasCardPayment() {
     } else if (statusKey === 'approved') {
       showAlert('Pagamento aprovado pelo Asaas. Aguardando confirmacao final.', 'success');
       pollSubscriptionActivation();
+    } else if (data.invoice_url) {
+      currentPaymentId = data.payment_id || currentPaymentId;
+      currentPaymentMethod = 'cartao';
+      showAlert('Abrindo ambiente seguro do Asaas para pagamento com cartao.', 'success');
+      pollSubscriptionActivation();
+      window.location.href = data.invoice_url;
     } else if (statusKey === 'pending' || statusKey === 'in_process') {
       currentPaymentId = data.payment_id || currentPaymentId;
       currentPaymentMethod = 'cartao';
-      showAlert('Pagamento recebido pelo Asaas e aguardando confirmacao.', 'success');
+      showAlert('Cobranca criada no Asaas e aguardando pagamento.', 'success');
       pollSubscriptionActivation();
     } else {
       showAlert('O cartao foi recusado. Revise os dados ou tente outro meio de pagamento.');
@@ -964,10 +956,9 @@ async function submitAsaasCardPayment() {
     return data;
   } catch (error) {
     showStatus('rejected');
-    showAlert(error?.message || 'Nao foi possivel processar o cartao.');
+    showAlert(error?.message || 'Nao foi possivel abrir o ambiente seguro do Asaas.');
     return null;
   } finally {
-    clearCardFields();
     setCardLoading(false);
   }
 }
@@ -1166,19 +1157,19 @@ function bindCheckoutEvents() {
     event.target.value = event.target.value.toUpperCase();
   });
 
-  document.getElementById('cardNumber').addEventListener('input', (event) => {
+  document.getElementById('cardNumber')?.addEventListener('input', (event) => {
     event.target.value = formatCardNumber(event.target.value);
   });
 
-  document.getElementById('cardHolderDocument').addEventListener('input', (event) => {
+  document.getElementById('cardHolderDocument')?.addEventListener('input', (event) => {
     event.target.value = formatDocument(event.target.value);
   });
 
-  document.getElementById('cardHolderPhone').addEventListener('input', (event) => {
+  document.getElementById('cardHolderPhone')?.addEventListener('input', (event) => {
     event.target.value = onlyDigits(event.target.value).slice(0, 11);
   });
 
-  document.getElementById('cardPostalCode').addEventListener('input', (event) => {
+  document.getElementById('cardPostalCode')?.addEventListener('input', (event) => {
     event.target.value = onlyDigits(event.target.value).slice(0, 8).replace(/(\d{5})(\d)/, '$1-$2');
   });
 
@@ -1186,11 +1177,11 @@ function bindCheckoutEvents() {
     event.target.value = formatDocument(event.target.value);
   });
 
-  document.getElementById('cardExpiry').addEventListener('input', (event) => {
+  document.getElementById('cardExpiry')?.addEventListener('input', (event) => {
     event.target.value = formatExpiry(event.target.value);
   });
 
-  document.getElementById('cardCvv').addEventListener('input', (event) => {
+  document.getElementById('cardCvv')?.addEventListener('input', (event) => {
     event.target.value = onlyDigits(event.target.value).slice(0, 4);
   });
 

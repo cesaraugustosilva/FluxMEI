@@ -5,7 +5,7 @@ Este guia prepara o FluxMEI para:
 - Frontend na Vercel
 - Backend no Render
 - Banco e Auth no Supabase
-- Pagamentos no Asaas: Pix e boleto
+- Pagamentos no Asaas: Pix, boleto e cartao hospedado
 - Efí Bank mantida como fallback tecnico
 - Dominio proprio
 
@@ -172,18 +172,20 @@ O Asaas deve enviar o token no header `asaas-access-token`, com o mesmo valor de
 Cartao Asaas:
 
 - Rota autenticada: `POST /api/pagamentos/asaas/criar-cartao`.
-- O frontend coleta os dados apenas para a tentativa atual e limpa os campos apos envio/erro.
-- O backend repassa `creditCard` e `creditCardHolderInfo` ao Asaas, sem persistir numero, CVV ou validade.
+- O frontend envia apenas plano, cupom e CPF/CNPJ do cliente. Numero do cartao, validade e CVV nao passam pelo backend FluxMEI.
+- O backend cria uma cobranca Asaas com `billingType=CREDIT_CARD` sem objeto `creditCard`/`creditCardHolderInfo` e retorna `invoiceUrl` para o usuario concluir no ambiente seguro do Asaas.
 - `provider_raw` deve conter apenas dados sanitizados de conciliacao.
-- A API de tokenizacao Asaas existe e fica habilitada em sandbox, mas em producao depende de aprovacao do gerente de contas; prefira tokenizacao/checkout hospedado quando disponivel para reduzir escopo PCI.
+- A rota rejeita payloads com `card_number`, `number`, `cvv`, `ccv`, `expirationMonth`, `expirationYear`, `expiry` ou `raw_card`.
+- A API de tokenizacao Asaas pode ser avaliada futuramente se houver tokenizacao client-side aprovada para a conta. Ate la, o checkout hospedado reduz o escopo PCI sem quebrar webhook, historico, recibos e assinaturas.
 
 Teste de cartao em sandbox:
 
 1. Use `ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3`.
 2. Gere `ASAAS_API_KEY` no sandbox e configure `PAYMENT_GATEWAY=asaas`.
-3. Abra `/checkout/`, escolha Cartao e use os cartoes ficticios de teste indicados pela documentacao Asaas.
-4. Confira no Supabase que `provider_raw` nao contem numero do cartao, CVV ou validade.
-5. Para pendencias, confirme pelo painel sandbox/webhook e valide que duplicidade nao estende vencimento duas vezes.
+3. Abra `/checkout/`, escolha Cartao e clique em `Pagar com cartao no ambiente seguro Asaas`.
+4. Conclua o pagamento na URL hospedada pelo Asaas.
+5. Confira no Supabase que `provider_raw` nao contem numero do cartao, CVV ou validade.
+6. Para pendencias, confirme pelo painel sandbox/webhook e valide que duplicidade nao estende vencimento duas vezes.
 
 Teste de cartao em producao:
 
@@ -191,7 +193,7 @@ Teste de cartao em producao:
 2. Garanta HTTPS ponta a ponta no dominio do checkout e backend.
 3. Execute primeiro uma compra real de baixo valor controlada.
 4. Confirme webhook `PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED`, ativacao da assinatura e ausencia de dados sensiveis em logs/Supabase.
-5. Se a tokenizacao Asaas for habilitada para a conta, planeje migrar para token/checkout hospedado para reduzir responsabilidade PCI.
+5. Se a tokenizacao Asaas client-side for habilitada para a conta, planeje uma migracao separada para receber apenas token seguro no backend.
 
 Para validar no Supabase, confira em `assinaturas`:
 

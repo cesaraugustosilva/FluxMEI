@@ -138,7 +138,9 @@ ASAAS_WEBHOOK_URL=https://fluxmei.onrender.com/api/webhooks/asaas
 
 Em producao, use `ASAAS_BASE_URL=https://api.asaas.com/v3`.
 
-O cartao Asaas usa o fluxo documentado de `billingType=CREDIT_CARD` com `creditCard` e `creditCardHolderInfo` enviados somente no request backend -> Asaas. O FluxMEI nao salva numero, CVV, validade nem titular completo em `provider_raw`, e nao expoe `ASAAS_API_KEY` no frontend. A tokenizacao Asaas existe via API/token por cliente, mas depende de habilitacao em producao; quando disponivel, prefira token/checkout hospedado do Asaas para reduzir escopo PCI.
+O cartao Asaas usa cobranca hospedada: o backend cria um pagamento com `billingType=CREDIT_CARD`, sem receber nem enviar `creditCard`, `creditCardHolderInfo`, numero, validade ou CVV. A resposta retorna `invoiceUrl` e o usuario informa os dados do cartao no ambiente seguro do Asaas. A rota `POST /api/pagamentos/asaas/criar-cartao` aceita apenas plano, cupom e CPF/CNPJ, rejeita campos crus de cartao e mantem `provider_raw` sanitizado.
+
+Variaveis necessarias para Asaas ficam somente no backend: `PAYMENT_GATEWAY=asaas`, `ASAAS_API_KEY`, `ASAAS_BASE_URL` e `ASAAS_WEBHOOK_TOKEN`. A tokenizacao Asaas client-side pode ser avaliada futuramente se for habilitada para a conta; nesse caso o backend deve continuar recebendo apenas token seguro.
 
 Configure o webhook Asaas em:
 
