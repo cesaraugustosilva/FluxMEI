@@ -105,6 +105,9 @@ test('schema e migration criam tabela de cupons', () => {
     assert.match(source, /set current_uses = current_uses \+ 1/);
     assert.match(source, /max_uses is null or current_uses < max_uses/);
     assert.match(source, /grant execute on function public\.increment_coupon_usage_atomic\(uuid\) to service_role/);
+    assert.match(source, /create or replace function public\.decrement_coupon_usage_atomic\(p_coupon_id uuid\)/);
+    assert.match(source, /set current_uses = greatest\(current_uses - 1, 0\)/);
+    assert.match(source, /grant execute on function public\.decrement_coupon_usage_atomic\(uuid\) to service_role/);
   }
 });
 
@@ -194,6 +197,16 @@ test('ultimo uso de cupom so permite uma chamada atomica', async () => {
   });
 });
 
+test('gateway pode liberar reserva atomica de cupom sem negativar uso', async () => {
+  await withCouponRpcMock([{ data: couponRow({ current_uses: 0 }), error: null }], async ({ service, calls }) => {
+    const updated = await service.releaseCouponUsage('coupon-1');
+
+    assert.equal(calls[0].rpcName, 'decrement_coupon_usage_atomic');
+    assert.deepEqual(calls[0].params, { p_coupon_id: 'coupon-1' });
+    assert.equal(updated.current_uses, 0);
+  });
+});
+
 test('incremento atomico rejeita cupom inativo expirado e limite atingido', async () => {
   await withCouponRpcMock([{ data: null, error: { message: 'Cupom inativo.' } }], async ({ service }) => {
     await assert.rejects(() => service.incrementCouponUsage('coupon-1'), /Cupom inativo/);
@@ -225,6 +238,7 @@ test('pagamento registra uso e auditoria de cupom', () => {
   assert.match(pagamentoController, /applyCouponIfPresent/);
   assert.match(pagamentoController, /recordCouponUsed/);
   assert.match(pagamentoController, /incrementCouponUsage/);
+  assert.match(pagamentoController, /releaseReservedCouponUsage/);
   assert.match(pagamentoController, /action: 'coupon\.used'/);
   assert.doesNotMatch(pagamentoController, /usage_increment_failed/);
 });

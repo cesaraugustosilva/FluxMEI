@@ -131,6 +131,16 @@ export async function incrementCouponUsage(couponId) {
   return data;
 }
 
+export async function releaseCouponUsage(couponId) {
+  if (!couponId) return null;
+  const { data, error } = await supabaseAdmin.rpc('decrement_coupon_usage_atomic', {
+    p_coupon_id: couponId
+  });
+
+  if (error) throw new AppError('Erro ao liberar uso do cupom.', 500, error.message);
+  return data;
+}
+
 export function sanitizeCoupon(coupon = {}) {
   return {
     id: coupon.id,

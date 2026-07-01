@@ -58,3 +58,33 @@ $$;
 
 revoke all on function public.increment_coupon_usage_atomic(uuid) from public;
 grant execute on function public.increment_coupon_usage_atomic(uuid) to service_role;
+
+create or replace function public.decrement_coupon_usage_atomic(p_coupon_id uuid)
+returns public.coupons
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  updated_coupon public.coupons;
+begin
+  if p_coupon_id is null then
+    raise exception 'Cupom nao encontrado.';
+  end if;
+
+  update public.coupons
+  set current_uses = greatest(current_uses - 1, 0)
+  where id = p_coupon_id
+    and current_uses > 0
+  returning * into updated_coupon;
+
+  if found then
+    return updated_coupon;
+  end if;
+
+  raise exception 'Cupom nao possui uso reservado.';
+end;
+$$;
+
+revoke all on function public.decrement_coupon_usage_atomic(uuid) from public;
+grant execute on function public.decrement_coupon_usage_atomic(uuid) to service_role;

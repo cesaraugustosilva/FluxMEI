@@ -155,6 +155,8 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
     updated: 0,
     locksAcquired: 0,
     locksReleased: 0,
+    couponIncrements: 0,
+    couponReleases: 0,
     lastUpdate: null,
     customerCpfCnpj: null,
     lastPaymentMethod: null
@@ -171,6 +173,28 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
 
   supabaseAdmin.from = (table) => {
     if (['audit_logs', 'notification_events', 'referrals'].includes(table)) return sideEffects.from(table);
+    if (table === 'coupons') {
+      return {
+        select() { return this; },
+        eq() { return this; },
+        async maybeSingle() {
+          return {
+            data: options.coupon || {
+              id: 'coupon-1',
+              code: 'LANCAMENTO50',
+              discount_type: 'PERCENTAGE',
+              discount_value: 50,
+              max_uses: 10,
+              current_uses: 0,
+              active: true,
+              valid_from: '2026-01-01T00:00:00.000Z',
+              valid_until: '2026-12-31T23:59:59.000Z'
+            },
+            error: null
+          };
+        }
+      };
+    }
     const filters = [];
     const query = {
       _payload: null,
@@ -229,6 +253,17 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
       return { data: true, error: null };
     }
 
+    if (fn === 'increment_coupon_usage_atomic') {
+      stats.couponIncrements += 1;
+      if (options.couponIncrementError) return { data: null, error: options.couponIncrementError };
+      return { data: { id: 'coupon-1', current_uses: 1 }, error: null };
+    }
+
+    if (fn === 'decrement_coupon_usage_atomic') {
+      stats.couponReleases += 1;
+      return { data: { id: 'coupon-1', current_uses: 0 }, error: null };
+    }
+
     return { data: null, error: null };
   };
 
@@ -238,6 +273,7 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
   };
   asaasService.criarCobranca = async ({ method }) => {
     stats.lastPaymentMethod = method;
+    if (options.failCreatePayment) throw new Error('gateway offline');
     if (method === 'boleto') stats.boletoCreated += 1;
     else if (method === 'cartao') stats.cardCreated += 1;
     else stats.pixCreated += 1;
@@ -303,6 +339,63 @@ test('Pix Asaas criado registra tentativa e retorna copia e cola', async () => {
     assert.equal(stats.lastUpdate.payment_provider, 'asaas');
     assert.equal(stats.lastUpdate.provider_customer_id, 'cus_1');
     assert.equal(stats.customerCpfCnpj, '12345678901');
+  });
+});
+
+test('Gateway Asaas falha e cupom reservado e liberado sem criar cobranca', async () => {
+  await withMockedAsaasEnvironment(assinaturaBase(), async ({ criarPixAsaas, stats }) => {
+    const response = createMockResponse();
+
+    await assert.rejects(
+      () => criarPixAsaas({
+        body: { plano: 'pro_mensal', cpfCnpj: '123.456.789-01', coupon_code: 'LANCAMENTO50' },
+        user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
+      }, response),
+      /gateway offline/
+    );
+
+    assert.equal(stats.couponIncrements, 1);
+    assert.equal(stats.couponReleases, 1);
+    assert.equal(stats.pixCreated, 0);
+    assert.equal(stats.updated, 0);
+  }, { failCreatePayment: true });
+});
+
+test('Gateway Asaas com sucesso consome cupom e registra auditoria', async () => {
+  await withMockedAsaasEnvironment(assinaturaBase(), async ({ criarPixAsaas, stats }) => {
+    const response = createMockResponse();
+    await criarPixAsaas({
+      body: { plano: 'pro_mensal', cpfCnpj: '123.456.789-01', coupon_code: 'LANCAMENTO50' },
+      user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
+    }, response);
+
+    assert.equal(response.statusCode, 201);
+    assert.equal(stats.couponIncrements, 1);
+    assert.equal(stats.couponReleases, 0);
+    assert.equal(stats.pixCreated, 1);
+    assert.ok(stats.sideEffects.inserts.some((item) => item.table === 'audit_logs' && item.payload.action === 'coupon.used'));
+  });
+});
+
+test('Concorrencia no ultimo uso de cupom continua rejeitada antes do gateway', async () => {
+  await withMockedAsaasEnvironment(assinaturaBase(), async ({ criarPixAsaas, stats }) => {
+    const response = createMockResponse();
+
+    await assert.rejects(
+      () => criarPixAsaas({
+        body: { plano: 'pro_mensal', cpfCnpj: '123.456.789-01', coupon_code: 'LANCAMENTO50' },
+        user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
+      }, response),
+      /limite de usos/
+    );
+
+    assert.equal(stats.couponIncrements, 1);
+    assert.equal(stats.couponReleases, 0);
+    assert.equal(stats.pixCreated, 0);
+    assert.equal(stats.updated, 0);
+  }, {
+    coupon: { id: 'coupon-1', code: 'LANCAMENTO50', discount_type: 'PERCENTAGE', discount_value: 50, max_uses: 1, current_uses: 0, active: true },
+    couponIncrementError: { message: 'Cupom atingiu o limite de usos.' }
   });
 });
 

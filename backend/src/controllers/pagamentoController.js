@@ -29,6 +29,7 @@ import { safelyRecordAuditLog } from '../services/auditLogService.js';
 import {
   buildDiscountedPlan,
   incrementCouponUsage,
+  releaseCouponUsage,
   validateCouponForPlan
 } from '../services/couponService.js';
 import { rewardReferralForPaidUser } from '../services/referralService.js';
@@ -88,8 +89,17 @@ async function applyCouponIfPresent(body, plan) {
   const couponCode = getCouponCode(body);
   if (!couponCode) return { plan, coupon: null };
   const coupon = await validateCouponForPlan(couponCode, plan.id);
-  await incrementCouponUsage(coupon.coupon.id);
   return { plan: buildDiscountedPlan(plan, coupon), coupon };
+}
+
+async function reserveCouponUsage(coupon) {
+  if (!coupon?.coupon?.id) return null;
+  return incrementCouponUsage(coupon.coupon.id);
+}
+
+async function releaseReservedCouponUsage(coupon) {
+  if (!coupon?.coupon?.id) return null;
+  return releaseCouponUsage(coupon.coupon.id);
 }
 
 async function recordCouponUsed({ req, coupon, plan, paymentId, provider, method, assinatura }) {
@@ -808,6 +818,7 @@ async function criarPagamentoEfi(req, res, method) {
   let attemptLock = null;
   let paymentCreated = false;
   let shouldReleaseLock = false;
+  let couponReserved = false;
 
   try {
     attemptLock = await acquireEfiAttemptLock(req.user.id, plan);
@@ -825,6 +836,8 @@ async function criarPagamentoEfi(req, res, method) {
     const idempotencyKey = crypto.randomUUID();
     let payment;
     let qrcode = null;
+    await reserveCouponUsage(coupon);
+    couponReserved = Boolean(coupon?.coupon?.id);
 
     if (method === 'pix') {
       const result = await efiBankService.criarPix({ plan, user: req.user, profile, assinatura: lockedAssinatura, idempotencyKey });
@@ -919,6 +932,10 @@ async function criarPagamentoEfi(req, res, method) {
       await releaseEfiAttemptLock(attemptLock.lockId);
       shouldReleaseLock = false;
     }
+    if (couponReserved && !paymentCreated) {
+      await releaseReservedCouponUsage(coupon);
+      couponReserved = false;
+    }
     throw error;
   } finally {
     if (attemptLock?.acquired && attemptLock.lockId && shouldReleaseLock) {
@@ -942,6 +959,7 @@ async function criarPagamentoAsaas(req, res, method) {
   let attemptLock = null;
   let paymentCreated = false;
   let shouldReleaseLock = false;
+  let couponReserved = false;
 
   try {
     attemptLock = await acquireAsaasAttemptLock(req.user.id, plan);
@@ -962,6 +980,8 @@ async function criarPagamentoAsaas(req, res, method) {
       cpfCnpj,
       existingCustomerId: lockedAssinatura.payment_provider === 'asaas' ? lockedAssinatura.provider_customer_id : null
     });
+    await reserveCouponUsage(coupon);
+    couponReserved = Boolean(coupon?.coupon?.id);
     const payment = await asaasService.criarCobranca({
         customerId: customer.id,
         plan,
@@ -1044,6 +1064,10 @@ async function criarPagamentoAsaas(req, res, method) {
     if (attemptLock?.acquired && attemptLock.lockId && !paymentCreated) {
       await releaseAsaasAttemptLock(attemptLock.lockId);
       shouldReleaseLock = false;
+    }
+    if (couponReserved && !paymentCreated) {
+      await releaseReservedCouponUsage(coupon);
+      couponReserved = false;
     }
     throw error;
   } finally {
