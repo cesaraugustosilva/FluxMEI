@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node scripts/write-env.js"
+    "dev": "node scripts/serve.js",
+    "build": "node scripts/write-env.js",
+    "check-env": "node scripts/write-env.js"
   }
 }

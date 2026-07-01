@@ -1,136 +1,93 @@
 # FluxMEI
 
-SaaS de gestao financeira para MEIs.
+FluxMEI e um SaaS de gestao financeira para MEIs. O produto centraliza receitas, despesas, clientes, DAS, metas, assinaturas, trial, checkout, cupons, indicacoes, auditoria, exportacao, backup, admin e FluxIA.
 
-O FluxMEI ajuda microempreendedores a controlar receitas, despesas, clientes, DAS, metas financeiras e assinatura em uma plataforma web simples, com teste gratis de 7 dias e checkout integrado.
+## Arquitetura
 
-O gateway principal de pagamento e o Asaas, com Pix, boleto e cartao. A Efí Bank permanece no backend como fallback tecnico.
+```text
+/
+backend/   API Node.js/Express
+frontend/  app web estatico HTML/CSS/JS
+tests/     testes automatizados
+scripts/   orquestracao local e deploy-check
+```
 
-## Principais Recursos
+A raiz do projeto e um orquestrador npm. O backend possui suas dependencias em `backend/package.json`. O frontend possui build proprio para gerar `env.js`.
 
-- Controle de receitas e despesas
-- Dashboard financeiro
-- Clientes
-- DAS
-- Metas financeiras
-- Teste gratis de 7 dias
-- Assinatura
-- Checkout com Pix, boleto e cartao via Asaas
+## Tecnologias
 
-## Stack
+- Frontend HTML, CSS e JavaScript.
+- Backend Node.js e Express.
+- Supabase para Auth, Postgres, RLS e service role.
+- Asaas como gateway principal.
+- Efi preservado como fallback tecnico.
+- Gemini para FluxIA.
+- Render para backend.
+- Vercel para frontend.
+- `node:test` para testes automatizados.
 
-- Frontend HTML/CSS/JS
-- Backend Node.js/Express
-- Supabase
-- Asaas
-- Efí Bank como fallback tecnico
-- Vercel
-- Render
-
-## Como Rodar Localmente
-
-Instale as dependencias na raiz do projeto:
+## Como rodar
 
 ```bash
 npm install
-```
-
-Crie e configure o arquivo de ambiente do backend:
-
-```bash
 copy backend\.env.example backend\.env
+npm run dev
 ```
 
-Depois rode:
-
-```bash
-npm start
-```
-
-Acesse:
+Servicos:
 
 ```text
-http://localhost:3002
+Backend:  http://localhost:3002
+Frontend: http://localhost:5173
+Health:   http://localhost:3002/api/health
 ```
 
-Health check da API:
-
-```text
-http://localhost:3002/api/health
-```
-
-## Testes Automatizados
-
-O projeto usa o runner nativo do Node.js (`node:test`) para testes criticos de trial, assinatura, webhook, checkout e controle de acesso.
-
-Para rodar no Windows:
+Scripts principais:
 
 ```bash
-npm.cmd test
+npm run dev
+npm run dev:backend
+npm run dev:frontend
+npm run build
+npm test
+npm run lint
+npm run deploy-check
 ```
 
-## Variaveis De Ambiente Principais
+## Estrutura de pastas
 
-As principais variaveis ficam em `backend/.env`:
-
-```env
-NODE_ENV=production
-FRONTEND_URL=https://seudominio.com,https://www.seudominio.com
-APP_PUBLIC_URL=https://api.seudominio.com
-
-SUPABASE_URL=https://seu-projeto.supabase.co
-SUPABASE_ANON_KEY=sua_chave_anon
-SUPABASE_SERVICE_ROLE_KEY=sua_chave_service_role
-
-GEMINI_API_KEY=sua_chave_gemini
-GEMINI_MODEL=gemini-2.5-flash
-AI_PROVIDER=gemini
-
-PAYMENT_GATEWAY=asaas
-ASAAS_API_KEY=sua_api_key_asaas
-ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3
-ASAAS_WEBHOOK_TOKEN=seu_token_webhook_asaas
-ASAAS_WEBHOOK_URL=https://fluxmei.onrender.com/api/webhooks/asaas
-
-EFI_CLIENT_ID=seu_client_id_efi
-EFI_CLIENT_SECRET=seu_client_secret_efi
-EFI_ENVIRONMENT=sandbox
-EFI_SANDBOX=true
-EFI_PIX_KEY=sua_chave_pix_efi
-EFI_CERT_PATH=./certs/efi.p12
-EFI_CERT_BASE64=
-EFI_WEBHOOK_SECRET=seu_token_webhook_efi
-EFI_WEBHOOK_URL=https://api.seudominio.com/api/webhooks/efi
+```text
+backend/src/controllers/  controllers HTTP
+backend/src/routes/       rotas Express
+backend/src/services/     regras de integracao e servicos
+backend/src/middleware/   autenticacao, admin, erros e seguranca
+backend/database/         schema e migrations SQL
+frontend/                 telas, assets, scripts e env.js gerado
+tests/                    testes de backend, frontend estatico e seguranca
 ```
 
-No frontend, o build usa:
+## Fluxo de pagamentos
 
-```env
-FLUXMEI_API_URL=https://api.seudominio.com/api
-FLUXMEI_PAYMENT_GATEWAY=asaas
-```
+O Asaas e o gateway principal para Pix, boleto e cartao. Pix e boleto continuam no fluxo do FluxMEI. Cartao usa ambiente seguro/tokenizado para reduzir trafego de dados sensiveis pelo backend. A ativacao de assinatura depende da confirmacao do provedor via webhook, preservando historico, recibos e idempotencia.
+
+A Efi permanece isolada como fallback tecnico e nao deve ser expandida sem decisao explicita de produto.
+
+## FluxIA
+
+A FluxIA usa Gemini no backend. As chaves `GEMINI_API_KEY` e `GEMINI_MODEL` ficam apenas no ambiente do backend. O contexto enviado ao modelo deve ser minimo, sanitizado e sem secrets.
+
+## Open Finance
+
+Open Finance esta planejado no roadmap. Ainda nao faz parte do fluxo produtivo principal e deve entrar como modulo separado, com consentimento explicito, trilha de auditoria e revisao de seguranca antes de producao.
+
+## Roadmap
+
+- Consolidar deploy padronizado Render + Vercel.
+- Fortalecer observabilidade de pagamentos, webhook e assinaturas.
+- Evoluir admin, auditoria, exportacao e backup.
+- Expandir FluxIA com limites de uso e metricas de custo.
+- Planejar Open Finance com escopo regulatorio claro.
 
 ## Deploy
 
-Deploy recomendado:
-
-- Frontend na Vercel, com root directory `frontend`
-- Backend no Render, com root directory `backend`
-- Banco e Auth no Supabase
-- Webhook Asaas configurado para `https://fluxmei.onrender.com/api/webhooks/asaas`
-
-Consulte o passo a passo completo em `DEPLOY.md`.
-Para fallback Efí Bank, consulte `docs/efi-bank-integracao.md`.
-
-## Observacoes De Seguranca
-
-- Nunca commitar `.env`, `.env.*`, certificados ou chaves reais.
-- `SUPABASE_SERVICE_ROLE_KEY` deve ficar apenas no backend.
-- Chaves privadas do Asaas, da Efí Bank e Gemini nunca devem ir para a Vercel.
-- Webhook de pagamento precisa de segredo configurado.
-- O webhook do gateway ativo e a fonte oficial para ativar assinatura.
-- Alem do rate limit global, rotas sensiveis possuem limites especificos por IP: login 10/15min, cadastro 5/30min, recuperacao/nova senha 3/30min e pagamentos 20/15min.
-
-## Status Do Projeto
-
-MVP em desenvolvimento.
+Consulte [DEPLOY.md](DEPLOY.md) para variaveis obrigatorias, Render, Vercel, build, testes e checklist antes do deploy.

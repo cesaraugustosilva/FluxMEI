@@ -2,24 +2,27 @@
   "name": "fluxmei-web",
   "version": "1.0.0",
   "description": "FluxMEI web app.",
+  "private": true,
   "type": "module",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
   "author": "FluxMEI",
   "license": "UNLICENSED",
   "scripts": {
-    "start": "node backend/src/server.js",
-    "dev": "node backend/src/server.js",
-    "build": "node frontend/scripts/write-env.js",
-    "build:frontend": "node frontend/scripts/write-env.js",
-    "test": "node --test tests/*.test.js"
+    "start": "npm --prefix backend start",
+    "dev": "node scripts/dev.js",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build": "npm run build:frontend",
+    "build:frontend": "npm --prefix frontend run build",
+    "test": "node --test tests/*.test.js",
+    "test:backend": "node --test tests/*.test.js",
+    "lint": "node --check scripts/deploy-check.js && node --check scripts/dev.js && node --check frontend/scripts/write-env.js && node --check backend/src/server.js",
+    "check-env": "node scripts/deploy-check.js --env-only",
+    "deploy-check": "node scripts/deploy-check.js"
   },
-  "dependencies": {
-    "@google/generative-ai": "^0.24.1",
-    "@supabase/supabase-js": "^2.106.1",
-    "cors": "^2.8.6",
-    "dotenv": "^16.6.1",
-    "express": "^4.22.2",
-    "express-rate-limit": "^7.5.1",
-    "helmet": "^8.1.0"
-  },
+  "dependencies": {},
   "devDependencies": {}
 }
