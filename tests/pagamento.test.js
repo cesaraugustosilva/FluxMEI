@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   PAYMENT_PLANS,
   buildAsaasPaymentAttempt,
@@ -14,6 +15,9 @@ import {
   sanitizeEfiProviderRaw,
   todayPlusDays
 } from '../backend/src/services/paymentStatusRules.js';
+
+const schemaSql = readFileSync(new URL('../backend/database/schema.sql', import.meta.url), 'utf8');
+const uniqueProviderPaymentMigration = readFileSync(new URL('../backend/database/migrate_unique_provider_payment.sql', import.meta.url), 'utf8');
 
 function assinaturaBase(extra = {}) {
   return {
@@ -186,6 +190,14 @@ test('provider_raw Asaas remove dados sensiveis e preserva tentativa', () => {
   assert.equal(raw.payment.payment_id, 'pay_asaas_1');
   assert.equal(raw.pixQrCode.has_qrcode, true);
   assert.doesNotMatch(serialized, /12345678901|cliente@example.com|4111111111111111|000201-pix|base64|cvv/);
+});
+
+test('schema protege provider_payment_id com unique parcial e diagnostico', () => {
+  assert.match(schemaSql, /create unique index if not exists idx_assinaturas_provider_payment_unique/i);
+  assert.match(schemaSql, /on public\.assinaturas\(payment_provider, provider_payment_id\)/i);
+  assert.match(schemaSql, /where payment_provider is not null\s+and provider_payment_id is not null/i);
+  assert.match(uniqueProviderPaymentMigration, /having count\(\*\) > 1/i);
+  assert.match(uniqueProviderPaymentMigration, /array_agg\(id order by created_at\) as assinatura_ids/i);
 });
 
 test('buildAsaasProviderRaw usa sanitizacao segura', () => {

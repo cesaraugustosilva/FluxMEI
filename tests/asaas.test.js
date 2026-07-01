@@ -156,10 +156,14 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
   const profile = options.profile ?? { nome: 'Cliente FluxMEI', cpf: '12345678901' };
 
   supabaseAdmin.from = (table) => {
+    const filters = [];
     const query = {
       _payload: null,
       select() { return this; },
-      eq() { return this; },
+      eq(key, value) {
+        filters.push([key, value]);
+        return this;
+      },
       order() { return this; },
       limit() { return this; },
       update(payload) {
@@ -170,9 +174,20 @@ async function withMockedAsaasEnvironment(assinatura, fn, options = {}) {
       },
       async maybeSingle() {
         if (table === 'profiles') return { data: profile, error: null };
+        if (
+          table === 'assinaturas'
+          && options.duplicateAssinatura
+          && filters.some(([key, value]) => key === 'payment_provider' && value === options.duplicateAssinatura.payment_provider)
+          && filters.some(([key, value]) => key === 'provider_payment_id' && value === options.duplicateAssinatura.provider_payment_id)
+        ) {
+          return { data: options.duplicateAssinatura, error: null };
+        }
         return { data: assinatura, error: null };
       },
       async single() {
+        if (options.updateError && this._payload?.provider_payment_id === options.updateErrorPaymentId) {
+          return { data: null, error: options.updateError };
+        }
         return { data: { ...assinatura, ...this._payload }, error: null };
       }
     };
@@ -346,6 +361,48 @@ test('Cartao Asaas rejeita dados crus antes do gateway', async () => {
 
     assert.equal(stats.cardCreated, 0);
     assert.equal(stats.updated, 0);
+  });
+});
+
+test('Pagamento Asaas duplicado por unique retorna assinatura existente de forma idempotente', async () => {
+  const duplicateAssinatura = assinaturaBase({
+    id: 'sub-existing',
+    payment_provider: 'asaas',
+    provider_payment_id: 'pay_pix_1',
+    provider_customer_id: 'cus_1',
+    provider_status: 'PENDING',
+    provider_raw: {
+      attempt: {
+        plano_original: 'pro_mensal',
+        valor_original: 49.9,
+        payment_id: 'pay_pix_1',
+        payment_method_id: 'PIX',
+        created_at: new Date().toISOString()
+      }
+    }
+  });
+
+  await withMockedAsaasEnvironment(assinaturaBase(), async ({ criarPixAsaas, stats }) => {
+    const response = createMockResponse();
+    await criarPixAsaas({
+      body: { plano: 'pro_mensal', cpfCnpj: '123.456.789-01' },
+      user: { id: 'user-1', email: 'cliente@example.com', user_metadata: {} }
+    }, response);
+
+    assert.equal(response.statusCode, 201);
+    assert.equal(response.payload.success, true);
+    assert.equal(response.payload.payment_id, 'pay_pix_1');
+    assert.equal(response.payload.assinatura.id, 'sub-existing');
+    assert.equal(response.payload.assinatura.duplicate_provider_payment, true);
+    assert.equal(stats.pixCreated, 1);
+  }, {
+    duplicateAssinatura,
+    updateErrorPaymentId: 'pay_pix_1',
+    updateError: {
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "idx_assinaturas_provider_payment_unique"',
+      details: 'Key (payment_provider, provider_payment_id)=(asaas, pay_pix_1) already exists.'
+    }
   });
 });
 

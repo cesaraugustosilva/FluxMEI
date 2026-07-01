@@ -189,6 +189,10 @@ create index if not exists idx_relatorios_ia_user_created on public.relatorios_i
 create index if not exists idx_assinaturas_user_status on public.assinaturas(user_id, status);
 create index if not exists idx_assinaturas_user_created on public.assinaturas(user_id, created_at desc);
 create index if not exists idx_assinaturas_provider_payment on public.assinaturas(payment_provider, provider_payment_id);
+create unique index if not exists idx_assinaturas_provider_payment_unique
+on public.assinaturas(payment_provider, provider_payment_id)
+where payment_provider is not null
+  and provider_payment_id is not null;
 create index if not exists idx_assinaturas_provider_subscription on public.assinaturas(payment_provider, provider_subscription_id);
 create index if not exists idx_payment_attempt_locks_expires on public.payment_attempt_locks(provider, plano, status, expires_at);
 create index if not exists idx_notification_events_user_created on public.notification_events(user_id, created_at desc);

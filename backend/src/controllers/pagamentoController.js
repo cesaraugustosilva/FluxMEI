@@ -347,6 +347,18 @@ async function findSubscriptionByProviderPayment(provider, paymentId) {
   return data || null;
 }
 
+function isProviderPaymentUniqueViolation(error) {
+  const text = [
+    error?.code,
+    error?.message,
+    error?.details,
+    error?.hint
+  ].filter(Boolean).join(' ');
+
+  return String(error?.code || '').trim() === '23505'
+    || /idx_assinaturas_provider_payment_unique|assinaturas_provider_payment_unique|payment_provider.*provider_payment_id/i.test(text);
+}
+
 async function findSubscriptionByProviderSubscription(provider, subscriptionId) {
   if (!provider || !subscriptionId) return null;
 
@@ -382,7 +394,12 @@ async function updateAssinaturaById(assinaturaId, payload) {
     .select()
     .single();
 
-  if (error) throw new AppError('Erro ao atualizar assinatura.', 500, error.message);
+  if (error) {
+    const appError = new AppError('Erro ao atualizar assinatura.', 500, error.message);
+    appError.code = error.code;
+    appError.hint = error.hint;
+    throw appError;
+  }
   return data;
 }
 
@@ -688,7 +705,22 @@ async function registerAsaasPaymentAttempt(assinatura, plan, customer, payment, 
     }
   });
 
-  return updateAssinaturaById(assinatura.id, updates);
+  try {
+    return await updateAssinaturaById(assinatura.id, updates);
+  } catch (error) {
+    if (!isProviderPaymentUniqueViolation(error)) throw error;
+
+    const existing = await findSubscriptionByProviderPayment('asaas', payment?.id);
+    if (existing) {
+      return {
+        ...existing,
+        reused: true,
+        duplicate_provider_payment: true
+      };
+    }
+
+    throw new AppError('Pagamento ja registrado. Consulte o status antes de tentar novamente.', 409);
+  }
 }
 
 function logAsaasPaymentCreated({ method, payment, plan, assinatura }) {
@@ -733,7 +765,22 @@ async function registerEfiPaymentAttempt(assinatura, plan, payment, { idempotenc
     }
   });
 
-  return updateAssinaturaById(assinatura.id, updates);
+  try {
+    return await updateAssinaturaById(assinatura.id, updates);
+  } catch (error) {
+    if (!isProviderPaymentUniqueViolation(error)) throw error;
+
+    const existing = await findSubscriptionByProviderPayment('efi', paymentId);
+    if (existing) {
+      return {
+        ...existing,
+        reused: true,
+        duplicate_provider_payment: true
+      };
+    }
+
+    throw new AppError('Pagamento ja registrado. Consulte o status antes de tentar novamente.', 409);
+  }
 }
 
 function isEfiPaidStatus(status) {
