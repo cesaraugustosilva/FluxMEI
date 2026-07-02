@@ -45,6 +45,22 @@ create table if not exists public.movimentacoes (
 );
 
 alter table public.movimentacoes add column if not exists observacao text;
+alter table public.movimentacoes add column if not exists import_id uuid;
+alter table public.movimentacoes add column if not exists external_id text;
+alter table public.movimentacoes add column if not exists source text;
+
+create table if not exists public.bank_imports (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  filename text not null,
+  file_type text not null check (file_type in ('csv', 'ofx', 'xlsx')),
+  status text not null default 'processing' check (status in ('processing', 'completed', 'failed')),
+  total_rows integer not null default 0,
+  imported_count integer not null default 0,
+  skipped_count integer not null default 0,
+  error_message text,
+  created_at timestamptz not null default now()
+);
 
 create table if not exists public.clientes (
   id uuid primary key default gen_random_uuid(),
@@ -182,6 +198,9 @@ create index if not exists idx_profiles_id on public.profiles(id);
 create index if not exists idx_movimentacoes_user_data on public.movimentacoes(user_id, data);
 create index if not exists idx_movimentacoes_user_tipo on public.movimentacoes(user_id, tipo);
 create index if not exists idx_movimentacoes_user_categoria on public.movimentacoes(user_id, categoria);
+create index if not exists idx_movimentacoes_import_id on public.movimentacoes(import_id);
+create index if not exists idx_movimentacoes_user_external_id on public.movimentacoes(user_id, external_id) where external_id is not null;
+create index if not exists idx_bank_imports_user_created on public.bank_imports(user_id, created_at desc);
 create index if not exists idx_clientes_user_nome on public.clientes(user_id, nome);
 create index if not exists idx_das_user_vencimento on public.das(user_id, vencimento);
 create index if not exists idx_das_user_status on public.das(user_id, status);
@@ -350,6 +369,7 @@ for each row execute function public.set_updated_at();
 
 alter table public.profiles enable row level security;
 alter table public.movimentacoes enable row level security;
+alter table public.bank_imports enable row level security;
 alter table public.clientes enable row level security;
 alter table public.das enable row level security;
 alter table public.relatorios_ia enable row level security;
@@ -388,6 +408,18 @@ for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 drop policy if exists "movimentacoes_delete_own" on public.movimentacoes;
 create policy "movimentacoes_delete_own" on public.movimentacoes
 for delete using (auth.uid() = user_id);
+
+drop policy if exists "bank_imports_select_own" on public.bank_imports;
+create policy "bank_imports_select_own" on public.bank_imports
+for select using (auth.uid() = user_id);
+
+drop policy if exists "bank_imports_insert_own" on public.bank_imports;
+create policy "bank_imports_insert_own" on public.bank_imports
+for insert with check (auth.uid() = user_id);
+
+drop policy if exists "bank_imports_update_own" on public.bank_imports;
+create policy "bank_imports_update_own" on public.bank_imports
+for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 drop policy if exists "clientes_select_own" on public.clientes;
 create policy "clientes_select_own" on public.clientes

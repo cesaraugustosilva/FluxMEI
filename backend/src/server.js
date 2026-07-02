@@ -21,6 +21,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import couponRoutes from './routes/couponRoutes.js';
 import referralRoutes from './routes/referralRoutes.js';
 import exportRoutes from './routes/exportRoutes.js';
+import importRoutes from './routes/importRoutes.js';
 import devRoutes from './routes/devRoutes.js';
 import { planos } from './controllers/assinaturaController.js';
 import { asyncHandler, errorHandler, notFoundHandler } from './middlewares/errorMiddleware.js';
@@ -82,7 +83,7 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '4mb' }));
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 200,
@@ -120,6 +121,7 @@ apiRouter.use('/admin', adminRoutes);
 apiRouter.use('/coupons', couponRoutes);
 apiRouter.use('/referrals', referralRoutes);
 apiRouter.use('/export', exportRoutes);
+apiRouter.use('/import', importRoutes);
 if (!isProduction) apiRouter.use('/dev', devRoutes);
 apiRouter.get('/planos', asyncHandler(planos));
 
@@ -137,6 +139,7 @@ if (!isProduction) {
   app.use('/assinaturas', assinaturaRoutes);
   app.use('/pagamentos', pagamentoRoutes);
   app.use('/webhooks', webhookRoutes);
+  app.use('/import', importRoutes);
   app.use('/dev', devRoutes);
   app.get('/planos', asyncHandler(planos));
 }

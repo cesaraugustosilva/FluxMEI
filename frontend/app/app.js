@@ -95,6 +95,7 @@ const ONBOARDING_STEPS = [
 // ===== STATE =====
 let state = {
   movimentacoes: [],
+  importHistory: [],
   clientes: [],
   das: [],
   paymentHistory: [],
@@ -1192,6 +1193,20 @@ function openAccountPanel() {
   modal.setAttribute('aria-hidden', 'false');
 }
 
+function mapImportHistory(item) {
+  return {
+    id: item.id,
+    filename: item.filename,
+    fileType: item.file_type,
+    status: item.status,
+    totalRows: Number(item.total_rows || 0),
+    importedCount: Number(item.imported_count || 0),
+    skippedCount: Number(item.skipped_count || 0),
+    errorMessage: item.error_message || '',
+    createdAt: item.created_at
+  };
+}
+
 function handleRouteAction(action) {
   if (action === 'support') {
     showToast('Suporte em breve.', 'info');
@@ -1380,14 +1395,16 @@ async function loadState() {
     return;
   }
 
-  const [movimentacoes, clientes, das] = await Promise.all([
+  const [movimentacoes, clientes, das, importHistory] = await Promise.all([
     apiRequest('/movimentacoes'),
     apiRequest('/clientes'),
-    apiRequest('/das')
+    apiRequest('/das'),
+    apiRequest('/import/history')
   ]);
 
   state.profile = me.profile;
   state.movimentacoes = (movimentacoes || []).map(mapMovimentacao);
+  state.importHistory = (importHistory || []).map(mapImportHistory);
   state.clientes = (clientes || []).map(mapCliente);
   state.das = das || [];
   hydrateConfig(me.profile, das || []);
@@ -2177,6 +2194,7 @@ function renderMovimentacoes() {
     document.getElementById('filtroMes').value = getDashboardMes();
   }
   applyFilters();
+  renderImportHistory();
 }
 
 function applyFilters() {
@@ -2239,6 +2257,128 @@ function applyFilters() {
   const cats = [...new Set(state.movimentacoes.map(m=>m.cat))].sort();
   catSelect.innerHTML = '<option value="">Todas as categorias</option>' +
     cats.map(c=>`<option value="${esc(c)}" ${c===curCat?'selected':''}>${esc(c)}</option>`).join('');
+}
+
+function renderImportHistory() {
+  const container = document.getElementById('importHistoryList');
+  if (!container) return;
+
+  if (!state.importHistory.length) {
+    container.innerHTML = '<div class="empty-state">Nenhuma importacao ainda.</div>';
+    return;
+  }
+
+  container.innerHTML = state.importHistory.slice(0, 5).map((item) => `
+    <article class="import-history-item">
+      <div>
+        <strong>${esc(item.filename)}</strong>
+        <span>${esc(String(item.fileType || '').toUpperCase())} - ${formatDate(String(item.createdAt || '').slice(0, 10))}</span>
+      </div>
+      <div class="import-history-stats">
+        ${item.importedCount} importadas / ${item.skippedCount} ignoradas
+      </div>
+    </article>
+  `).join('');
+}
+
+function openImportacaoModal() {
+  const input = document.getElementById('bankImportFile');
+  const result = document.getElementById('bankImportResult');
+  if (input) input.value = '';
+  if (result) {
+    result.hidden = true;
+    result.className = 'import-result';
+    result.innerHTML = '';
+  }
+  openModal('modalImportacao');
+}
+
+function getImportFileType(file) {
+  return String(file?.name || '').split('.').pop()?.toLowerCase() || '';
+}
+
+function readImportFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Nao foi possivel ler o arquivo.'));
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      if (getImportFileType(file) === 'xlsx') {
+        resolve(result.split(',')[1] || '');
+      } else {
+        resolve(result);
+      }
+    };
+
+    if (getImportFileType(file) === 'xlsx') {
+      reader.readAsDataURL(file);
+    } else {
+      reader.readAsText(file, 'utf-8');
+    }
+  });
+}
+
+function showImportResult(payload, isError = false) {
+  const result = document.getElementById('bankImportResult');
+  if (!result) return;
+  result.hidden = false;
+  result.className = `import-result${isError ? ' error' : ''}`;
+  result.innerHTML = isError
+    ? `<strong>Importacao nao concluida</strong><span>${esc(payload.message || payload)}</span>`
+    : `
+      <strong>Importacao concluida</strong>
+      <span>Linhas lidas: ${payload.total_rows || 0}</span>
+      <span>Importadas: ${payload.imported_count || 0}</span>
+      <span>Ignoradas: ${payload.skipped_count || 0}</span>
+    `;
+}
+
+async function importarExtrato() {
+  const input = document.getElementById('bankImportFile');
+  const button = document.getElementById('bankImportSubmit');
+  const file = input?.files?.[0];
+  if (!file) {
+    showImportResult('Selecione um arquivo CSV, OFX ou XLSX.', true);
+    return;
+  }
+
+  const fileType = getImportFileType(file);
+  if (!['csv', 'ofx', 'xlsx'].includes(fileType)) {
+    showImportResult('Formato invalido. Envie CSV, OFX ou XLSX.', true);
+    return;
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    showImportResult('Arquivo muito grande. Envie ate 2MB.', true);
+    return;
+  }
+
+  const originalText = button?.textContent || 'Importar';
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Importando...';
+  }
+
+  try {
+    const content = await readImportFile(file);
+    const result = await apiRequest('/import/bank-statement', {
+      method: 'POST',
+      body: JSON.stringify({
+        filename: file.name,
+        file_type: fileType,
+        content
+      })
+    });
+    showImportResult(result);
+    showToast('Extrato importado.');
+    await reloadAndRender('movimentacoes');
+  } catch (error) {
+    showImportResult(error.message || 'Nao foi possivel importar o extrato.', true);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
 }
 
 function pagIcon(pag) {
@@ -3274,6 +3414,8 @@ function exposeGlobalHandlers() {
     salvarConfig,
     salvarDAS,
     limparTudo,
+    openImportacaoModal,
+    importarExtrato,
     confirmPlanSwitch,
     cancelSubscription,
     reactivateSubscription
@@ -3625,6 +3767,12 @@ async function init() {
   document.querySelectorAll('[data-open-movimentacao]').forEach((button) => {
     button.addEventListener('click', () => openNovaMovimentacao());
   });
+
+  document.getElementById('openImportModal')?.addEventListener('click', openImportacaoModal);
+  document.querySelectorAll('[data-open-import]').forEach((button) => {
+    button.addEventListener('click', openImportacaoModal);
+  });
+  document.getElementById('bankImportSubmit')?.addEventListener('click', importarExtrato);
 
   document.querySelectorAll('[data-open-account-settings]').forEach((button) => {
     button.addEventListener('click', () => {

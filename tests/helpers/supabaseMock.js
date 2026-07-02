@@ -46,11 +46,13 @@ export function createSupabaseMock({ rowsByTable = {}, strictTables = null } = {
       },
       insert(payload) {
         this.payload = payload;
-        const row = {
-          id: `${table}-${stats.inserts.length + 1}`,
-          ...(Array.isArray(payload) ? payload[0] : payload)
-        };
-        getRows(table).push(row);
+        const payloads = Array.isArray(payload) ? payload : [payload];
+        const insertedRows = payloads.map((item, index) => ({
+          id: item.id || `${table}-${stats.inserts.length + index + 1}`,
+          ...item
+        }));
+        getRows(table).push(...insertedRows);
+        const row = insertedRows[0];
         stats.inserts.push({ table, payload: Array.isArray(payload) ? payload : { ...payload }, row });
         return this;
       },

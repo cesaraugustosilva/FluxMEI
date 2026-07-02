@@ -316,8 +316,20 @@
         <h1 class="page-title">Movimentações</h1>
         <p class="page-subtitle">Controle de entradas e saídas</p>
       </div>
-      <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">+ Nova</button>
+      <div class="movement-header-actions">
+        <button class="btn btn-outline" type="button" id="openImportModal">Importar extrato</button>
+        <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">+ Nova</button>
+      </div>
     </div>
+
+    <section class="import-card" aria-label="Importar extrato bancario">
+      <div>
+        <span>CSV, OFX ou XLSX</span>
+        <strong>Importar extrato</strong>
+        <p>Traga movimentacoes do banco sem Open Finance pago. Duplicadas sao ignoradas automaticamente.</p>
+      </div>
+      <button class="btn btn-primary" type="button" data-open-import>Selecionar arquivo</button>
+    </section>
 
     <!-- Filters -->
     <div class="filter-bar">
@@ -361,6 +373,15 @@
       </table>
       <div class="empty-state" id="movEmpty" style="display:none">Nenhuma movimentação encontrada.</div>
     </div>
+
+    <section class="import-history-card" aria-label="Historico de importacoes">
+      <div class="card-header">
+        <h3>Historico de importacoes</h3>
+      </div>
+      <div class="import-history-list" id="importHistoryList">
+        <div class="empty-state">Nenhuma importacao ainda.</div>
+      </div>
+    </section>
   </section>
 
   <!-- ====== CALENDÁRIO ====== -->
@@ -671,6 +692,31 @@
     <div class="modal-footer">
       <button class="btn btn-outline" type="button" onclick="closeModal('modalMovimentacao')">Cancelar</button>
       <button class="btn btn-primary" type="button" onclick="salvarMovimentacao()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Importacao de Extrato -->
+<div class="modal-backdrop" id="modalImportacao">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Importar extrato</h2>
+      <button class="modal-close" type="button" onclick="closeModal('modalImportacao')">x</button>
+    </div>
+    <div class="modal-body">
+      <div class="import-format-note">
+        <strong>Formatos aceitos</strong>
+        <span>CSV, OFX e XLSX ate 2MB. O arquivo bruto nao e salvo.</span>
+      </div>
+      <label class="field-like">
+        <span>Arquivo do extrato</span>
+        <input id="bankImportFile" class="form-input" type="file" accept=".csv,.ofx,.xlsx" />
+      </label>
+      <div class="import-result" id="bankImportResult" hidden></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" type="button" onclick="closeModal('modalImportacao')">Cancelar</button>
+      <button class="btn btn-primary" type="button" id="bankImportSubmit">Importar</button>
     </div>
   </div>
 </div>

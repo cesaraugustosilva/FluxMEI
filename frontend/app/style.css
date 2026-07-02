@@ -2206,6 +2206,113 @@ body {
 .filter-search { flex: 1; min-width: 200px; }
 .filter-search .filter-input { width: 100%; }
 
+.movement-header-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.import-card,
+.import-history-card {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(10,159,90,.10);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  box-shadow: var(--shadow);
+}
+
+.import-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.import-card span,
+.import-history-item span,
+.import-format-note span,
+.field-like span {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.import-card strong {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-display);
+}
+
+.import-card p {
+  max-width: 620px;
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.import-history-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.import-history-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.8rem;
+  border: 1px solid rgba(10,159,90,.10);
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,.68);
+}
+
+.import-history-item strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.92rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-history-stats {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.import-format-note,
+.import-result {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 1rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(10,159,90,.13);
+  border-radius: var(--radius-sm);
+  background: rgba(10,159,90,.06);
+}
+
+.import-result.error {
+  border-color: rgba(220,63,58,.22);
+  background: var(--red-light);
+  color: var(--red);
+}
+
+.field-like {
+  display: grid;
+  gap: 0.45rem;
+}
+
+:root[data-theme="dark"] .import-card,
+:root[data-theme="dark"] .import-history-card,
+:root[data-theme="dark"] .import-history-item {
+  background: linear-gradient(180deg, #17221e 0%, #121d19 100%);
+  border-color: var(--border);
+}
+
 .mov-summary {
   display: flex;
   gap: 1.5rem;
@@ -3202,6 +3309,18 @@ textarea.form-input { resize: vertical; }
 
   .dashboard-actions {
     justify-content: stretch;
+  }
+
+  .movement-header-actions,
+  .movement-header-actions .btn,
+  .import-card,
+  .import-card .btn {
+    width: 100%;
+  }
+
+  .import-card {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .dashboard-actions .filter-select,
