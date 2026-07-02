@@ -11,6 +11,17 @@ const assetsDir = path.join(frontendDir, 'assets');
 const imageExtPattern = /\.(png|jpe?g|svg|webp|ico)(?:[?#][^"')\s]*)?$/i;
 const sourceExts = new Set(['.html', '.css', '.js', '.json', '.md']);
 const imageExts = new Set(['.png', '.jpg', '.jpeg', '.svg', '.webp', '.ico']);
+const expectedAssets = [
+  'brand/logo-fluxmei.png',
+  'brand/icon-fluxmei.png',
+  'brand/favicon.png',
+  'brand/favicon.ico',
+  'brand/apple-touch-icon.png',
+  'brand/icon-192.png',
+  'checkout/checkout-logo.png',
+  'landing/landing-icon-fluxmei.png',
+  'social/open-graph/og-image.png'
+];
 
 function walk(dir, predicate = () => true) {
   if (!fs.existsSync(dir)) {
@@ -120,4 +131,35 @@ test('assets publicos ficam em frontend/assets e usam nomes seguros', () => {
   assert.ok(outsideAssets.length > 0);
   assert.deepEqual(misplaced.map((file) => path.relative(rootDir, file)), []);
   assert.deepEqual(unsafeNames.map((file) => path.relative(rootDir, file)), []);
+});
+
+test('estrutura publica de assets do FluxMEI esta completa', () => {
+  const missing = expectedAssets.filter((asset) => !fs.existsSync(path.join(assetsDir, asset)));
+
+  assert.deepEqual(missing, []);
+});
+
+test('paginas principais usam os assets reais da marca', () => {
+  const expectedReferences = new Map([
+    ['frontend/landing-page/index.html', ['/assets/brand/icon-fluxmei.png', '/assets/landing/landing-icon-fluxmei.png']],
+    ['frontend/auth/login/index.html', ['../../assets/brand/logo-fluxmei.png']],
+    ['frontend/auth/cadastro/index.html', ['../../assets/brand/logo-fluxmei.png']],
+    ['frontend/auth/recovery/esqueceu-senha.html', ['../../assets/brand/icon-fluxmei.png']],
+    ['frontend/auth/recovery/nova-senha.html', ['../../assets/brand/icon-fluxmei.png']],
+    ['frontend/app/index.html', ['/assets/brand/icon-fluxmei.png']],
+    ['frontend/admin/index.html', ['/assets/brand/icon-fluxmei.png']],
+    ['frontend/checkout/index.html', ['/assets/checkout/checkout-logo.png']]
+  ]);
+  const missing = [];
+
+  for (const [relativeFile, references] of expectedReferences) {
+    const content = fs.readFileSync(path.join(rootDir, relativeFile), 'utf8');
+    for (const reference of references) {
+      if (!content.includes(reference)) {
+        missing.push(`${relativeFile} -> ${reference}`);
+      }
+    }
+  }
+
+  assert.deepEqual(missing, []);
 });

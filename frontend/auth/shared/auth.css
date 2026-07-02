@@ -117,9 +117,10 @@ select {
 }
 
 .brand-mark img {
-  width: min(220px, 62vw);
-  height: auto;
+  width: 34px;
+  height: 34px;
   display: block;
+  object-fit: contain;
   filter: drop-shadow(0 16px 34px rgba(72, 213, 47, 0.18));
 }
 
@@ -209,8 +210,26 @@ select {
 }
 
 .mobile-logo img {
-  width: min(240px, 72vw);
-  height: auto;
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+
+.visual-logo,
+.mobile-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.visual-logo img,
+.mobile-brand img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
 }
 
 .auth-card {

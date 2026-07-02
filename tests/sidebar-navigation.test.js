@@ -8,7 +8,8 @@ const appCss = readFileSync(new URL('../frontend/app/style.css', import.meta.url
 
 test('sidebar antiga renderiza logo FluxMEI e navegacao principal', () => {
   assert.match(appHtml, /<aside class="sidebar" id="sidebar">/);
-  assert.match(appHtml, /<span class="brand-name">FluxMEI<\/span>/);
+  assert.ok(appHtml.includes('/assets/brand/icon-fluxmei.png'));
+  assert.match(appHtml, /<span class="brand-name"><span>Flux<\/span><strong>MEI<\/strong><\/span>/);
   assert.match(appHtml, /data-page="dashboard"/);
   assert.match(appHtml, /data-page="movimentacoes"/);
   assert.match(appHtml, /data-page="metas"/);

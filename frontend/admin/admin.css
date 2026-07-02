@@ -59,15 +59,25 @@ a {
   letter-spacing: 0;
 }
 
+.brand strong {
+  color: #9afc74;
+}
+
 .brand-mark {
   width: 40px;
   height: 40px;
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 12px;
-  color: #052317;
-  background: linear-gradient(135deg, #48d52f, #9afc74);
+  background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 14px 32px rgba(72, 213, 47, 0.26);
+}
+
+.brand-mark img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
 }
 
 .admin-nav {
