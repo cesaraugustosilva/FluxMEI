@@ -52,33 +52,88 @@ app.use(helmet({
   }
 }));
 const isProduction = process.env.NODE_ENV === 'production';
-const allowedOrigins = process.env.FRONTEND_URL
-  ? process.env.FRONTEND_URL
-      .split(',')
-      .map((origin) => origin.trim().replace(/\/$/, ''))
-      .filter(Boolean)
-  : [];
+const OFFICIAL_FRONTEND_ORIGINS = [
+  'https://fluxmei.com.br',
+  'https://www.fluxmei.com.br'
+];
 
-function isDevOrigin(origin) {
+export function normalizeCorsOrigin(origin) {
+  if (!origin || typeof origin !== 'string') return '';
+  return origin.trim().replace(/\/+$/, '');
+}
+
+function normalizeConfiguredOrigin(origin) {
+  const normalized = normalizeCorsOrigin(origin);
+  if (!normalized) return '';
+
+  try {
+    return normalizeCorsOrigin(new URL(normalized).origin);
+  } catch {
+    try {
+      return normalizeCorsOrigin(new URL(`https://${normalized}`).origin);
+    } catch {
+      return '';
+    }
+  }
+}
+
+function splitOriginList(value) {
+  return String(value || '')
+    .split(',')
+    .map(normalizeConfiguredOrigin)
+    .filter(Boolean);
+}
+
+export function getAllowedCorsOrigins(env = process.env) {
+  const configuredOrigins = [
+    ...splitOriginList(env.FRONTEND_URL),
+    ...splitOriginList(env.VERCEL_URL)
+  ];
+
+  return [...new Set([
+    ...OFFICIAL_FRONTEND_ORIGINS,
+    ...configuredOrigins
+  ])];
+}
+
+export function isDevOrigin(origin) {
   if (!origin) return true;
   if (origin === 'null') return true;
 
   try {
-    const url = new URL(origin);
+    const url = new URL(normalizeCorsOrigin(origin));
     return ['localhost', '127.0.0.1'].includes(url.hostname);
   } catch {
     return false;
   }
 }
 
+export function isCorsOriginAllowed(origin, env = process.env) {
+  if (!origin) return { allowed: true, allowedOrigins: getAllowedCorsOrigins(env), normalizedOrigin: '' };
+
+  const normalizedOrigin = normalizeCorsOrigin(origin);
+  const allowedOrigins = getAllowedCorsOrigins(env);
+  const production = env.NODE_ENV === 'production';
+
+  return {
+    allowed: allowedOrigins.includes(normalizedOrigin) || (!production && isDevOrigin(normalizedOrigin)),
+    allowedOrigins,
+    normalizedOrigin
+  };
+}
+
 app.use(cors({
   origin(origin, callback) {
-    if (!origin) return callback(null, true);
-
-    const normalizedOrigin = origin ? origin.replace(/\/$/, '') : origin;
-    if (allowedOrigins.includes(normalizedOrigin) || (!isProduction && isDevOrigin(origin))) {
+    const corsCheck = isCorsOriginAllowed(origin);
+    if (corsCheck.allowed) {
       return callback(null, true);
     }
+
+    console.warn('Origem bloqueada pelo CORS.', {
+      origin: corsCheck.normalizedOrigin || origin || '',
+      allowedOrigins: corsCheck.allowedOrigins
+    });
+
     return callback(new Error('Origem bloqueada pelo CORS.'));
   },
   credentials: true
