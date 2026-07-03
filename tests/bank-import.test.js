@@ -129,7 +129,7 @@ test('XLSX basico extrai primeira planilha', () => {
 
   assert.equal(parsed.rows[0].data, '2026-06-03');
   assert.equal(parsed.rows[0].tipo, 'saida');
-  assert.equal(parsed.rows[0].categoria, 'Servicos');
+  assert.equal(parsed.rows[0].categoria, 'Software');
 });
 
 test('arquivo invalido e rejeitado', () => {

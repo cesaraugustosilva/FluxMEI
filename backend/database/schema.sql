@@ -48,6 +48,12 @@ alter table public.movimentacoes add column if not exists observacao text;
 alter table public.movimentacoes add column if not exists import_id uuid;
 alter table public.movimentacoes add column if not exists external_id text;
 alter table public.movimentacoes add column if not exists source text;
+alter table public.movimentacoes add column if not exists reconciliation_status text
+  check (reconciliation_status in ('imported', 'reviewed', 'ignored', 'duplicated', 'reconciled'));
+alter table public.movimentacoes add column if not exists category_confidence numeric(3,2)
+  check (category_confidence is null or (category_confidence >= 0 and category_confidence <= 1));
+alter table public.movimentacoes add column if not exists ai_category_suggestion text;
+alter table public.movimentacoes add column if not exists duplicate_of uuid;
 
 create table if not exists public.bank_imports (
   id uuid primary key default gen_random_uuid(),
@@ -61,6 +67,25 @@ create table if not exists public.bank_imports (
   error_message text,
   created_at timestamptz not null default now()
 );
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'movimentacoes_import_id_fkey'
+  ) then
+    alter table public.movimentacoes
+      add constraint movimentacoes_import_id_fkey
+      foreign key (import_id) references public.bank_imports(id) on delete set null;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint where conname = 'movimentacoes_duplicate_of_fkey'
+  ) then
+    alter table public.movimentacoes
+      add constraint movimentacoes_duplicate_of_fkey
+      foreign key (duplicate_of) references public.movimentacoes(id) on delete set null;
+  end if;
+end $$;
 
 create table if not exists public.clientes (
   id uuid primary key default gen_random_uuid(),
@@ -200,6 +225,11 @@ create index if not exists idx_movimentacoes_user_tipo on public.movimentacoes(u
 create index if not exists idx_movimentacoes_user_categoria on public.movimentacoes(user_id, categoria);
 create index if not exists idx_movimentacoes_import_id on public.movimentacoes(import_id);
 create index if not exists idx_movimentacoes_user_external_id on public.movimentacoes(user_id, external_id) where external_id is not null;
+create index if not exists idx_movimentacoes_reconciliation
+on public.movimentacoes(user_id, import_id, reconciliation_status);
+create index if not exists idx_movimentacoes_duplicate_of
+on public.movimentacoes(duplicate_of)
+where duplicate_of is not null;
 create index if not exists idx_bank_imports_user_created on public.bank_imports(user_id, created_at desc);
 create index if not exists idx_clientes_user_nome on public.clientes(user_id, nome);
 create index if not exists idx_das_user_vencimento on public.das(user_id, vencimento);

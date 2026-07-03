@@ -1,6 +1,7 @@
 import { strFromU8, unzipSync } from 'fflate';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
+import { calculateConfidence, suggestCategory } from './reconciliationService.js';
 import { sanitizeText, validateDate } from '../utils/validation.js';
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
@@ -158,19 +159,7 @@ function inferTipo(rawTipo, signedValue) {
 }
 
 export function categorizeDescription(description = '') {
-  const text = normalizeDescription(description);
-  const rules = [
-    ['Combustivel', ['posto', 'gasolina', 'ipiranga', 'shell']],
-    ['Alimentacao', ['ifood', 'restaurante', 'mercado', 'padaria']],
-    ['Transporte', ['uber', '99', 'taxi']],
-    ['Servicos', ['google', 'microsoft', 'adobe', 'canva']],
-    ['Impostos', ['das', 'mei', 'receita federal']]
-  ];
-
-  for (const [category, words] of rules) {
-    if (words.some((word) => text.includes(word))) return category;
-  }
-  return 'Outros';
+  return suggestCategory({ descricao: description });
 }
 
 function sanitizeImportedText(value, field, max) {
@@ -374,11 +363,16 @@ export async function importBankStatement(userId, payload) {
 
       if (ext) batchExternalIds.add(ext);
       batchKeys.add(key);
+      const aiCategorySuggestion = suggestCategory(item);
+      const categoryConfidence = calculateConfidence(item);
       movements.push({
         user_id: userId,
         import_id: importRecord.id,
         external_id: ext,
         source: 'bank_import',
+        reconciliation_status: 'imported',
+        ai_category_suggestion: aiCategorySuggestion,
+        category_confidence: categoryConfidence,
         tipo: item.tipo,
         descricao: item.descricao,
         valor: item.valor,

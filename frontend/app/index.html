@@ -721,6 +721,32 @@
   </div>
 </div>
 
+<!-- Modal Revisao Inteligente -->
+<div class="modal-backdrop" id="modalImportReview">
+  <div class="modal import-review-modal">
+    <div class="modal-header">
+      <h2 id="importReviewTitle">Revisao inteligente</h2>
+      <button class="modal-close" type="button" onclick="closeModal('modalImportReview')">x</button>
+    </div>
+    <div class="modal-body">
+      <section class="import-ai-card" aria-label="Analise da FluxIA">
+        <div>
+          <span>Analise da FluxIA</span>
+          <strong>Resumo seguro da importacao</strong>
+        </div>
+        <button class="btn btn-outline" type="button" id="importAiReviewButton">Analisar importacao com IA</button>
+        <p class="import-ai-result" id="importAiReviewResult" hidden></p>
+      </section>
+      <div class="import-review-list" id="importReviewList">
+        <div class="empty-state">Selecione uma importacao para revisar.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" type="button" onclick="closeModal('modalImportReview')">Concluir</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Cliente -->
 <div class="modal-backdrop" id="modalCliente">
   <div class="modal">

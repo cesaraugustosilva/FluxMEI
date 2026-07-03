@@ -96,6 +96,7 @@ const ONBOARDING_STEPS = [
 let state = {
   movimentacoes: [],
   importHistory: [],
+  importReview: null,
   clientes: [],
   das: [],
   paymentHistory: [],
@@ -435,7 +436,12 @@ function mapMovimentacao(item) {
     pag: item.forma_pagamento,
     data: item.data,
     obs: meta.texto,
-    clienteId: meta.cliente_id || localLinks[item.id] || ''
+    clienteId: meta.cliente_id || localLinks[item.id] || '',
+    importId: item.import_id || '',
+    reconciliationStatus: item.reconciliation_status || '',
+    categoryConfidence: item.category_confidence,
+    aiCategorySuggestion: item.ai_category_suggestion || '',
+    duplicateOf: item.duplicate_of || ''
   };
 }
 
@@ -2277,6 +2283,7 @@ function renderImportHistory() {
       <div class="import-history-stats">
         ${item.importedCount} importadas / ${item.skippedCount} ignoradas
       </div>
+      ${item.importedCount ? `<button class="btn btn-sm btn-outline" type="button" onclick="openImportReview('${item.id}')">Revisar importacao</button>` : ''}
     </article>
   `).join('');
 }
@@ -2330,7 +2337,139 @@ function showImportResult(payload, isError = false) {
       <span>Linhas lidas: ${payload.total_rows || 0}</span>
       <span>Importadas: ${payload.imported_count || 0}</span>
       <span>Ignoradas: ${payload.skipped_count || 0}</span>
+      ${payload.import?.id && payload.imported_count ? `<button class="btn btn-sm btn-primary" type="button" onclick="openImportReview('${payload.import.id}')">Revisar importacao</button>` : ''}
     `;
+}
+
+function mapImportReviewMovement(item) {
+  return {
+    id: item.id,
+    data: item.data,
+    descricao: item.descricao,
+    valor: Number(item.valor || 0),
+    tipo: item.tipo,
+    categoria: item.categoria || 'Outros',
+    suggestedCategory: item.ai_category_suggestion || 'Outros',
+    confidence: Number(item.category_confidence || 0),
+    status: item.reconciliation_status || 'imported',
+    possibleDuplicates: item.possible_duplicates || []
+  };
+}
+
+function renderImportReview() {
+  const list = document.getElementById('importReviewList');
+  const title = document.getElementById('importReviewTitle');
+  const aiResult = document.getElementById('importAiReviewResult');
+  if (!list || !state.importReview) return;
+
+  if (title) title.textContent = `Revisao inteligente - ${state.importReview.import?.filename || 'importacao'}`;
+  if (aiResult) {
+    aiResult.hidden = true;
+    aiResult.textContent = '';
+  }
+
+  const movements = state.importReview.movimentacoes || [];
+  if (!movements.length) {
+    list.innerHTML = '<div class="empty-state">Nenhuma movimentacao importada para revisar.</div>';
+    return;
+  }
+
+  list.innerHTML = movements.map((item) => {
+    const duplicate = item.possibleDuplicates[0];
+    const confidence = Math.round((item.confidence || 0) * 100);
+    return `
+      <article class="import-review-item">
+        <div class="import-review-main">
+          <span>${formatDate(item.data)} - ${esc(item.tipo === 'entrada' ? 'Receita' : 'Despesa')}</span>
+          <strong>${esc(item.descricao)}</strong>
+          <b>${item.tipo === 'entrada' ? '+' : '-'}${formatBRL(item.valor)}</b>
+        </div>
+        <div class="import-review-meta">
+          <span>Categoria atual: <strong>${esc(item.categoria)}</strong></span>
+          <span>Categoria sugerida: <strong>${esc(item.suggestedCategory)}</strong></span>
+          <span>Confianca: <strong>${confidence}%</strong></span>
+          <span>Status: <strong>${esc(item.status)}</strong></span>
+          <span>Possivel duplicata: <strong>${duplicate ? `${esc(duplicate.descricao)} (${Math.round(Number(duplicate.score || 0) * 100)}%)` : 'nenhuma'}</strong></span>
+        </div>
+        <div class="import-review-actions">
+          <button class="btn btn-sm btn-primary" type="button" onclick="acceptImportCategory('${item.id}')">Aceitar categoria</button>
+          <button class="btn btn-sm btn-outline" type="button" onclick="markImportReviewed('${item.id}')">Marcar revisada</button>
+          <button class="btn btn-sm btn-outline" type="button" onclick="ignoreImportMovement('${item.id}')">Ignorar</button>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+async function openImportReview(importId) {
+  try {
+    const review = await apiRequest(`/import/${importId}/review`);
+    state.importReview = {
+      import: review.import,
+      movimentacoes: (review.movimentacoes || []).map(mapImportReviewMovement)
+    };
+    renderImportReview();
+    openModal('modalImportReview');
+  } catch (error) {
+    showToast(error.message || 'Nao foi possivel carregar a revisao.', 'error');
+  }
+}
+
+async function refreshCurrentImportReview() {
+  const importId = state.importReview?.import?.id;
+  if (!importId) return;
+  const review = await apiRequest(`/import/${importId}/review`);
+  state.importReview = {
+    import: review.import,
+    movimentacoes: (review.movimentacoes || []).map(mapImportReviewMovement)
+  };
+  renderImportReview();
+}
+
+async function acceptImportCategory(id) {
+  await apiRequest(`/import/movimentacoes/${id}/accept-category`, { method: 'POST' });
+  showToast('Categoria aplicada.');
+  await refreshCurrentImportReview();
+  await reloadAndRender('movimentacoes');
+}
+
+async function markImportReviewed(id) {
+  await apiRequest(`/import/movimentacoes/${id}/reviewed`, { method: 'POST' });
+  showToast('Movimentacao revisada.');
+  await refreshCurrentImportReview();
+}
+
+async function ignoreImportMovement(id) {
+  await apiRequest(`/import/movimentacoes/${id}/ignore`, { method: 'POST' });
+  showToast('Movimentacao marcada como ignorada.');
+  await refreshCurrentImportReview();
+}
+
+async function analyzeImportWithAi() {
+  const importId = state.importReview?.import?.id;
+  const button = document.getElementById('importAiReviewButton');
+  const result = document.getElementById('importAiReviewResult');
+  if (!importId || !result) return;
+
+  const originalText = button?.textContent || 'Analisar importacao com IA';
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Analisando...';
+  }
+
+  try {
+    const payload = await apiRequest(`/import/${importId}/ai-review`, { method: 'POST' });
+    result.hidden = false;
+    result.textContent = payload.analysis || 'Analise concluida.';
+  } catch (error) {
+    result.hidden = false;
+    result.textContent = error.message || 'Nao foi possivel analisar a importacao.';
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
 }
 
 async function importarExtrato() {
@@ -3773,6 +3912,7 @@ async function init() {
     button.addEventListener('click', openImportacaoModal);
   });
   document.getElementById('bankImportSubmit')?.addEventListener('click', importarExtrato);
+  document.getElementById('importAiReviewButton')?.addEventListener('click', analyzeImportWithAi);
 
   document.querySelectorAll('[data-open-account-settings]').forEach((button) => {
     button.addEventListener('click', () => {
