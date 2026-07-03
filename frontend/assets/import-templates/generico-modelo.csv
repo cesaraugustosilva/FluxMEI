@@ -1,0 +1,3 @@
+data,descricao,valor,tipo,categoria,external_id
+2026-07-01,Receita exemplo,1000.00,entrada,Vendas,generico-exemplo-001
+2026-07-02,Despesa exemplo,-120.00,saida,Outros,generico-exemplo-002

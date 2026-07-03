@@ -1,0 +1,3 @@
+data lancamento,descricao,valor,debito credito,categoria,id transacao
+2026-07-01,Entrada exemplo,990.00,credito,Servicos,santander-exemplo-001
+2026-07-10,Saida exemplo,-75.20,debito,Transporte,santander-exemplo-002

@@ -1,0 +1,3 @@
+data da operacao,descricao,valor liquido,tipo de operacao,categoria,numero de operacao
+2026-07-01,Recebimento exemplo,980.00,credito,Vendas,mp-exemplo-001
+2026-07-04,Tarifa exemplo,-12.90,debito,Taxas,mp-exemplo-002

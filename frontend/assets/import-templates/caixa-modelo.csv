@@ -1,0 +1,3 @@
+data mov;historico;valor;d c;categoria;numero documento
+2026-07-01;Credito exemplo;760.00;credito;Servicos;caixa-exemplo-001
+2026-07-07;Debito exemplo;-98.40;debito;Alimentacao;caixa-exemplo-002

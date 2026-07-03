@@ -1,0 +1,3 @@
+dt lancamento;historico;valor;debito credito;categoria;numero documento
+2026-07-01;Deposito exemplo;2300.00;credito;Vendas;bb-exemplo-001
+2026-07-06;Pagamento exemplo;-340.00;debito;Fornecedor;bb-exemplo-002

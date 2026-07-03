@@ -1,0 +1,3 @@
+data,descricao,valor,natureza,categoria,id
+2026-07-01,Recebimento exemplo,850.00,credito,Servicos,c6-exemplo-001
+2026-07-05,Despesa exemplo,-145.70,debito,Transporte,c6-exemplo-002

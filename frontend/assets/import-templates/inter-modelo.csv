@@ -1,0 +1,3 @@
+data lancamento;historico;valor;tipo operacao;categoria;id transacao
+2026-07-01;Recebimento exemplo;1200.00;credito;Servicos;inter-exemplo-001
+2026-07-03;Pagamento exemplo;-210.50;debito;Fornecedores;inter-exemplo-002

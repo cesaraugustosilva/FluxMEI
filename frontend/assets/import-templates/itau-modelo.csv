@@ -1,0 +1,3 @@
+data,lancamento,valor,entrada saida,categoria,documento
+2026-07-01,Receita exemplo,1400.00,entrada,Servicos,itau-exemplo-001
+2026-07-08,Despesa exemplo,-255.00,saida,Software,itau-exemplo-002

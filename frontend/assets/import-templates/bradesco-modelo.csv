@@ -1,0 +1,3 @@
+data,historico,valor,debito credito,categoria,numero documento
+2026-07-01,Credito exemplo,1750.00,credito,Vendas,bradesco-exemplo-001
+2026-07-09,Debito exemplo,-180.30,debito,Marketing,bradesco-exemplo-002
