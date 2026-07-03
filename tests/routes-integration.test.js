@@ -120,3 +120,14 @@ test('rota de dashboard de importacoes exige autenticacao no Express', async () 
     assert.notEqual(payload, null);
   });
 });
+
+test('rota de previsoes da FluxIA exige autenticacao no Express', async () => {
+  await withTestServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/ai/forecast`);
+
+    assert.equal(response.status, 401);
+    const payload = await response.json();
+    assert.equal(typeof payload, 'object');
+    assert.notEqual(payload, null);
+  });
+});

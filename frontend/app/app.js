@@ -105,6 +105,7 @@ let state = {
   referral: null,
   referralError: '',
   aiInsights: [],
+  aiForecast: null,
   aiConversations: [],
   aiMessages: [],
   aiActiveConversationId: null,
@@ -3712,6 +3713,60 @@ function renderAiInsights() {
   `).join('');
 }
 
+function renderAiForecast() {
+  const grid = document.getElementById('aiForecastGrid');
+  const alert = document.getElementById('aiForecastAlert');
+  const goal = document.getElementById('aiForecastGoal');
+  const forecast = state.aiForecast;
+  if (!grid) return;
+
+  if (!forecast) {
+    grid.innerHTML = '<article class="ai-forecast-card loading">Carregando previsoes...</article>';
+    if (alert) alert.hidden = true;
+    if (goal) goal.hidden = true;
+    return;
+  }
+
+  const cards = [
+    ['Faturamento previsto', formatBRL(forecast.revenue_forecast?.projected || 0)],
+    ['Despesas previstas', formatBRL(forecast.expenses_forecast?.projected || 0)],
+    ['Lucro previsto', formatBRL(forecast.profit_forecast?.projected || 0)],
+    ['Saldo estimado', formatBRL(forecast.balance_forecast?.estimated_end_of_month || 0)],
+    ['Score financeiro', `${forecast.financial_score?.value || 0}/100`, forecast.financial_score?.label]
+  ];
+
+  grid.innerHTML = cards.map(([label, value, meta]) => `
+    <article class="ai-forecast-card">
+      <span>${esc(label)}</span>
+      <strong>${esc(value)}</strong>
+      ${meta ? `<small>${esc(meta)}</small>` : ''}
+    </article>
+  `).join('');
+
+  const recommendation = (forecast.recommendations || [])[0] || (forecast.insufficient_data
+    ? 'Ainda nao ha dados suficientes para previsoes precisas.'
+    : 'Previsao calculada com seus dados financeiros atuais.');
+  if (alert) {
+    alert.hidden = false;
+    alert.innerHTML = `<span>Alerta inteligente</span><strong>${esc(recommendation)}</strong>`;
+  }
+
+  const likelyGoal = forecast.goal_forecast?.likely_goal;
+  if (goal) {
+    goal.hidden = false;
+    goal.innerHTML = likelyGoal
+      ? `
+        <span>Meta em destaque</span>
+        <strong>${esc(likelyGoal.nome)}</strong>
+        <p>Faltam ${formatBRL(likelyGoal.missing || 0)}${likelyGoal.estimated_days !== null ? ` e cerca de ${likelyGoal.estimated_days} dias.` : '.'}</p>
+      `
+      : `
+        <span>Metas</span>
+        <strong>${esc(forecast.goal_forecast?.message || 'Nenhuma meta prevista no momento.')}</strong>
+      `;
+  }
+}
+
 function renderAiHistory() {
   const root = document.getElementById('aiHistoryList');
   if (!root) return;
@@ -3787,6 +3842,7 @@ function renderAiMessages() {
 
 function renderAiAssistant() {
   renderAiInsights();
+  renderAiForecast();
   renderAiHistory();
   renderAiMessages();
   if (!state.aiLoaded) loadAiAssistant();
@@ -3794,17 +3850,20 @@ function renderAiAssistant() {
 
 async function loadAiAssistant() {
   try {
-    const [insights, conversations] = await Promise.all([
+    const [insights, conversations, forecast] = await Promise.all([
       apiRequest('/ai/insights'),
-      apiRequest('/ai/conversations')
+      apiRequest('/ai/conversations'),
+      apiRequest('/ai/forecast')
     ]);
     state.aiInsights = Array.isArray(insights.insights) ? insights.insights : [];
     state.aiConversations = Array.isArray(conversations.conversations) ? conversations.conversations : [];
+    state.aiForecast = forecast || null;
     state.aiLoaded = true;
     renderAiAssistant();
   } catch (error) {
     state.aiInsights = [{ type: 'danger', title: error.message || 'Nao foi possivel carregar o assistente.', metric: 0 }];
     renderAiInsights();
+    renderAiForecast();
   }
 }
 

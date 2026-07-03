@@ -63,6 +63,7 @@ test('rotas do assistente exigem autenticacao e assinatura ativa', () => {
   assert.match(aiRoutes, /router\.use\(authMiddleware\)/);
   assert.match(aiRoutes, /router\.use\(checkSubscriptionAccess\)/);
   assert.match(aiRoutes, /router\.get\('\/insights', asyncHandler\(aiInsights\)\)/);
+  assert.match(aiRoutes, /router\.get\('\/forecast', asyncHandler\(aiForecast\)\)/);
   assert.match(aiRoutes, /router\.post\('\/chat', asyncHandler\(aiChat\)\)/);
   assert.match(aiRoutes, /router\.get\('\/conversations', asyncHandler\(listAiConversations\)\)/);
   assert.match(aiRoutes, /router\.patch\('\/conversations\/:id', asyncHandler\(renameAiConversation\)\)/);
