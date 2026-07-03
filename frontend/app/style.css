@@ -2213,7 +2213,8 @@ body {
 }
 
 .import-card,
-.import-history-card {
+.import-history-card,
+.import-dashboard-card {
   margin-bottom: 1rem;
   padding: 1rem;
   border: 1px solid rgba(10,159,90,.10);
@@ -2251,6 +2252,107 @@ body {
   color: var(--text-muted);
   font-size: 0.9rem;
   line-height: 1.45;
+}
+
+.import-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
+  gap: 0.7rem;
+  margin-bottom: 1rem;
+}
+
+.import-dashboard-stat,
+.import-dashboard-recent-item {
+  padding: 0.85rem;
+  border: 1px solid rgba(10,159,90,.10);
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,.68);
+}
+
+.import-dashboard-stat span,
+.import-dashboard-recent-item span,
+.import-quality-block span {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.import-dashboard-stat strong {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--text);
+  font-size: 1.1rem;
+}
+
+.import-quality-block {
+  display: grid;
+  grid-template-columns: minmax(180px, auto) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.import-quality-bar {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(10,159,90,.10);
+}
+
+.import-quality-bar span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+}
+
+.import-dashboard-columns {
+  display: grid;
+  grid-template-columns: 1.4fr .8fr;
+  gap: 1rem;
+}
+
+.import-dashboard-columns h4 {
+  margin-bottom: 0.6rem;
+  font-size: 0.95rem;
+}
+
+.import-dashboard-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.import-dashboard-recent-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.import-dashboard-recent-item strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.import-bank-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.import-bank-chips span {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  padding: 0.42rem 0.6rem;
+  border: 1px solid rgba(10,159,90,.14);
+  border-radius: 999px;
+  background: rgba(10,159,90,.08);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 
 .import-history-list {
@@ -2414,6 +2516,9 @@ body {
 :root[data-theme="dark"] .import-card,
 :root[data-theme="dark"] .import-history-card,
 :root[data-theme="dark"] .import-history-item,
+:root[data-theme="dark"] .import-dashboard-card,
+:root[data-theme="dark"] .import-dashboard-stat,
+:root[data-theme="dark"] .import-dashboard-recent-item,
 :root[data-theme="dark"] .import-ai-card,
 :root[data-theme="dark"] .import-review-item {
   background: linear-gradient(180deg, #17221e 0%, #121d19 100%);
@@ -3432,12 +3537,17 @@ textarea.form-input { resize: vertical; }
 
   .import-history-item,
   .import-ai-card,
+  .import-dashboard-grid,
+  .import-dashboard-columns,
+  .import-dashboard-recent-item,
+  .import-quality-block,
   .import-review-main,
   .import-review-meta {
     grid-template-columns: 1fr;
   }
 
   .import-ai-card .btn,
+  .import-dashboard-recent-item .btn,
   .import-review-actions .btn {
     width: 100%;
   }

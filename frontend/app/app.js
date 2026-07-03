@@ -96,6 +96,7 @@ const ONBOARDING_STEPS = [
 let state = {
   movimentacoes: [],
   importHistory: [],
+  importDashboard: null,
   importReview: null,
   clientes: [],
   das: [],
@@ -1216,6 +1217,22 @@ function mapImportHistory(item) {
   };
 }
 
+function mapImportDashboard(payload = {}) {
+  return {
+    totalImports: Number(payload.total_imports || 0),
+    totalImportedMovements: Number(payload.total_imported_movements || 0),
+    totalSkipped: Number(payload.total_skipped || 0),
+    pendingReview: Number(payload.pending_review || 0),
+    reviewed: Number(payload.reviewed || 0),
+    probableDuplicates: Number(payload.probable_duplicates || 0),
+    identifiedBanks: payload.identified_banks || [],
+    latestImport: payload.latest_import || null,
+    parserConfidenceAvg: Number(payload.parser_confidence_avg || 0),
+    categoryConfidenceAvg: Number(payload.category_confidence_avg || 0),
+    recentImports: payload.recent_imports || []
+  };
+}
+
 function handleRouteAction(action) {
   if (action === 'support') {
     showToast('Suporte em breve.', 'info');
@@ -1404,16 +1421,18 @@ async function loadState() {
     return;
   }
 
-  const [movimentacoes, clientes, das, importHistory] = await Promise.all([
+  const [movimentacoes, clientes, das, importHistory, importDashboard] = await Promise.all([
     apiRequest('/movimentacoes'),
     apiRequest('/clientes'),
     apiRequest('/das'),
-    apiRequest('/import/history')
+    apiRequest('/import/history'),
+    apiRequest('/import/dashboard')
   ]);
 
   state.profile = me.profile;
   state.movimentacoes = (movimentacoes || []).map(mapMovimentacao);
   state.importHistory = (importHistory || []).map(mapImportHistory);
+  state.importDashboard = mapImportDashboard(importDashboard || {});
   state.clientes = (clientes || []).map(mapCliente);
   state.das = das || [];
   hydrateConfig(me.profile, das || []);
@@ -2203,7 +2222,75 @@ function renderMovimentacoes() {
     document.getElementById('filtroMes').value = getDashboardMes();
   }
   applyFilters();
+  renderImportDashboard();
   renderImportHistory();
+}
+
+function percentLabel(value) {
+  return `${Math.round(Number(value || 0) * 100)}%`;
+}
+
+function renderImportDashboard() {
+  const empty = document.getElementById('importDashboardEmpty');
+  const content = document.getElementById('importDashboardContent');
+  const cards = document.getElementById('importDashboardCards');
+  const recent = document.getElementById('importDashboardRecent');
+  const banks = document.getElementById('importDashboardBanks');
+  const qualityLabel = document.getElementById('importCategoryQualityLabel');
+  const qualityBar = document.getElementById('importCategoryQualityBar');
+  const dashboard = state.importDashboard;
+  if (!empty || !content || !cards || !dashboard) return;
+
+  if (!dashboard.totalImports) {
+    empty.style.display = 'block';
+    content.hidden = true;
+    return;
+  }
+
+  empty.style.display = 'none';
+  content.hidden = false;
+  const mostUsedBank = dashboard.identifiedBanks[0]?.bank_name || 'Banco nao identificado';
+  const confidence = Math.max(dashboard.parserConfidenceAvg, dashboard.categoryConfidenceAvg);
+  const cardItems = [
+    ['Importacoes realizadas', dashboard.totalImports],
+    ['Movimentacoes importadas', dashboard.totalImportedMovements],
+    ['Pendentes de revisao', dashboard.pendingReview],
+    ['Duplicatas provaveis', dashboard.probableDuplicates],
+    ['Banco mais usado', mostUsedBank],
+    ['Confianca media', percentLabel(confidence)]
+  ];
+
+  cards.innerHTML = cardItems.map(([label, value]) => `
+    <article class="import-dashboard-stat">
+      <span>${esc(label)}</span>
+      <strong>${esc(String(value))}</strong>
+    </article>
+  `).join('');
+
+  const categoryQuality = Math.round(dashboard.categoryConfidenceAvg * 100);
+  if (qualityLabel) qualityLabel.textContent = `${categoryQuality}%`;
+  if (qualityBar) qualityBar.style.width = `${Math.max(0, Math.min(100, categoryQuality))}%`;
+
+  if (recent) {
+    recent.innerHTML = dashboard.recentImports.length
+      ? dashboard.recentImports.map((item) => `
+        <article class="import-dashboard-recent-item">
+          <div>
+            <strong>${esc(item.bank_name || 'Banco nao identificado')}</strong>
+            <span>${esc(item.filename || '')} - ${formatDate(String(item.created_at || '').slice(0, 10))}</span>
+            <span>${item.imported_count || 0} importadas / ${item.skipped_count || 0} ignoradas - ${percentLabel(item.confidence)} confianca</span>
+          </div>
+          <button class="btn btn-sm btn-outline" type="button" onclick="openImportReview('${item.id}')">Revisar</button>
+        </article>
+      `).join('')
+      : '<div class="empty-state">Nenhuma importacao recente.</div>';
+  }
+
+  if (banks) {
+    banks.innerHTML = dashboard.identifiedBanks.length
+      ? dashboard.identifiedBanks.map((item) => `<span>${esc(item.bank_name)} <b>${item.count}</b></span>`).join('')
+      : '<div class="empty-state">Nenhum banco identificado ainda.</div>';
+  }
 }
 
 function applyFilters() {

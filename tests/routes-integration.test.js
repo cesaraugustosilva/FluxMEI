@@ -109,3 +109,14 @@ test('rotas do assistente financeiro exigem autenticacao no Express', async () =
     assert.notEqual(chatPayload, null);
   });
 });
+
+test('rota de dashboard de importacoes exige autenticacao no Express', async () => {
+  await withTestServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/import/dashboard`);
+
+    assert.equal(response.status, 401);
+    const payload = await response.json();
+    assert.equal(typeof payload, 'object');
+    assert.notEqual(payload, null);
+  });
+});

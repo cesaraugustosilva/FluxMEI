@@ -6,6 +6,7 @@ import {
   ignoreImportedMovement,
   importAiReview,
   importBankStatementController,
+  importDashboard,
   importHistory,
   importReview,
   reviewImportedMovement
@@ -17,6 +18,7 @@ router.use(authMiddleware);
 router.use(checkSubscriptionAccess);
 router.post('/bank-statement', asyncHandler(importBankStatementController));
 router.get('/history', asyncHandler(importHistory));
+router.get('/dashboard', asyncHandler(importDashboard));
 router.get('/:importId/review', asyncHandler(importReview));
 router.post('/:importId/ai-review', asyncHandler(importAiReview));
 router.post('/movimentacoes/:id/accept-category', asyncHandler(acceptImportCategory));

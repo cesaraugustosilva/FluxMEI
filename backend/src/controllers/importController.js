@@ -1,4 +1,4 @@
-import { importBankStatement, listBankImportHistory } from '../services/bankImportService.js';
+import { getImportDashboard, importBankStatement, listBankImportHistory } from '../services/bankImportService.js';
 import {
   acceptCategorySuggestion,
   analyzeImportWithAi,
@@ -15,6 +15,11 @@ export async function importBankStatementController(req, res) {
 export async function importHistory(req, res) {
   const history = await listBankImportHistory(req.user.id);
   res.json(history);
+}
+
+export async function importDashboard(req, res) {
+  const dashboard = await getImportDashboard(req.user.id);
+  res.json(dashboard);
 }
 
 export async function importReview(req, res) {

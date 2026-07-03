@@ -179,12 +179,66 @@ test('historico so consulta imports do usuario', async () => {
   });
 });
 
+test('dashboard de importacoes retorna apenas dados do usuario', async () => {
+  await withImportService({
+    bank_imports: [
+      { id: 'i1', user_id: 'user-1', filename: 'nubank.csv', file_type: 'csv', imported_count: 2, skipped_count: 1, bank_name: 'Nubank', parser_used: 'Nubank Importer', confidence: 0.9, created_at: '2026-06-02T10:00:00Z' },
+      { id: 'i2', user_id: 'user-2', filename: 'inter.csv', file_type: 'csv', imported_count: 8, skipped_count: 0, bank_name: 'Banco Inter', parser_used: 'Inter Importer', confidence: 0.95, created_at: '2026-06-03T10:00:00Z' }
+    ],
+    movimentacoes: [
+      { id: 'm1', user_id: 'user-1', source: 'bank_import', import_id: 'i1', reconciliation_status: 'imported', category_confidence: 0.8 },
+      { id: 'm2', user_id: 'user-1', source: 'bank_import', import_id: 'i1', reconciliation_status: 'reviewed', category_confidence: 0.6 },
+      { id: 'm3', user_id: 'user-2', source: 'bank_import', import_id: 'i2', reconciliation_status: 'imported', category_confidence: 0.2 }
+    ]
+  }, async ({ getImportDashboard }, mock) => {
+    const dashboard = await getImportDashboard('user-1');
+
+    assert.equal(dashboard.total_imports, 1);
+    assert.equal(dashboard.total_imported_movements, 2);
+    assert.equal(dashboard.identified_banks[0].bank_name, 'Nubank');
+    assert.ok(mock.stats.filters.some((filter) => filter.table === 'bank_imports' && filter.column === 'user_id' && filter.value === 'user-1'));
+    assert.ok(mock.stats.filters.some((filter) => filter.table === 'movimentacoes' && filter.column === 'user_id' && filter.value === 'user-1'));
+  });
+});
+
+test('dashboard de importacoes calcula metricas corretamente', async () => {
+  await withImportService({
+    bank_imports: [
+      { id: 'i1', user_id: 'user-1', filename: 'nubank.csv', file_type: 'csv', imported_count: 3, skipped_count: 2, bank_name: 'Nubank', parser_used: 'Nubank Importer', confidence: 0.8, created_at: '2026-06-03T10:00:00Z' },
+      { id: 'i2', user_id: 'user-1', filename: 'inter.csv', file_type: 'csv', imported_count: 1, skipped_count: 0, bank_name: 'Banco Inter', parser_used: 'Inter Importer', confidence: 0.6, created_at: '2026-06-01T10:00:00Z' },
+      { id: 'i3', user_id: 'user-1', filename: 'nubank-2.csv', file_type: 'csv', imported_count: 1, skipped_count: 1, bank_name: 'Nubank', parser_used: 'Nubank Importer', confidence: 1, created_at: '2026-06-02T10:00:00Z' }
+    ],
+    movimentacoes: [
+      { id: 'm1', user_id: 'user-1', source: 'bank_import', reconciliation_status: 'imported', category_confidence: 0.5 },
+      { id: 'm2', user_id: 'user-1', source: 'bank_import', reconciliation_status: 'reviewed', category_confidence: 0.7 },
+      { id: 'm3', user_id: 'user-1', source: 'bank_import', reconciliation_status: 'reconciled', category_confidence: 0.9 },
+      { id: 'm4', user_id: 'user-1', source: 'bank_import', reconciliation_status: 'duplicated', category_confidence: 0.3 },
+      { id: 'm5', user_id: 'user-1', source: 'bank_import', reconciliation_status: 'ignored', category_confidence: 0.6, duplicate_of: 'm1' }
+    ]
+  }, async ({ getImportDashboard }) => {
+    const dashboard = await getImportDashboard('user-1');
+
+    assert.equal(dashboard.total_imports, 3);
+    assert.equal(dashboard.total_imported_movements, 5);
+    assert.equal(dashboard.total_skipped, 3);
+    assert.equal(dashboard.pending_review, 1);
+    assert.equal(dashboard.reviewed, 2);
+    assert.equal(dashboard.probable_duplicates, 2);
+    assert.equal(dashboard.identified_banks[0].bank_name, 'Nubank');
+    assert.equal(dashboard.identified_banks[0].count, 2);
+    assert.equal(dashboard.parser_confidence_avg, 0.8);
+    assert.equal(dashboard.category_confidence_avg, 0.6);
+    assert.equal(dashboard.recent_imports.length, 3);
+  });
+});
+
 test('rotas e migration de importacao estao registradas', () => {
   assert.match(serverSource, /apiRouter\.use\('\/import', importRoutes\)/);
   assert.match(importRoutes, /router\.use\(authMiddleware\)/);
   assert.match(importRoutes, /router\.use\(checkSubscriptionAccess\)/);
   assert.match(importRoutes, /router\.post\('\/bank-statement', asyncHandler\(importBankStatementController\)\)/);
   assert.match(importRoutes, /router\.get\('\/history', asyncHandler\(importHistory\)\)/);
+  assert.match(importRoutes, /router\.get\('\/dashboard', asyncHandler\(importDashboard\)\)/);
   assert.match(importMigration, /create table if not exists public\.bank_imports/);
   assert.match(importMigration, /external_id text/);
   assert.match(importMigration, /source text/);
@@ -197,4 +251,19 @@ test('frontend mostra modal de importacao', () => {
   assert.match(appHtml, /id="importHistoryList"/);
   assert.match(appJs, /apiRequest\('\/import\/bank-statement'/);
   assert.match(appJs, /apiRequest\('\/import\/history'\)/);
+});
+
+test('frontend renderiza dashboard de importacoes e estado vazio', () => {
+  assert.match(appHtml, /Dashboard de Importacoes/);
+  assert.match(appHtml, /id="importDashboardCards"/);
+  assert.match(appHtml, /Importe seu primeiro extrato para acompanhar tudo aqui/);
+  assert.match(appHtml, /id="importDashboardRecent"/);
+  assert.match(appHtml, /id="importDashboardBanks"/);
+  assert.match(appHtml, /Qualidade da categorizacao/);
+  assert.match(appJs, /apiRequest\('\/import\/dashboard'\)/);
+  assert.match(appJs, /Importacoes realizadas/);
+});
+
+test('frontend dashboard usa importId correto no botao revisar', () => {
+  assert.match(appJs, /onclick="openImportReview\('\$\{item\.id\}'\)">Revisar<\/button>/);
 });

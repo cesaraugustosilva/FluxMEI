@@ -331,6 +331,34 @@
       <button class="btn btn-primary" type="button" data-open-import>Selecionar arquivo</button>
     </section>
 
+    <section class="import-dashboard-card" aria-label="Dashboard de Importacoes">
+      <div class="card-header">
+        <h3>Dashboard de Importacoes</h3>
+        <button class="btn btn-sm btn-outline" type="button" data-open-import>Importar extrato</button>
+      </div>
+      <div id="importDashboardEmpty" class="empty-state">Importe seu primeiro extrato para acompanhar tudo aqui.</div>
+      <div id="importDashboardContent" hidden>
+        <div class="import-dashboard-grid" id="importDashboardCards"></div>
+        <div class="import-quality-block">
+          <div>
+            <span>Qualidade da categorizacao</span>
+            <strong id="importCategoryQualityLabel">0%</strong>
+          </div>
+          <div class="import-quality-bar"><span id="importCategoryQualityBar"></span></div>
+        </div>
+        <div class="import-dashboard-columns">
+          <section>
+            <h4>Ultimas importacoes</h4>
+            <div class="import-dashboard-list" id="importDashboardRecent"></div>
+          </section>
+          <section>
+            <h4>Bancos identificados</h4>
+            <div class="import-bank-chips" id="importDashboardBanks"></div>
+          </section>
+        </div>
+      </div>
+    </section>
+
     <!-- Filters -->
     <div class="filter-bar">
       <div class="filter-group">
