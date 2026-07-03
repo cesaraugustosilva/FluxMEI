@@ -1204,6 +1204,9 @@ function mapImportHistory(item) {
     id: item.id,
     filename: item.filename,
     fileType: item.file_type,
+    bankName: item.bank_name || '',
+    parserUsed: item.parser_used || 'Parser Generico',
+    confidence: Number(item.confidence || 0),
     status: item.status,
     totalRows: Number(item.total_rows || 0),
     importedCount: Number(item.imported_count || 0),
@@ -2279,9 +2282,11 @@ function renderImportHistory() {
       <div>
         <strong>${esc(item.filename)}</strong>
         <span>${esc(String(item.fileType || '').toUpperCase())} - ${formatDate(String(item.createdAt || '').slice(0, 10))}</span>
+        <span>${esc(item.bankName || 'Banco nao identificado')} - ${esc(item.parserUsed)}</span>
       </div>
       <div class="import-history-stats">
         ${item.importedCount} importadas / ${item.skippedCount} ignoradas
+        ${item.parserUsed !== 'Parser Generico' ? '<small>Importacao otimizada</small>' : ''}
       </div>
       ${item.importedCount ? `<button class="btn btn-sm btn-outline" type="button" onclick="openImportReview('${item.id}')">Revisar importacao</button>` : ''}
     </article>
@@ -2330,10 +2335,17 @@ function showImportResult(payload, isError = false) {
   if (!result) return;
   result.hidden = false;
   result.className = `import-result${isError ? ' error' : ''}`;
+  const confidence = Math.round(Number(payload.confidence || payload.import?.confidence || 0) * 100);
+  const parserUsed = payload.parser_used || payload.import?.parser_used || 'Parser Generico';
+  const bankName = payload.bank_name || payload.import?.bank_name || 'Banco nao identificado';
   result.innerHTML = isError
     ? `<strong>Importacao nao concluida</strong><span>${esc(payload.message || payload)}</span>`
     : `
       <strong>Importacao concluida</strong>
+      <span>Banco identificado: ${esc(bankName)}</span>
+      <span>Confianca: ${confidence}%</span>
+      <span>Parser: ${esc(parserUsed)}</span>
+      ${parserUsed !== 'Parser Generico' ? '<span class="optimized-import-badge">Importacao otimizada</span>' : ''}
       <span>Linhas lidas: ${payload.total_rows || 0}</span>
       <span>Importadas: ${payload.imported_count || 0}</span>
       <span>Ignoradas: ${payload.skipped_count || 0}</span>

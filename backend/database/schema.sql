@@ -65,6 +65,9 @@ create table if not exists public.bank_imports (
   imported_count integer not null default 0,
   skipped_count integer not null default 0,
   error_message text,
+  bank_name text,
+  parser_used text,
+  confidence numeric(3,2) check (confidence is null or (confidence >= 0 and confidence <= 1)),
   created_at timestamptz not null default now()
 );
 
@@ -231,6 +234,9 @@ create index if not exists idx_movimentacoes_duplicate_of
 on public.movimentacoes(duplicate_of)
 where duplicate_of is not null;
 create index if not exists idx_bank_imports_user_created on public.bank_imports(user_id, created_at desc);
+create index if not exists idx_bank_imports_bank_name
+on public.bank_imports(user_id, bank_name)
+where bank_name is not null;
 create index if not exists idx_clientes_user_nome on public.clientes(user_id, nome);
 create index if not exists idx_das_user_vencimento on public.das(user_id, vencimento);
 create index if not exists idx_das_user_status on public.das(user_id, status);

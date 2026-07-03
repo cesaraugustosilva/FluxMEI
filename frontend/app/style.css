@@ -2284,6 +2284,19 @@ body {
   font-weight: 750;
 }
 
+.import-history-stats small,
+.optimized-import-badge {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 0.25rem;
+  padding: 0.22rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(10,159,90,.12);
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
 .import-format-note,
 .import-result {
   display: grid;

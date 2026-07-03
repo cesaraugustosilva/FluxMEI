@@ -103,7 +103,7 @@ export async function findPossibleDuplicates(userId, movimentacao) {
 async function assertOwnedImport(importId, userId) {
   const { data, error } = await supabaseAdmin
     .from('bank_imports')
-    .select('id,filename,created_at,user_id')
+    .select('id,filename,created_at,user_id,bank_name,parser_used,confidence')
     .eq('id', importId)
     .eq('user_id', userId)
     .single();
@@ -222,6 +222,7 @@ function summarizeForAi(movimentacoes) {
 
 function fallbackAiReview(review) {
   const total = review.movimentacoes.length;
+  const bankName = review.import?.bank_name || 'banco nao identificado';
   const despesas = review.movimentacoes.filter((item) => item.tipo === 'saida');
   const porCategoria = new Map();
   despesas.forEach((item) => {
@@ -235,7 +236,7 @@ function fallbackAiReview(review) {
     .join('; ') || 'sem despesas relevantes';
   const duplicatas = review.movimentacoes.filter((item) => (item.possible_duplicates || []).length).length;
 
-  return `Analise segura da importacao: ${total} movimentacoes revisaveis. Principais categorias: ${principais}. Possiveis duplicatas: ${duplicatas}. Recomendacao: aceite categorias com alta confianca e revise manualmente itens duplicados antes de ignorar.`;
+  return `Extrato identificado como ${bankName}. Analise segura da importacao: ${total} movimentacoes revisaveis. Principais categorias: ${principais}. Possiveis duplicatas: ${duplicatas}. Recomendacao: aceite categorias com alta confianca e revise manualmente itens duplicados antes de ignorar.`;
 }
 
 export async function analyzeImportWithAi(userId, importId, model = geminiModel) {
@@ -256,7 +257,11 @@ export async function analyzeImportWithAi(userId, importId, model = geminiModel)
   try {
     const result = await model.generateContent([
       prompt,
-      JSON.stringify({ movimentacoes: safeMovements }, null, 2)
+      JSON.stringify({
+        banco_identificado: review.import?.bank_name || 'Banco nao identificado',
+        parser: review.import?.parser_used || 'Parser Generico',
+        movimentacoes: safeMovements
+      }, null, 2)
     ]);
     return { analysis: result.response.text(), provider: 'gemini', movimentacoes_analisadas: safeMovements.length };
   } catch {

@@ -1,6 +1,7 @@
 import { strFromU8, unzipSync } from 'fflate';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
+import { detectBank, getImporter } from './importers/bankDetector.js';
 import { calculateConfidence, suggestCategory } from './reconciliationService.js';
 import { sanitizeText, validateDate } from '../utils/validation.js';
 
@@ -102,10 +103,11 @@ function parseDelimitedRows(content) {
 
   const separator = detectSeparator(lines);
   const headers = parseCsvLine(lines[0], separator).map(normalizeKey);
-  return lines.slice(1).map((line) => {
+  const rows = lines.slice(1).map((line) => {
     const cells = parseCsvLine(line, separator);
     return Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? '']));
   });
+  return { headers, rows };
 }
 
 function parseMoney(value) {
@@ -188,7 +190,7 @@ function mapRowToMovement(row, index) {
 }
 
 function parseCsv(content) {
-  return parseDelimitedRows(content).map(mapRowToMovement);
+  return parseDelimitedRows(content);
 }
 
 function extractOfxTags(block, tag) {
@@ -201,12 +203,17 @@ function parseOfx(content) {
   const blocks = text.match(/<STMTTRN>[\s\S]*?(?=<STMTTRN>|<\/BANKTRANLIST>|<\/STMTTRN>)/gi) || [];
   if (!blocks.length) throw new AppError('OFX sem transacoes para importar.');
 
-  return blocks.map((block, index) => mapRowToMovement({
+  const rows = blocks.map((block) => ({
     dtposted: extractOfxTags(block, 'DTPOSTED'),
     trnamt: extractOfxTags(block, 'TRNAMT'),
     memo: extractOfxTags(block, 'MEMO') || extractOfxTags(block, 'NAME'),
     external_id: extractOfxTags(block, 'FITID')
-  }, index));
+  }));
+
+  return {
+    headers: ['dtposted', 'trnamt', 'memo', 'external_id'],
+    rows
+  };
 }
 
 function parseXlsx(content) {
@@ -231,7 +238,7 @@ function parseXlsx(content) {
     .map((cells) => Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ''])));
 
   if (!rows.length) throw new AppError('XLSX sem linhas para importar.');
-  return rows.map(mapRowToMovement);
+  return { headers, rows };
 }
 
 function xmlDecode(value = '') {
@@ -280,29 +287,42 @@ function parseWorksheetXml(xml, sharedStrings) {
 
 export function parseBankStatement({ filename, file_type: fileType, content }) {
   const safe = assertSafeInput({ filename, fileType, content });
-  const rows = safe.fileType === 'csv'
+  const parsed = safe.fileType === 'csv'
     ? parseCsv(content)
     : safe.fileType === 'ofx'
       ? parseOfx(content)
       : parseXlsx(content);
+  const detection = detectBank(safe.filename, parsed.headers, content);
+  const importer = getImporter(detection.importerId);
+  const rows = parsed.rows.map((row, index) => mapRowToMovement(importer.adaptRow(row), index));
 
   if (!rows.length) throw new AppError('Nenhuma movimentacao encontrada no arquivo.');
-  return { ...safe, rows };
+  return {
+    ...safe,
+    rows,
+    bank_name: detection.bankName,
+    parser_used: detection.parserUsed,
+    confidence: detection.confidence,
+    optimized_import: detection.optimized
+  };
 }
 
 function movementKey(item) {
   return `${item.data}|${Number(item.valor).toFixed(2)}|${normalizeDescription(item.descricao)}`;
 }
 
-async function createImportRecord(userId, filename, fileType, totalRows) {
+async function createImportRecord(userId, parsed) {
   const { data, error } = await supabaseAdmin
     .from('bank_imports')
     .insert({
       user_id: userId,
-      filename,
-      file_type: fileType,
+      filename: parsed.filename,
+      file_type: parsed.fileType,
+      bank_name: parsed.bank_name,
+      parser_used: parsed.parser_used,
+      confidence: parsed.confidence,
       status: 'processing',
-      total_rows: totalRows,
+      total_rows: parsed.rows.length,
       imported_count: 0,
       skipped_count: 0
     })
@@ -340,7 +360,7 @@ async function existingMovementSets(userId) {
 
 export async function importBankStatement(userId, payload) {
   const parsed = parseBankStatement(payload);
-  const importRecord = await createImportRecord(userId, parsed.filename, parsed.fileType, parsed.rows.length);
+  const importRecord = await createImportRecord(userId, parsed);
 
   try {
     const existing = await existingMovementSets(userId);
@@ -399,7 +419,11 @@ export async function importBankStatement(userId, payload) {
       import: finalRecord,
       total_rows: parsed.rows.length,
       imported_count: movements.length,
-      skipped_count: skipped
+      skipped_count: skipped,
+      bank_name: parsed.bank_name,
+      parser_used: parsed.parser_used,
+      confidence: parsed.confidence,
+      optimized_import: parsed.optimized_import
     };
   } catch (error) {
     await updateImportRecord(importRecord.id, {
@@ -415,7 +439,7 @@ export async function importBankStatement(userId, payload) {
 export async function listBankImportHistory(userId) {
   const { data, error } = await supabaseAdmin
     .from('bank_imports')
-    .select('id,filename,file_type,status,total_rows,imported_count,skipped_count,error_message,created_at')
+    .select('id,filename,file_type,status,total_rows,imported_count,skipped_count,error_message,bank_name,parser_used,confidence,created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(20);
