@@ -1,8 +1,20 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { PLANOS } from './assinaturaRules.js';
 import { emailService } from './emailService.js';
+import {
+  createPaymentConfirmedNotification,
+  createPaymentPendingNotification,
+  createSubscriptionNotification,
+  safelyCreateNotification
+} from './notificationCenterService.js';
 
 const APP_URL = `${(process.env.FRONTEND_URL || 'https://fluxmei.com.br').replace(/\/$/, '')}/app/`;
+const IN_APP_NOTIFICATION_HOOKS_ENABLED = process.env.npm_lifecycle_event !== 'test';
+
+async function notifyInApp(fn, ...args) {
+  if (!IN_APP_NOTIFICATION_HOOKS_ENABLED) return { skipped: true, reason: 'test_environment' };
+  return safelyCreateNotification(fn, ...args);
+}
 
 function formatBRL(value) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
@@ -170,6 +182,7 @@ export async function notifyByEmail({ userId, type, eventKey, context = {} }) {
 
 export async function notifyPaymentConfirmed({ assinatura, payment }) {
   const paymentId = payment?.id || assinatura?.provider_payment_id || assinatura?.id;
+  await notifyInApp(createPaymentConfirmedNotification, { assinatura, payment });
   return notifyByEmail({
     userId: assinatura?.user_id,
     type: 'payment_confirmed',
@@ -184,6 +197,7 @@ export async function notifyPaymentConfirmed({ assinatura, payment }) {
 }
 
 export async function notifySubscriptionCreated({ assinatura }) {
+  await notifyInApp(createSubscriptionNotification, assinatura?.user_id, assinatura, 'status');
   return notifyByEmail({
     userId: assinatura?.user_id,
     type: 'subscription_created',
@@ -197,6 +211,7 @@ export async function notifySubscriptionCreated({ assinatura }) {
 
 export async function notifyPaymentPending({ assinatura, payment, method }) {
   const paymentId = payment?.id || assinatura?.provider_payment_id || assinatura?.id;
+  await notifyInApp(createPaymentPendingNotification, { assinatura, payment, method });
   return notifyByEmail({
     userId: assinatura?.user_id,
     type: 'payment_pending',
@@ -211,6 +226,7 @@ export async function notifyPaymentPending({ assinatura, payment, method }) {
 }
 
 export async function notifyCancellationScheduled({ assinatura }) {
+  await notifyInApp(createSubscriptionNotification, assinatura?.user_id, assinatura, 'cancelled');
   return notifyByEmail({
     userId: assinatura?.user_id,
     type: 'cancellation_scheduled',
@@ -223,6 +239,7 @@ export async function notifyCancellationScheduled({ assinatura }) {
 }
 
 export async function notifySubscriptionReactivated({ assinatura }) {
+  await notifyInApp(createSubscriptionNotification, assinatura?.user_id, assinatura, 'reactivated');
   return notifyByEmail({
     userId: assinatura?.user_id,
     type: 'subscription_reactivated',
@@ -238,6 +255,7 @@ export async function notifySubscriptionLifecycle(status, userId) {
   const dias = Number(status?.dias_restantes || 0);
   const estado = status?.estado || status?.status;
   if (estado === 'ativo' && dias === 7) {
+    await notifyInApp(createSubscriptionNotification, userId, status, 'expiring');
     return notifyByEmail({
       userId,
       type: 'subscription_expires_7_days',
@@ -246,6 +264,7 @@ export async function notifySubscriptionLifecycle(status, userId) {
     });
   }
   if (estado === 'ativo' && dias === 3) {
+    await notifyInApp(createSubscriptionNotification, userId, status, 'expiring');
     return notifyByEmail({
       userId,
       type: 'subscription_expires_3_days',
@@ -254,6 +273,7 @@ export async function notifySubscriptionLifecycle(status, userId) {
     });
   }
   if (['expirado', 'vencido', 'bloqueado'].includes(estado)) {
+    await notifyInApp(createSubscriptionNotification, userId, status, 'expired');
     return notifyByEmail({
       userId,
       type: 'subscription_expired',

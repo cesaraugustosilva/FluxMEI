@@ -98,6 +98,8 @@ let state = {
   importHistory: [],
   importDashboard: null,
   importReview: null,
+  notifications: [],
+  notificationUnreadCount: 0,
   clientes: [],
   das: [],
   paymentHistory: [],
@@ -106,6 +108,7 @@ let state = {
   referralError: '',
   aiInsights: [],
   aiForecast: null,
+  aiIntelligence: null,
   aiConversations: [],
   aiMessages: [],
   aiActiveConversationId: null,
@@ -445,6 +448,21 @@ function mapMovimentacao(item) {
     aiCategorySuggestion: item.ai_category_suggestion || '',
     duplicateOf: item.duplicate_of || ''
   };
+}
+
+async function loadNotifications() {
+  try {
+    const [notifications, unread] = await Promise.all([
+      apiRequest('/notifications'),
+      apiRequest('/notifications/unread-count')
+    ]);
+    state.notifications = Array.isArray(notifications) ? notifications : [];
+    state.notificationUnreadCount = Number(unread?.count || 0);
+  } catch {
+    state.notifications = [];
+    state.notificationUnreadCount = 0;
+  }
+  renderNotifications();
 }
 
 function renderSubscriptionNotice(status) {
@@ -1412,7 +1430,8 @@ async function loadState() {
   await Promise.all([
     loadAvailablePlans(),
     loadPaymentHistory(),
-    loadReferralSummary()
+    loadReferralSummary(),
+    loadNotifications()
   ]);
   renderSubscriptionNotice(assinaturaStatus);
 
@@ -1722,6 +1741,168 @@ function formatDate(iso) {
   const [y,m,d] = String(iso).slice(0, 10).split('-');
   return `${d}/${m}/${y}`;
 }
+function formatNotificationTime(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const diffMinutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60000));
+  if (diffMinutes < 1) return 'agora';
+  if (diffMinutes < 60) return `${diffMinutes} min`;
+  if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)} h`;
+  return formatDate(date.toISOString());
+}
+
+function notificationGroup(value) {
+  const date = new Date(value || Date.now());
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const diffDays = Math.floor((todayStart - dateStart) / 86400000);
+  if (diffDays <= 0) return 'Hoje';
+  if (diffDays <= 6) return 'Esta semana';
+  return 'Anteriores';
+}
+
+function updateNotificationBadges() {
+  document.querySelectorAll('[data-notification-badge]').forEach((badge) => {
+    const count = state.notificationUnreadCount;
+    badge.hidden = count <= 0;
+    badge.textContent = count > 99 ? '99+' : String(count);
+  });
+  const subtitle = document.getElementById('notificationPanelSubtitle');
+  if (subtitle) {
+    subtitle.textContent = state.notificationUnreadCount
+      ? `${state.notificationUnreadCount} nao lida${state.notificationUnreadCount > 1 ? 's' : ''}`
+      : 'Central inteligente';
+  }
+}
+
+function renderNotifications() {
+  updateNotificationBadges();
+  const list = document.getElementById('notificationList');
+  const empty = document.getElementById('notificationEmpty');
+  if (!list || !empty) return;
+
+  if (!state.notifications.length) {
+    list.innerHTML = '';
+    empty.hidden = false;
+    return;
+  }
+
+  empty.hidden = true;
+  const groups = ['Hoje', 'Esta semana', 'Anteriores'];
+  list.innerHTML = groups.map((group) => {
+    const items = state.notifications.filter((item) => notificationGroup(item.created_at) === group);
+    if (!items.length) return '';
+    return `
+      <div class="notification-group">
+        <div class="notification-group-title">${group}</div>
+        ${items.map(renderNotificationItem).join('')}
+      </div>
+    `;
+  }).join('');
+}
+
+function renderNotificationItem(item) {
+  const unread = !item.read_at;
+  const action = item.action_label && item.action_url
+    ? `<button class="notification-link" type="button" data-notification-action="${esc(item.id)}" data-notification-url="${esc(item.action_url)}">${esc(item.action_label)}</button>`
+    : '';
+  const readAction = unread
+    ? `<button class="notification-read" type="button" data-notification-read="${esc(item.id)}">Marcar lida</button>`
+    : '<span>Lida</span>';
+
+  return `
+    <article class="notification-item ${esc(item.severity || 'info')} ${unread ? 'unread' : ''}">
+      <h3>${esc(item.title)}</h3>
+      <p>${esc(item.message)}</p>
+      <div class="notification-meta">
+        <span>${esc(formatNotificationTime(item.created_at))}</span>
+        <div class="notification-actions">
+          ${action}
+          ${readAction}
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function openNotificationPanel() {
+  const panel = document.getElementById('notificationPanel');
+  if (!panel) return;
+  panel.classList.add('open');
+  panel.setAttribute('aria-hidden', 'false');
+  document.querySelectorAll('[data-notification-toggle]').forEach((button) => {
+    button.classList.add('active');
+    button.setAttribute('aria-expanded', 'true');
+  });
+}
+
+function closeNotificationPanel() {
+  const panel = document.getElementById('notificationPanel');
+  if (!panel) return;
+  panel.classList.remove('open');
+  panel.setAttribute('aria-hidden', 'true');
+  document.querySelectorAll('[data-notification-toggle]').forEach((button) => {
+    button.classList.remove('active');
+    button.setAttribute('aria-expanded', 'false');
+  });
+}
+
+function toggleNotificationPanel() {
+  const panel = document.getElementById('notificationPanel');
+  if (panel?.classList.contains('open')) closeNotificationPanel();
+  else openNotificationPanel();
+}
+
+async function markNotificationAsRead(id) {
+  if (!id) return;
+  try {
+    await apiRequest(`/notifications/${encodeURIComponent(id)}/read`, { method: 'POST' });
+    await loadNotifications();
+  } catch (error) {
+    showToast(error.message || 'Nao foi possivel marcar a notificacao.', 'error');
+  }
+}
+
+async function markAllNotificationsAsRead() {
+  try {
+    await apiRequest('/notifications/read-all', { method: 'POST' });
+    await loadNotifications();
+  } catch (error) {
+    showToast(error.message || 'Nao foi possivel marcar notificacoes.', 'error');
+  }
+}
+
+async function openNotificationAction(id, url) {
+  await markNotificationAsRead(id);
+  closeNotificationPanel();
+  const target = String(url || '').trim();
+  if (!target) return;
+  if (target.startsWith('/app/#')) {
+    navigate(target.replace('/app/#', ''));
+    return;
+  }
+  if (target.startsWith('#')) {
+    navigate(target);
+    return;
+  }
+  window.location.href = target;
+}
+
+function handleNotificationPanelClick(event) {
+  const readButton = event.target.closest('[data-notification-read]');
+  if (readButton) {
+    markNotificationAsRead(readButton.dataset.notificationRead);
+    return;
+  }
+
+  const actionButton = event.target.closest('[data-notification-action]');
+  if (actionButton) {
+    openNotificationAction(actionButton.dataset.notificationAction, actionButton.dataset.notificationUrl);
+  }
+}
+
 function maskValor(el) {
   let v = el.value.replace(/\D/g,'');
   if (!v) { el.value = ''; return; }
@@ -3767,6 +3948,72 @@ function renderAiForecast() {
   }
 }
 
+function intelligenceTone(value = '') {
+  const normalized = String(value || '').toLowerCase();
+  if (['excelente', 'saudavel', 'baixo', 'positivo', 'success'].includes(normalized)) return 'positive';
+  if (['critico', 'alto', 'negativo', 'danger'].includes(normalized)) return 'danger';
+  if (['atencao', 'medio', 'neutro', 'warning'].includes(normalized)) return 'warning';
+  return 'info';
+}
+
+function renderFinancialIntelligence() {
+  const grid = document.getElementById('financialIntelligenceGrid');
+  const summary = document.getElementById('financialIntelligenceSummary');
+  const empty = document.getElementById('financialIntelligenceEmpty');
+  const list = document.getElementById('financialIntelligenceList');
+  const data = state.aiIntelligence;
+  if (!grid || !summary || !empty || !list) return;
+
+  if (!data) {
+    summary.textContent = 'Carregando leitura inteligente dos seus dados...';
+    grid.innerHTML = '<article class="financial-intelligence-card loading">Carregando radar...</article>';
+    list.innerHTML = '';
+    empty.hidden = true;
+    return;
+  }
+
+  summary.textContent = data.summary || 'Analise calculada com seus dados financeiros atuais.';
+  const score = data.radar_score?.value ?? 0;
+  const cards = [
+    ['Score da FluxIA', `${score}/100`, data.health_status || data.radar_score?.label || '--', intelligenceTone(data.health_status)],
+    ['Risco', data.risk_level || '--', 'Nivel atual', intelligenceTone(data.risk_level)],
+    ['Fluxo de caixa', data.cashflow_status || '--', 'Projecao operacional', intelligenceTone(data.cashflow_status)],
+    ['Economia possivel', formatBRL(data.estimated_savings || 0), 'Oportunidade estimada', 'positive']
+  ];
+
+  grid.innerHTML = cards.map(([label, value, meta, tone]) => `
+    <article class="financial-intelligence-card ${esc(tone)}">
+      <span>${esc(label)}</span>
+      <strong>${esc(value)}</strong>
+      <small>${esc(meta)}</small>
+    </article>
+  `).join('');
+
+  const insights = Array.isArray(data.insights) ? data.insights : [];
+  empty.hidden = !data.insufficient_data && insights.length > 0;
+  if (!insights.length) {
+    list.innerHTML = '';
+    return;
+  }
+
+  list.innerHTML = `
+    <div class="financial-intelligence-list-header">
+      <strong>Hoje a FluxIA encontrou ${insights.length} ponto${insights.length === 1 ? '' : 's'} de atencao</strong>
+    </div>
+    ${insights.map((item) => `
+      <article class="financial-intelligence-insight ${esc(item.severity || 'info')}">
+        <div>
+          <span>${esc(item.category || item.type || 'Insight')}</span>
+          <h3>${esc(item.title)}</h3>
+          <p>${esc(item.message)}</p>
+          ${item.recommendation ? `<small>${esc(item.recommendation)}</small>` : ''}
+        </div>
+        ${item.value !== null && item.value !== undefined ? `<strong>${typeof item.value === 'number' ? formatBRL(item.value) : esc(item.value)}</strong>` : ''}
+      </article>
+    `).join('')}
+  `;
+}
+
 function renderAiHistory() {
   const root = document.getElementById('aiHistoryList');
   if (!root) return;
@@ -3842,6 +4089,7 @@ function renderAiMessages() {
 
 function renderAiAssistant() {
   renderAiInsights();
+  renderFinancialIntelligence();
   renderAiForecast();
   renderAiHistory();
   renderAiMessages();
@@ -3850,19 +4098,32 @@ function renderAiAssistant() {
 
 async function loadAiAssistant() {
   try {
-    const [insights, conversations, forecast] = await Promise.all([
+    const [insights, conversations, forecast, intelligence] = await Promise.all([
       apiRequest('/ai/insights'),
       apiRequest('/ai/conversations'),
-      apiRequest('/ai/forecast')
+      apiRequest('/ai/forecast'),
+      apiRequest('/ai/intelligence')
     ]);
     state.aiInsights = Array.isArray(insights.insights) ? insights.insights : [];
     state.aiConversations = Array.isArray(conversations.conversations) ? conversations.conversations : [];
     state.aiForecast = forecast || null;
+    state.aiIntelligence = intelligence || null;
     state.aiLoaded = true;
     renderAiAssistant();
   } catch (error) {
     state.aiInsights = [{ type: 'danger', title: error.message || 'Nao foi possivel carregar o assistente.', metric: 0 }];
+    state.aiIntelligence = {
+      radar_score: { value: 0, label: 'Indisponivel' },
+      health_status: 'Indisponivel',
+      risk_level: '--',
+      cashflow_status: '--',
+      estimated_savings: 0,
+      insights: [],
+      insufficient_data: true,
+      summary: error.message || 'Nao foi possivel carregar a inteligencia financeira agora.'
+    };
     renderAiInsights();
+    renderFinancialIntelligence();
     renderAiForecast();
   }
 }
@@ -4007,6 +4268,18 @@ async function init() {
   });
   document.getElementById('mobileOverlay').addEventListener('click', closeMobileMenu);
 
+  document.querySelectorAll('[data-notification-toggle]').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleNotificationPanel();
+    });
+  });
+  document.getElementById('notificationPanelClose')?.addEventListener('click', closeNotificationPanel);
+  document.getElementById('notificationReadAll')?.addEventListener('click', markAllNotificationsAsRead);
+  document.getElementById('notificationList')?.addEventListener('click', handleNotificationPanelClick);
+  document.getElementById('notificationPanel')?.addEventListener('click', (event) => event.stopPropagation());
+  document.addEventListener('click', closeNotificationPanel);
+
   document.getElementById('accountMenuButton')?.addEventListener('click', openAccountPanel);
   document.getElementById('accountModalClose')?.addEventListener('click', closeAccountPanel);
   document.getElementById('accountPlanSwitchAction')?.addEventListener('click', (event) => {
@@ -4042,6 +4315,7 @@ async function init() {
   });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeAccountPanel();
+    if (event.key === 'Escape') closeNotificationPanel();
   });
 
   // Modal backdrops close on outside click

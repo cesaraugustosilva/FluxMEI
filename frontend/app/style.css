@@ -229,6 +229,14 @@ body {
   border-bottom: 1px solid rgba(217,255,233,.10);
 }
 
+.shell-actions,
+.mobile-header-right {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .app-brand {
   min-width: 0;
   display: inline-flex;
@@ -260,7 +268,6 @@ body {
   font-weight: 800;
 }
 .theme-toggle {
-  margin-left: auto;
   min-width: 86px;
   height: 34px;
   display: inline-flex;
@@ -329,6 +336,233 @@ body {
 }
 .mobile-header .theme-toggle-text {
   display: none;
+}
+.sidebar-brand .theme-toggle {
+  width: 38px;
+  min-width: 38px;
+  padding: 0;
+}
+.sidebar-brand .theme-toggle-text {
+  display: none;
+}
+
+.notification-bell {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border: 1px solid rgba(127,240,175,.30);
+  border-radius: 50%;
+  background: rgba(255,255,255,.09);
+  color: #e8fff1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--transition), background var(--transition), border-color var(--transition);
+}
+.notification-bell:hover,
+.notification-bell.active {
+  transform: translateY(-1px);
+  background: rgba(127,240,175,.16);
+  border-color: rgba(127,240,175,.48);
+}
+.notification-bell-icon {
+  position: relative;
+  width: 16px;
+  height: 17px;
+  border: 2px solid currentColor;
+  border-bottom: 0;
+  border-radius: 8px 8px 3px 3px;
+}
+.notification-bell-icon::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -5px;
+  width: 6px;
+  height: 5px;
+  border: 2px solid currentColor;
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  transform: translateX(-50%);
+}
+.notification-bell-icon::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  transform: translateX(-50%);
+}
+.notification-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border: 2px solid #020b0d;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 14px;
+  text-align: center;
+}
+.mobile-header .notification-bell {
+  width: 36px;
+  height: 36px;
+  flex-basis: 36px;
+  color: var(--primary-dark);
+  background: var(--primary-light);
+  border-color: var(--border);
+}
+.mobile-header .notification-badge {
+  border-color: var(--bg-card);
+}
+
+.notification-panel {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 640;
+  width: min(390px, calc(100vw - 36px));
+  max-height: calc(100vh - 36px);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(72,213,47,.22);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.99), rgba(245,252,247,.99)),
+    var(--bg-card);
+  color: var(--text);
+  box-shadow: 0 28px 80px rgba(0,0,0,.26);
+}
+.notification-panel.open { display: flex; }
+.notification-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid rgba(72,213,47,.14);
+}
+.notification-panel-header h2 {
+  font-family: var(--font-display);
+  font-size: 1.12rem;
+  line-height: 1.1;
+}
+.notification-panel-header span {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.panel-icon-button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+.notification-panel-actions {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(72,213,47,.10);
+}
+.notification-list {
+  overflow: auto;
+  padding: 4px 0 12px;
+}
+.notification-group-title {
+  padding: 12px 16px 6px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.notification-item {
+  margin: 8px 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: 10px;
+  background: var(--bg-card);
+  box-shadow: 0 8px 18px rgba(8,55,38,.06);
+}
+.notification-item.unread {
+  background: #f8fff6;
+  border-color: rgba(72,213,47,.34);
+}
+.notification-item.success { border-left-color: var(--primary); }
+.notification-item.warning { border-left-color: var(--yellow); }
+.notification-item.danger { border-left-color: var(--red); }
+.notification-item.info { border-left-color: #2563eb; }
+.notification-item h3 {
+  margin-bottom: 5px;
+  font-size: 0.92rem;
+  line-height: 1.25;
+}
+.notification-item p {
+  color: var(--text-sub);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+.notification-meta {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+.notification-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.notification-link,
+.notification-read {
+  border: 0;
+  background: transparent;
+  color: var(--primary-dark);
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-decoration: none;
+}
+.notification-read {
+  color: var(--text-muted);
+}
+.notification-empty {
+  margin: 16px;
+  padding: 18px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  font-weight: 800;
+}
+:root[data-theme="dark"] .notification-panel {
+  background:
+    linear-gradient(180deg, rgba(15,27,30,.99), rgba(9,18,19,.99)),
+    var(--bg-card);
+}
+:root[data-theme="dark"] .notification-item.unread {
+  background: rgba(72,213,47,.08);
 }
 
 .sidebar-nav {
@@ -1550,6 +1784,132 @@ body {
   border-radius: 8px;
   background: var(--bg-card);
   box-shadow: 0 12px 28px rgba(8,55,38,.08);
+}
+.financial-intelligence-section {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid rgba(16,43,31,.10);
+  border-radius: 8px;
+  background: var(--bg-card);
+  box-shadow: 0 12px 28px rgba(8,55,38,.08);
+}
+.financial-intelligence-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.financial-intelligence-header span {
+  color: var(--primary-dark);
+  font-size: 0.74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.financial-intelligence-header h2 {
+  margin: 4px 0 5px;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+}
+.financial-intelligence-header p {
+  max-width: 760px;
+  color: var(--text-sub);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+.financial-intelligence-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.financial-intelligence-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(145px, 1fr));
+  gap: 12px;
+}
+.financial-intelligence-card {
+  min-height: 112px;
+  display: grid;
+  gap: 7px;
+  align-content: center;
+  padding: 14px;
+  border: 1px solid rgba(16,43,31,.10);
+  border-top: 4px solid #2563eb;
+  border-radius: 8px;
+  background: rgba(10,159,90,.045);
+}
+.financial-intelligence-card.positive { border-top-color: var(--green); }
+.financial-intelligence-card.warning { border-top-color: var(--yellow); }
+.financial-intelligence-card.danger { border-top-color: var(--red); }
+.financial-intelligence-card span {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+.financial-intelligence-card strong {
+  color: var(--text);
+  font-size: 1.18rem;
+}
+.financial-intelligence-card small {
+  color: var(--primary);
+  font-weight: 850;
+}
+.financial-intelligence-card.loading {
+  color: var(--text-muted);
+  font-weight: 800;
+}
+.financial-intelligence-empty {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-weight: 800;
+  text-align: center;
+}
+.financial-intelligence-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+.financial-intelligence-list-header {
+  color: var(--text);
+  font-size: 0.92rem;
+}
+.financial-intelligence-insight {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  background: rgba(255,255,255,.62);
+}
+.financial-intelligence-insight.success { border-left-color: var(--green); }
+.financial-intelligence-insight.warning { border-left-color: var(--yellow); }
+.financial-intelligence-insight.danger { border-left-color: var(--red); }
+.financial-intelligence-insight span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.financial-intelligence-insight h3 {
+  margin: 3px 0 5px;
+  font-size: 0.96rem;
+}
+.financial-intelligence-insight p,
+.financial-intelligence-insight small {
+  display: block;
+  color: var(--text-sub);
+  line-height: 1.42;
+}
+.financial-intelligence-insight strong {
+  align-self: center;
+  color: var(--text);
+  font-size: 0.95rem;
 }
 .ai-forecast-grid {
   display: grid;
@@ -3477,12 +3837,19 @@ textarea.form-input { resize: vertical; }
 }
 
 :root[data-theme="dark"] .ai-insight-card,
+:root[data-theme="dark"] .financial-intelligence-section,
+:root[data-theme="dark"] .financial-intelligence-card,
 :root[data-theme="dark"] .ai-forecast-section,
 :root[data-theme="dark"] .ai-forecast-card,
 :root[data-theme="dark"] .ai-history-panel,
 :root[data-theme="dark"] .ai-chat-panel {
   background: linear-gradient(180deg, rgba(16,27,30,.98), rgba(7,18,19,.98));
   border-color: rgba(93,128,113,.35);
+}
+
+:root[data-theme="dark"] .financial-intelligence-insight {
+  background: rgba(255,255,255,.035);
+  border-color: rgba(93,128,113,.28);
 }
 
 :root[data-theme="dark"] .ai-forecast-alert,
@@ -3537,6 +3904,7 @@ textarea.form-input { resize: vertical; }
   .analytics-card-wide { grid-row: auto; }
   .rel-summary-grid { grid-template-columns: repeat(2, 1fr); }
   .ai-insights-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .financial-intelligence-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ai-forecast-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
@@ -3622,7 +3990,21 @@ textarea.form-input { resize: vertical; }
     width: 100%;
   }
 
+  .financial-intelligence-header {
+    flex-direction: column;
+  }
+
+  .financial-intelligence-actions,
+  .financial-intelligence-actions .btn {
+    width: 100%;
+  }
+
+  .financial-intelligence-grid,
   .ai-forecast-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .financial-intelligence-insight {
     grid-template-columns: 1fr;
   }
 
@@ -3782,6 +4164,14 @@ textarea.form-input { resize: vertical; }
 
   .mobile-header { display: flex; }
   .bottom-nav { display: flex; }
+
+  .notification-panel {
+    top: calc(var(--header-h) + 10px);
+    right: 10px;
+    left: 10px;
+    width: auto;
+    max-height: calc(100vh - var(--header-h) - var(--bottom-h) - 24px);
+  }
 
   .main-content {
     margin-left: 0;

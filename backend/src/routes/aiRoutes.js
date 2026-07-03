@@ -4,6 +4,7 @@ import { asyncHandler } from '../middlewares/errorMiddleware.js';
 import {
   aiChat,
   aiForecast,
+  aiIntelligence,
   aiInsights,
   deleteAiConversation,
   getAiConversation,
@@ -18,6 +19,7 @@ router.use(checkSubscriptionAccess);
 
 router.get('/insights', asyncHandler(aiInsights));
 router.get('/forecast', asyncHandler(aiForecast));
+router.get('/intelligence', asyncHandler(aiIntelligence));
 router.get('/conversations', asyncHandler(listAiConversations));
 router.get('/conversations/:id', asyncHandler(getAiConversation));
 router.post('/chat', asyncHandler(aiChat));

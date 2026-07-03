@@ -1,5 +1,9 @@
 import { geminiModel } from '../config/gemini.js';
 import { supabaseAdmin } from '../config/supabase.js';
+import {
+  createForecastAlertNotifications,
+  safelyCreateNotification
+} from './notificationCenterService.js';
 
 const FORECAST_PROMPT = [
   'Voce e a FluxIA Pro do FluxMEI.',
@@ -334,11 +338,13 @@ export async function getFinancialForecast(userId, options = {}) {
     period: projection.period
   };
   const ai = await aiRecommendations(basePayload, options.model || geminiModel);
-  return {
+  const forecast = {
     ...basePayload,
     recommendations: ai || basePayload.recommendations,
     recommendation_source: ai ? 'gemini' : 'local'
   };
+  await safelyCreateNotification(createForecastAlertNotifications, userId, forecast);
+  return forecast;
 }
 
 export const financialForecastTestUtils = {

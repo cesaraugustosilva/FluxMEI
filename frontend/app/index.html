@@ -86,10 +86,16 @@
       <img src="/assets/brand/icon-fluxmei.png" alt="" />
       <span class="brand-name"><span>Flux</span><strong>MEI</strong></span>
     </span>
-    <button class="theme-toggle" type="button" data-theme-toggle aria-label="Ativar modo escuro">
-      <span class="theme-toggle-icon" aria-hidden="true"></span>
-      <span class="theme-toggle-text">Escuro</span>
-    </button>
+    <div class="shell-actions">
+      <button class="notification-bell" type="button" data-notification-toggle aria-label="Abrir notificacoes" aria-expanded="false">
+        <span class="notification-bell-icon" aria-hidden="true"></span>
+        <span class="notification-badge" data-notification-badge hidden>0</span>
+      </button>
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="Ativar modo escuro">
+        <span class="theme-toggle-icon" aria-hidden="true"></span>
+        <span class="theme-toggle-text">Escuro</span>
+      </button>
+    </div>
   </div>
   <nav class="sidebar-nav">
     <a href="#" class="nav-item active" data-page="dashboard">
@@ -135,12 +141,31 @@
     <span class="brand-name"><span>Flux</span><strong>MEI</strong></span>
   </div>
   <div class="mobile-header-right">
+    <button class="notification-bell" type="button" data-notification-toggle aria-label="Abrir notificacoes" aria-expanded="false">
+      <span class="notification-bell-icon" aria-hidden="true"></span>
+      <span class="notification-badge" data-notification-badge hidden>0</span>
+    </button>
     <button class="theme-toggle" type="button" data-theme-toggle aria-label="Ativar modo escuro">
       <span class="theme-toggle-icon" aria-hidden="true"></span>
       <span class="theme-toggle-text">Escuro</span>
     </button>
   </div>
 </header>
+
+<aside class="notification-panel" id="notificationPanel" aria-label="Central de notificacoes" aria-hidden="true">
+  <div class="notification-panel-header">
+    <div>
+      <h2>Notificacoes</h2>
+      <span id="notificationPanelSubtitle">Central inteligente</span>
+    </div>
+    <button class="panel-icon-button" type="button" id="notificationPanelClose" aria-label="Fechar notificacoes">×</button>
+  </div>
+  <div class="notification-panel-actions">
+    <button class="btn btn-outline btn-sm" type="button" id="notificationReadAll">Marcar todas como lidas</button>
+  </div>
+  <div class="notification-empty" id="notificationEmpty" hidden>Voce esta em dia. Nenhuma notificacao nova.</div>
+  <div class="notification-list" id="notificationList"></div>
+</aside>
 
 <!-- MOBILE NAV OVERLAY -->
 <div class="mobile-overlay" id="mobileOverlay"></div>
@@ -526,6 +551,27 @@
     </div>
 
     <section class="ai-insights-grid" id="aiInsightsGrid" aria-label="Insights do assistente financeiro"></section>
+
+    <section class="financial-intelligence-section" aria-label="Inteligencia Financeira">
+      <div class="financial-intelligence-header">
+        <div>
+          <span>Inteligencia Financeira</span>
+          <h2>Radar Financeiro da FluxIA</h2>
+          <p id="financialIntelligenceSummary">Carregando leitura inteligente dos seus dados...</p>
+        </div>
+        <div class="financial-intelligence-actions">
+          <button class="btn btn-outline btn-sm" type="button" onclick="navigate('movimentacoes')">Ver movimentacoes</button>
+          <button class="btn btn-primary btn-sm" type="button" onclick="navigate('assistente')">Abrir FluxIA</button>
+        </div>
+      </div>
+      <div class="financial-intelligence-grid" id="financialIntelligenceGrid">
+        <article class="financial-intelligence-card loading">Carregando radar...</article>
+      </div>
+      <div class="financial-intelligence-empty" id="financialIntelligenceEmpty" hidden>
+        Registre mais receitas e despesas para a FluxIA identificar riscos, oportunidades e recomendacoes.
+      </div>
+      <div class="financial-intelligence-list" id="financialIntelligenceList"></div>
+    </section>
 
     <section class="ai-forecast-section" aria-label="Previsoes da FluxIA">
       <div class="card-header">

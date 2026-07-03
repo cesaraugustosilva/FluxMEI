@@ -3,6 +3,11 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
 import { detectBank, getImporter } from './importers/bankDetector.js';
 import { calculateConfidence, suggestCategory } from './reconciliationService.js';
+import {
+  createImportCompletedNotification,
+  createImportDuplicateNotification,
+  safelyCreateNotification
+} from './notificationCenterService.js';
 import { sanitizeText, validateDate } from '../utils/validation.js';
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
@@ -415,7 +420,7 @@ export async function importBankStatement(userId, payload) {
       error_message: null
     });
 
-    return {
+    const result = {
       import: finalRecord,
       total_rows: parsed.rows.length,
       imported_count: movements.length,
@@ -425,6 +430,13 @@ export async function importBankStatement(userId, payload) {
       confidence: parsed.confidence,
       optimized_import: parsed.optimized_import
     };
+
+    await safelyCreateNotification(createImportCompletedNotification, userId, result);
+    if (skipped > 0) {
+      await safelyCreateNotification(createImportDuplicateNotification, userId, result);
+    }
+
+    return result;
   } catch (error) {
     await updateImportRecord(importRecord.id, {
       status: 'failed',

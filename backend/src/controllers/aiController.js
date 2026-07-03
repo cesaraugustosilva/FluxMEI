@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../middlewares/errorMiddleware.js';
 import { safelyRecordAuditLog } from '../services/auditLogService.js';
 import { getFinancialForecast } from '../services/financialForecastService.js';
+import { generateFinancialInsights } from '../services/financialIntelligenceService.js';
 import {
   buildFinancialAiContext,
   generateAutomaticInsights,
@@ -132,6 +133,27 @@ export async function aiForecast(req, res) {
   });
 
   res.json(forecast);
+}
+
+export async function aiIntelligence(req, res) {
+  const intelligence = await generateFinancialInsights(req.user.id);
+
+  await safelyRecordAuditLog({
+    req,
+    userId: req.user.id,
+    actorUserId: req.user.id,
+    action: 'ai.intelligence',
+    entityType: 'ai',
+    entityId: req.user.id,
+    metadata: {
+      score: intelligence.radar_score?.value ?? null,
+      risk_level: intelligence.risk_level,
+      insights: intelligence.insights?.length || 0,
+      insufficient_data: intelligence.insufficient_data
+    }
+  });
+
+  res.json(intelligence);
 }
 
 export async function aiChat(req, res) {

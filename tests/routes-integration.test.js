@@ -123,11 +123,29 @@ test('rota de dashboard de importacoes exige autenticacao no Express', async () 
 
 test('rota de previsoes da FluxIA exige autenticacao no Express', async () => {
   await withTestServer(async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/api/ai/forecast`);
+    for (const path of ['/api/ai/forecast', '/api/ai/intelligence']) {
+      const response = await fetch(`${baseUrl}${path}`);
 
-    assert.equal(response.status, 401);
-    const payload = await response.json();
-    assert.equal(typeof payload, 'object');
-    assert.notEqual(payload, null);
+      assert.equal(response.status, 401);
+      const payload = await response.json();
+      assert.equal(typeof payload, 'object');
+      assert.notEqual(payload, null);
+    }
+  });
+});
+
+test('rotas de notificacoes exigem autenticacao no Express', async () => {
+  await withTestServer(async (baseUrl) => {
+    for (const path of ['/api/notifications', '/api/notifications/unread-count']) {
+      const response = await fetch(`${baseUrl}${path}`);
+
+      assert.equal(response.status, 401);
+      const payload = await response.json();
+      assert.equal(typeof payload, 'object');
+      assert.notEqual(payload, null);
+    }
+
+    const markResponse = await fetch(`${baseUrl}/api/notifications/n-1/read`, { method: 'POST' });
+    assert.equal(markResponse.status, 401);
   });
 });

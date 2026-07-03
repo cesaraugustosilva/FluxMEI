@@ -22,6 +22,7 @@ import couponRoutes from './routes/couponRoutes.js';
 import referralRoutes from './routes/referralRoutes.js';
 import exportRoutes from './routes/exportRoutes.js';
 import importRoutes from './routes/importRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
 import devRoutes from './routes/devRoutes.js';
 import { planos } from './controllers/assinaturaController.js';
 import { asyncHandler, errorHandler, notFoundHandler } from './middlewares/errorMiddleware.js';
@@ -177,6 +178,7 @@ apiRouter.use('/coupons', couponRoutes);
 apiRouter.use('/referrals', referralRoutes);
 apiRouter.use('/export', exportRoutes);
 apiRouter.use('/import', importRoutes);
+apiRouter.use('/notifications', notificationRoutes);
 if (!isProduction) apiRouter.use('/dev', devRoutes);
 apiRouter.get('/planos', asyncHandler(planos));
 
@@ -195,6 +197,7 @@ if (!isProduction) {
   app.use('/pagamentos', pagamentoRoutes);
   app.use('/webhooks', webhookRoutes);
   app.use('/import', importRoutes);
+  app.use('/notifications', notificationRoutes);
   app.use('/dev', devRoutes);
   app.get('/planos', asyncHandler(planos));
 }
