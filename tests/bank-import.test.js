@@ -244,28 +244,26 @@ test('rotas e migration de importacao estao registradas', () => {
   assert.match(importMigration, /source text/);
 });
 
-test('frontend mostra modal de importacao', () => {
-  assert.match(appHtml, /Importar extrato/);
-  assert.match(appHtml, /id="modalImportacao"/);
-  assert.match(appHtml, /id="bankImportFile"/);
-  assert.match(appHtml, /id="importHistoryList"/);
+test('frontend preserva codigo de importacao sem expor UI publica', () => {
+  assert.doesNotMatch(appHtml, /Importar extrato/);
+  assert.doesNotMatch(appHtml, /id="modalImportacao"/);
+  assert.doesNotMatch(appHtml, /id="bankImportFile"/);
+  assert.doesNotMatch(appHtml, /id="importHistoryList"/);
   assert.match(appJs, /apiRequest\('\/import\/bank-statement'/);
-  assert.match(appJs, /apiRequest\('\/import\/history'\)/);
+  assert.match(appJs, /Recurso de importacao bancaria preservado para fase futura/);
+  assert.doesNotMatch(appJs, /apiRequest\('\/import\/history'\)/);
 });
 
-test('frontend renderiza dashboard de importacoes e estado vazio', () => {
-  assert.match(appHtml, /Dashboard de Importa(?:c|ç)(?:o|õ)es/);
-  assert.match(appHtml, /id="importDashboardCompact"/);
-  assert.match(appHtml, /Ver detalhes/);
-  assert.match(appHtml, /id="importDashboardCards"/);
-  assert.match(appHtml, /Importe seu primeiro extrato para acompanhar tudo aqui/);
-  assert.match(appHtml, /id="importDashboardRecent"/);
-  assert.match(appHtml, /id="importDashboardBanks"/);
-  assert.match(appHtml, /Qualidade da categoriza(?:c|ç)(?:a|ã)o/);
-  assert.match(appJs, /apiRequest\('\/import\/dashboard'\)/);
+test('frontend nao renderiza dashboard de importacoes automaticamente', () => {
+  assert.doesNotMatch(appHtml, /Dashboard de Importa(?:c|ç)(?:o|õ)es/);
+  assert.doesNotMatch(appHtml, /id="importDashboardCompact"/);
+  assert.doesNotMatch(appHtml, /id="importDashboardCards"/);
+  assert.doesNotMatch(appHtml, /id="importDashboardRecent"/);
+  assert.doesNotMatch(appHtml, /id="importDashboardBanks"/);
+  assert.doesNotMatch(appJs, /apiRequest\('\/import\/dashboard'\)/);
   assert.match(appJs, /Importacoes realizadas/);
 });
 
-test('frontend dashboard usa importId correto no botao revisar', () => {
+test('frontend preserva acao futura de revisar importacao com importId correto', () => {
   assert.match(appJs, /onclick="openImportReview\('\$\{item\.id\}'\)">Revisar importacao<\/button>/);
 });

@@ -36,7 +36,7 @@ test('estado vazio de movimentacoes preserva ID usado pelo render', () => {
   assert.match(appHtml, /id="movEmpty"/);
   assert.match(appHtml, /Nenhuma movimenta/);
   assert.match(appHtml, /Nova movimenta/);
-  assert.match(appHtml, /Importar extrato/);
+  assert.doesNotMatch(appHtml, /Importar extrato/);
   assert.match(appJs, /const empty = document\.getElementById\('movEmpty'\)/);
 });
 
@@ -47,13 +47,14 @@ test('movimentacoes renderiza cards mobile sem remover tabela desktop', () => {
   assert.match(appJs, /class="mov-mobile-card"/);
 });
 
-test('importacao avancada fica compacta e acessivel', () => {
-  assert.match(appHtml, /class="import-dashboard-card import-compact-panel"/);
-  assert.match(appHtml, /id="importDashboardCompact"/);
-  assert.match(appHtml, /class="import-templates-card import-compact-panel"/);
-  assert.match(appHtml, /class="import-history-card import-compact-panel"/);
-  assert.match(appHtml, /id="modalImportacao"/);
-  assert.match(appHtml, /id="modalImportReview"/);
+test('opcoes de importacao ficam ocultas na tela de movimentacoes', () => {
+  assert.doesNotMatch(appHtml, /class="import-dashboard-card import-compact-panel"/);
+  assert.doesNotMatch(appHtml, /id="importDashboardCompact"/);
+  assert.doesNotMatch(appHtml, /class="import-templates-card import-compact-panel"/);
+  assert.doesNotMatch(appHtml, /class="import-history-card import-compact-panel"/);
+  assert.doesNotMatch(appHtml, /id="modalImportacao"/);
+  assert.doesNotMatch(appHtml, /id="modalImportReview"/);
+  assert.doesNotMatch(appHtml, /data-open-import/);
 });
 
 test('formulario de movimentacao preserva IDs e handlers atuais', () => {

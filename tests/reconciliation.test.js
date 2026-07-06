@@ -182,11 +182,10 @@ test('rotas e migration de conciliacao estao registradas', () => {
   assert.match(schema, /duplicate_of uuid/);
 });
 
-test('frontend mostra botao revisar importacao e categoria sugerida', () => {
-  assert.match(appHtml, /Revisao inteligente/);
-  assert.match(appHtml, /Analisar importacao com IA/);
+test('frontend preserva conciliacao de importacao sem expor revisao na UI publica', () => {
+  assert.doesNotMatch(appHtml, /Revisao inteligente/);
+  assert.doesNotMatch(appHtml, /Analisar importacao com IA/);
   assert.match(appJs, /openImportReview/);
-  assert.match(appJs, /Revisar importacao/);
   assert.match(appJs, /Categoria sugerida/);
   assert.match(appJs, /acceptImportCategory/);
 });

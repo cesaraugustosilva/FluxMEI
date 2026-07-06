@@ -1441,18 +1441,17 @@ async function loadState() {
     return;
   }
 
-  const [movimentacoes, clientes, das, importHistory, importDashboard] = await Promise.all([
+  // Recurso de importacao bancaria preservado para fase futura; a UI publica esta temporariamente oculta.
+  const [movimentacoes, clientes, das] = await Promise.all([
     apiRequest('/movimentacoes'),
     apiRequest('/clientes'),
-    apiRequest('/das'),
-    apiRequest('/import/history'),
-    apiRequest('/import/dashboard')
+    apiRequest('/das')
   ]);
 
   state.profile = me.profile;
   state.movimentacoes = (movimentacoes || []).map(mapMovimentacao);
-  state.importHistory = (importHistory || []).map(mapImportHistory);
-  state.importDashboard = mapImportDashboard(importDashboard || {});
+  state.importHistory = [];
+  state.importDashboard = null;
   state.clientes = (clientes || []).map(mapCliente);
   state.das = das || [];
   hydrateConfig(me.profile, das || []);
