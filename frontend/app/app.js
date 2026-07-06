@@ -2416,6 +2416,7 @@ function renderImportDashboard() {
   const empty = document.getElementById('importDashboardEmpty');
   const content = document.getElementById('importDashboardContent');
   const cards = document.getElementById('importDashboardCards');
+  const compact = document.getElementById('importDashboardCompact');
   const recent = document.getElementById('importDashboardRecent');
   const banks = document.getElementById('importDashboardBanks');
   const qualityLabel = document.getElementById('importCategoryQualityLabel');
@@ -2442,6 +2443,21 @@ function renderImportDashboard() {
     ['Confianca media', percentLabel(confidence)]
   ];
 
+  if (compact) {
+    const lastImport = dashboard.recentImports[0];
+    const lastBank = lastImport?.bank_name || mostUsedBank;
+    compact.innerHTML = [
+      ['Importacoes realizadas', dashboard.totalImports],
+      ['Pendentes de revisao', dashboard.pendingReview],
+      ['Ultimo banco importado', lastBank]
+    ].map(([label, value]) => `
+      <article class="import-dashboard-compact-stat">
+        <span>${esc(label)}</span>
+        <strong>${esc(String(value))}</strong>
+      </article>
+    `).join('');
+  }
+
   cards.innerHTML = cardItems.map(([label, value]) => `
     <article class="import-dashboard-stat">
       <span>${esc(label)}</span>
@@ -2462,7 +2478,7 @@ function renderImportDashboard() {
             <span>${esc(item.filename || '')} - ${formatDate(String(item.created_at || '').slice(0, 10))}</span>
             <span>${item.imported_count || 0} importadas / ${item.skipped_count || 0} ignoradas - ${percentLabel(item.confidence)} confianca</span>
           </div>
-          <button class="btn btn-sm btn-outline" type="button" onclick="openImportReview('${item.id}')">Revisar</button>
+          <button class="btn btn-sm btn-outline" type="button" onclick="openImportReview('${item.id}')">Revisar importacao</button>
         </article>
       `).join('')
       : '<div class="empty-state">Nenhuma importacao recente.</div>';
@@ -2498,9 +2514,11 @@ function applyFilters() {
 
   const tbody = document.getElementById('movTableBody');
   const empty = document.getElementById('movEmpty');
+  const mobileList = document.getElementById('movMobileList');
 
   if (!movs.length) {
     tbody.innerHTML = '';
+    if (mobileList) mobileList.innerHTML = '';
     empty.style.display = 'block';
     return;
   }
@@ -2528,6 +2546,30 @@ function applyFilters() {
       </td>
     </tr>
   `).join('');
+
+  if (mobileList) {
+    mobileList.innerHTML = movs.map(m => `
+      <article class="mov-mobile-card">
+        <div class="mov-mobile-card-head">
+          <div>
+            <strong>${esc(m.desc)}</strong>
+            <span>${formatDate(m.data)}</span>
+          </div>
+          <b class="${m.tipo === 'entrada' ? 'positive' : 'negative'}">${m.tipo === 'entrada' ? '+' : '-'}${formatBRL(m.valor)}</b>
+        </div>
+        <div class="mov-mobile-card-meta">
+          <span><small>Tipo</small><strong>${m.tipo === 'entrada' ? 'Entrada' : 'Saida'}</strong></span>
+          <span><small>Categoria</small><strong>${esc(m.cat)}</strong></span>
+          <span><small>Pagamento</small><strong>${pagIcon(m.pag)} ${esc(m.pag || '-')}</strong></span>
+        </div>
+        ${m.clienteId || m.obs ? `<p>${m.clienteId ? `Cliente: ${esc(getClienteNome(m.clienteId))}` : ''}${m.clienteId && m.obs ? ' - ' : ''}${m.obs ? esc(m.obs) : ''}</p>` : ''}
+        <div class="mov-mobile-card-actions">
+          <button class="btn-action" onclick="editarMov('${m.id}')">Editar</button>
+          <button class="btn-action delete" onclick="excluirMov('${m.id}')">Excluir</button>
+        </div>
+      </article>
+    `).join('');
+  }
 
   // Update cat filter options
   const catSelect = document.getElementById('filtroCategoria');

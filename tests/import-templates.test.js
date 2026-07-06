@@ -48,12 +48,18 @@ test('modelos nao contem dados reais sensiveis', () => {
 });
 
 test('secao de modelos aparece no frontend com bancos suportados', () => {
-  for (const label of ['Modelos de importacao', 'Nubank', 'Banco Inter', 'Mercado Pago', 'C6 Bank', 'Banco do Brasil', 'Caixa', 'Itau', 'Bradesco', 'Santander', 'Generico']) {
+  for (const label of ['Modelos de importa(?:c|ç)(?:a|ã)o', 'Nubank', 'Banco Inter', 'Mercado Pago', 'C6 Bank', 'Banco do Brasil', 'Caixa', 'Ita[uú]', 'Bradesco', 'Santander', 'Gen(?:e|é)rico']) {
     assert.match(appHtml, new RegExp(label));
   }
   assert.match(appHtml, /Sem Open Finance pago/);
-  assert.match(appHtml, /Nunca envie sua senha bancaria/);
-  assert.match(appHtml, /FluxMEI nao acessa sua conta bancaria/);
+  assert.match(appHtml, /Nunca envie sua senha banc(?:a|á)ria/);
+  assert.match(appHtml, /FluxMEI n(?:a|ã)o acessa sua conta banc(?:a|á)ria/);
+});
+
+test('modelos de importacao iniciam recolhidos', () => {
+  assert.match(appHtml, /<details class="import-templates-card import-compact-panel" aria-label="Modelos de importacao">/);
+  assert.doesNotMatch(appHtml, /<details class="import-templates-card import-compact-panel"[^>]*open/);
+  assert.match(appHtml, /Ver modelos/);
 });
 
 test('botoes de modelo apontam para arquivos CSV existentes', () => {

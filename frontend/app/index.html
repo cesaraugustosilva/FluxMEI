@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
@@ -343,151 +343,15 @@
       </div>
       <div class="movement-header-actions">
         <button class="btn btn-outline" type="button" id="openImportModal">Importar extrato</button>
-        <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">+ Nova</button>
+        <button class="btn btn-primary" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">Nova movimentação</button>
       </div>
     </div>
 
-    <section class="import-card" aria-label="Importar extrato bancario">
-      <div>
-        <span>CSV, OFX ou XLSX</span>
-        <strong>Importar extrato</strong>
-        <p>Sem Open Finance pago: importe seu extrato manualmente em poucos segundos. Duplicadas sao ignoradas automaticamente.</p>
-      </div>
-      <button class="btn btn-primary" type="button" data-open-import>Selecionar arquivo</button>
-    </section>
-
-    <section class="import-templates-card" aria-label="Modelos de importacao">
-      <div class="card-header">
-        <div>
-          <h3>Modelos de importacao</h3>
-          <p>Baixe um CSV ficticio para conferir o formato esperado antes de importar seu extrato.</p>
-        </div>
-      </div>
-      <div class="import-security-note">
-        <strong>Nunca envie sua senha bancaria.</strong>
-        <span>O FluxMEI nao acessa sua conta bancaria nesta etapa; ele importa apenas o arquivo de extrato que voce escolher.</span>
-      </div>
-      <div class="import-template-grid">
-        <article class="import-template-card">
-          <span>Nubank</span>
-          <strong>CSV/OFX/XLSX</strong>
-          <small>Suporte otimizado</small>
-          <div class="import-template-actions">
-            <a class="btn btn-sm btn-outline" href="/assets/import-templates/nubank-modelo.csv" download>Baixar modelo CSV</a>
-            <details><summary>Ver instrucoes</summary><p>Acesse o app ou site do banco, va em extrato, exporte CSV ou OFX quando disponivel e importe o arquivo no FluxMEI.</p></details>
-          </div>
-        </article>
-        <article class="import-template-card">
-          <span>Banco Inter</span>
-          <strong>CSV/OFX/XLSX</strong>
-          <small>Suporte otimizado</small>
-          <div class="import-template-actions">
-            <a class="btn btn-sm btn-outline" href="/assets/import-templates/inter-modelo.csv" download>Baixar modelo CSV</a>
-            <details><summary>Ver instrucoes</summary><p>Acesse o app ou site do banco, va em extrato, exporte CSV ou OFX quando disponivel e importe o arquivo no FluxMEI.</p></details>
-          </div>
-        </article>
-        <article class="import-template-card">
-          <span>Mercado Pago</span>
-          <strong>CSV/OFX/XLSX</strong>
-          <small>Suporte otimizado</small>
-          <div class="import-template-actions">
-            <a class="btn btn-sm btn-outline" href="/assets/import-templates/mercado-pago-modelo.csv" download>Baixar modelo CSV</a>
-            <details><summary>Ver instrucoes</summary><p>Acesse o app ou site do banco, va em extrato ou relatorios, exporte CSV quando disponivel e importe o arquivo no FluxMEI.</p></details>
-          </div>
-        </article>
-        <article class="import-template-card">
-          <span>C6 Bank</span>
-          <strong>CSV/OFX/XLSX</strong>
-          <small>Suporte otimizado</small>
-          <div class="import-template-actions">
-            <a class="btn btn-sm btn-outline" href="/assets/import-templates/c6-modelo.csv" download>Baixar modelo CSV</a>
-            <details><summary>Ver instrucoes</summary><p>Acesse o app ou site do banco, va em extrato, exporte CSV ou OFX quando disponivel e importe o arquivo no FluxMEI.</p></details>
-          </div>
-        </article>
-        <article class="import-template-card">
-          <span>Banco do Brasil</span>
-          <strong>CSV/OFX/XLSX</strong>
-          <small>Suporte otimizado</small>
-          <div class="import-template-actions">
-            <a class="btn btn-sm btn-outline" href="/assets/import-templates/banco-do-brasil-modelo.csv" download>Baixar modelo CSV</a>
-            <details><summary>Ver instrucoes</summary><p>Acesse o app ou site do banco, va em extrato, exporte CSV ou OFX quando disponivel e importe o arquivo no FluxMEI.</p></details>
-          </div>
-        </article>
-        <article class="import-template-card">
-          <span>Caixa</span>
-          <strong>CSV/OFX/XLSX</strong>
-          <small>Suporte otimizado</small>
-          <div class="import-template-actions">
-            <a class="btn btn-sm btn-outline" href="/assets/import-templates/caixa-modelo.csv" download>Baixar modelo CSV</a>
-            <details><summary>Ver instrucoes</summary><p>Acesse o app ou site do banco, va em extrato, exporte CSV ou OFX quando disponivel e importe o arquivo no FluxMEI.</p></details>
-          </div>
-        </article>
-        <article class="import-template-card">
-          <span>Itau</span>
-          <strong>CSV/OFX/XLSX</strong>
-          <small>Suporte otimizado</small>
-          <div class="import-template-actions">
-            <a class="btn btn-sm btn-outline" href="/assets/import-templates/itau-modelo.csv" download>Baixar modelo CSV</a>
-            <details><summary>Ver instrucoes</summary><p>Acesse o app ou site do banco, va em extrato, exporte CSV ou OFX quando disponivel e importe o arquivo no FluxMEI.</p></details>
-          </div>
-        </article>
-        <article class="import-template-card">
-          <span>Bradesco</span>
-          <strong>CSV/OFX/XLSX</strong>
-          <small>Suporte otimizado</small>
-          <div class="import-template-actions">
-            <a class="btn btn-sm btn-outline" href="/assets/import-templates/bradesco-modelo.csv" download>Baixar modelo CSV</a>
-            <details><summary>Ver instrucoes</summary><p>Acesse o app ou site do banco, va em extrato, exporte CSV ou OFX quando disponivel e importe o arquivo no FluxMEI.</p></details>
-          </div>
-        </article>
-        <article class="import-template-card">
-          <span>Santander</span>
-          <strong>CSV/OFX/XLSX</strong>
-          <small>Suporte otimizado</small>
-          <div class="import-template-actions">
-            <a class="btn btn-sm btn-outline" href="/assets/import-templates/santander-modelo.csv" download>Baixar modelo CSV</a>
-            <details><summary>Ver instrucoes</summary><p>Acesse o app ou site do banco, va em extrato, exporte CSV ou OFX quando disponivel e importe o arquivo no FluxMEI.</p></details>
-          </div>
-        </article>
-        <article class="import-template-card generic">
-          <span>Generico</span>
-          <strong>CSV/OFX/XLSX</strong>
-          <small>Suporte generico</small>
-          <div class="import-template-actions">
-            <a class="btn btn-sm btn-outline" href="/assets/import-templates/generico-modelo.csv" download>Baixar modelo CSV</a>
-            <details><summary>Ver instrucoes</summary><p>Use colunas simples como data, descricao, valor, tipo e categoria. Depois importe o CSV, OFX ou XLSX no FluxMEI.</p></details>
-          </div>
-        </article>
-      </div>
-    </section>
-
-    <section class="import-dashboard-card" aria-label="Dashboard de Importacoes">
-      <div class="card-header">
-        <h3>Dashboard de Importacoes</h3>
-        <button class="btn btn-sm btn-outline" type="button" data-open-import>Importar extrato</button>
-      </div>
-      <div id="importDashboardEmpty" class="empty-state">Importe seu primeiro extrato para acompanhar tudo aqui.</div>
-      <div id="importDashboardContent" hidden>
-        <div class="import-dashboard-grid" id="importDashboardCards"></div>
-        <div class="import-quality-block">
-          <div>
-            <span>Qualidade da categorizacao</span>
-            <strong id="importCategoryQualityLabel">0%</strong>
-          </div>
-          <div class="import-quality-bar"><span id="importCategoryQualityBar"></span></div>
-        </div>
-        <div class="import-dashboard-columns">
-          <section>
-            <h4>Ultimas importacoes</h4>
-            <div class="import-dashboard-list" id="importDashboardRecent"></div>
-          </section>
-          <section>
-            <h4>Bancos identificados</h4>
-            <div class="import-bank-chips" id="importDashboardBanks"></div>
-          </section>
-        </div>
-      </div>
-    </section>
+    <div class="mov-summary">
+      <span class="sum-entrada">Entradas: <strong id="sumEntrada">R$ 0,00</strong></span>
+      <span class="sum-saida">Saídas: <strong id="sumSaida">R$ 0,00</strong></span>
+      <span class="sum-saldo">Saldo: <strong id="sumSaldo">R$ 0,00</strong></span>
+    </div>
 
     <!-- Filters -->
     <div class="filter-bar">
@@ -507,13 +371,6 @@
       </div>
     </div>
 
-    <!-- Summary -->
-    <div class="mov-summary">
-      <span class="sum-entrada">Entradas: <strong id="sumEntrada">R$ 0,00</strong></span>
-      <span class="sum-saida">Saídas: <strong id="sumSaida">R$ 0,00</strong></span>
-      <span class="sum-saldo">Saldo: <strong id="sumSaldo">R$ 0,00</strong></span>
-    </div>
-
     <div class="table-wrap">
       <table class="data-table" id="movTable">
         <thead>
@@ -529,19 +386,97 @@
         </thead>
         <tbody id="movTableBody"></tbody>
       </table>
-      <div class="empty-state" id="movEmpty" style="display:none">Nenhuma movimentação encontrada.</div>
+      <div class="empty-state movement-empty-state" id="movEmpty" style="display:none">
+        <strong>Nenhuma movimentação encontrada.</strong>
+        <span>Cadastre manualmente ou importe um extrato para começar.</span>
+        <div>
+          <button class="btn btn-primary btn-sm" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">Nova movimentação</button>
+          <button class="btn btn-outline btn-sm" type="button" data-open-import>Importar extrato</button>
+        </div>
+      </div>
     </div>
+    <div class="mov-mobile-list" id="movMobileList" aria-label="Movimentações em cards"></div>
 
-    <section class="import-history-card" aria-label="Historico de importacoes">
-      <div class="card-header">
-        <h3>Historico de importacoes</h3>
+    <section class="import-card" aria-label="Importar extrato bancario">
+      <div>
+        <span>CSV, OFX ou XLSX</span>
+        <strong>Importar extrato</strong>
+        <p>Sem Open Finance pago: importe seu extrato manualmente em poucos segundos. Duplicadas são ignoradas automaticamente.</p>
       </div>
-      <div class="import-history-list" id="importHistoryList">
-        <div class="empty-state">Nenhuma importacao ainda.</div>
-      </div>
+      <button class="btn btn-primary" type="button" data-open-import>Importar extrato</button>
     </section>
-  </section>
 
+    <details class="import-dashboard-card import-compact-panel" aria-label="Dashboard de Importacoes">
+      <summary>
+        <div>
+          <h3>Dashboard de Importações</h3>
+          <p>Acompanhe importações, pendências e bancos identificados.</p>
+        </div>
+        <span>Ver detalhes</span>
+      </summary>
+      <div id="importDashboardEmpty" class="empty-state">Importe seu primeiro extrato para acompanhar tudo aqui.</div>
+      <div id="importDashboardContent" hidden>
+        <div class="import-dashboard-compact" id="importDashboardCompact"></div>
+        <div class="import-dashboard-grid" id="importDashboardCards"></div>
+        <div class="import-quality-block">
+          <div>
+            <span>Qualidade da categorização</span>
+            <strong id="importCategoryQualityLabel">0%</strong>
+          </div>
+          <div class="import-quality-bar"><span id="importCategoryQualityBar"></span></div>
+        </div>
+        <div class="import-dashboard-columns">
+          <section>
+            <h4>Últimas importações</h4>
+            <div class="import-dashboard-list" id="importDashboardRecent"></div>
+          </section>
+          <section>
+            <h4>Bancos identificados</h4>
+            <div class="import-bank-chips" id="importDashboardBanks"></div>
+          </section>
+        </div>
+      </div>
+    </details>
+
+    <details class="import-templates-card import-compact-panel" aria-label="Modelos de importacao">
+      <summary>
+        <div>
+          <h3>Modelos de importação</h3>
+          <p>Baixe um CSV fictício para conferir o formato esperado.</p>
+        </div>
+        <span>Ver modelos</span>
+      </summary>
+      <div class="import-security-note">
+        <strong>Nunca envie sua senha bancária.</strong>
+        <span>O FluxMEI não acessa sua conta bancária nesta etapa; ele importa apenas o arquivo de extrato que você escolher.</span>
+      </div>
+      <div class="import-template-grid">
+        <article class="import-template-card"><span>Nubank</span><strong>CSV/OFX/XLSX</strong><small>Suporte otimizado</small><div class="import-template-actions"><a class="btn btn-sm btn-outline" href="/assets/import-templates/nubank-modelo.csv" download>Baixar modelo</a><details><summary>Ver instruções</summary><p>Acesse o app ou site do banco, vá em extrato, exporte CSV ou OFX quando disponível e importe o arquivo no FluxMEI.</p></details></div></article>
+        <article class="import-template-card"><span>Banco Inter</span><strong>CSV/OFX/XLSX</strong><small>Suporte otimizado</small><div class="import-template-actions"><a class="btn btn-sm btn-outline" href="/assets/import-templates/inter-modelo.csv" download>Baixar modelo</a><details><summary>Ver instruções</summary><p>Acesse o app ou site do banco, vá em extrato, exporte CSV ou OFX quando disponível e importe o arquivo no FluxMEI.</p></details></div></article>
+        <article class="import-template-card"><span>Mercado Pago</span><strong>CSV/OFX/XLSX</strong><small>Suporte otimizado</small><div class="import-template-actions"><a class="btn btn-sm btn-outline" href="/assets/import-templates/mercado-pago-modelo.csv" download>Baixar modelo</a><details><summary>Ver instruções</summary><p>Acesse o app ou site do banco, vá em extrato ou relatórios, exporte CSV quando disponível e importe o arquivo no FluxMEI.</p></details></div></article>
+        <article class="import-template-card"><span>C6 Bank</span><strong>CSV/OFX/XLSX</strong><small>Suporte otimizado</small><div class="import-template-actions"><a class="btn btn-sm btn-outline" href="/assets/import-templates/c6-modelo.csv" download>Baixar modelo</a><details><summary>Ver instruções</summary><p>Acesse o app ou site do banco, vá em extrato, exporte CSV ou OFX quando disponível e importe o arquivo no FluxMEI.</p></details></div></article>
+        <article class="import-template-card"><span>Banco do Brasil</span><strong>CSV/OFX/XLSX</strong><small>Suporte otimizado</small><div class="import-template-actions"><a class="btn btn-sm btn-outline" href="/assets/import-templates/banco-do-brasil-modelo.csv" download>Baixar modelo</a><details><summary>Ver instruções</summary><p>Acesse o app ou site do banco, vá em extrato, exporte CSV ou OFX quando disponível e importe o arquivo no FluxMEI.</p></details></div></article>
+        <article class="import-template-card"><span>Caixa</span><strong>CSV/OFX/XLSX</strong><small>Suporte otimizado</small><div class="import-template-actions"><a class="btn btn-sm btn-outline" href="/assets/import-templates/caixa-modelo.csv" download>Baixar modelo</a><details><summary>Ver instruções</summary><p>Acesse o app ou site do banco, vá em extrato, exporte CSV ou OFX quando disponível e importe o arquivo no FluxMEI.</p></details></div></article>
+        <article class="import-template-card"><span>Itaú</span><strong>CSV/OFX/XLSX</strong><small>Suporte otimizado</small><div class="import-template-actions"><a class="btn btn-sm btn-outline" href="/assets/import-templates/itau-modelo.csv" download>Baixar modelo</a><details><summary>Ver instruções</summary><p>Acesse o app ou site do banco, vá em extrato, exporte CSV ou OFX quando disponível e importe o arquivo no FluxMEI.</p></details></div></article>
+        <article class="import-template-card"><span>Bradesco</span><strong>CSV/OFX/XLSX</strong><small>Suporte otimizado</small><div class="import-template-actions"><a class="btn btn-sm btn-outline" href="/assets/import-templates/bradesco-modelo.csv" download>Baixar modelo</a><details><summary>Ver instruções</summary><p>Acesse o app ou site do banco, vá em extrato, exporte CSV ou OFX quando disponível e importe o arquivo no FluxMEI.</p></details></div></article>
+        <article class="import-template-card"><span>Santander</span><strong>CSV/OFX/XLSX</strong><small>Suporte otimizado</small><div class="import-template-actions"><a class="btn btn-sm btn-outline" href="/assets/import-templates/santander-modelo.csv" download>Baixar modelo</a><details><summary>Ver instruções</summary><p>Acesse o app ou site do banco, vá em extrato, exporte CSV ou OFX quando disponível e importe o arquivo no FluxMEI.</p></details></div></article>
+        <article class="import-template-card generic"><span>Genérico</span><strong>CSV/OFX/XLSX</strong><small>Suporte genérico</small><div class="import-template-actions"><a class="btn btn-sm btn-outline" href="/assets/import-templates/generico-modelo.csv" download>Baixar modelo</a><details><summary>Ver instruções</summary><p>Use colunas simples como data, descrição, valor, tipo e categoria. Depois importe o CSV, OFX ou XLSX no FluxMEI.</p></details></div></article>
+      </div>
+    </details>
+
+    <details class="import-history-card import-compact-panel" aria-label="Historico de importacoes">
+      <summary>
+        <div>
+          <h3>Histórico de importações</h3>
+          <p>Veja arquivos importados e revise movimentações quando precisar.</p>
+        </div>
+        <span>Ver histórico</span>
+      </summary>
+      <div class="import-history-list" id="importHistoryList">
+        <div class="empty-state">Nenhuma importação ainda.</div>
+      </div>
+    </details>
+  </section>
   <!-- ====== CALENDÁRIO ====== -->
   <section class="page" id="page-calendario">
     <div class="page-header">

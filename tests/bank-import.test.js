@@ -254,16 +254,18 @@ test('frontend mostra modal de importacao', () => {
 });
 
 test('frontend renderiza dashboard de importacoes e estado vazio', () => {
-  assert.match(appHtml, /Dashboard de Importacoes/);
+  assert.match(appHtml, /Dashboard de Importa(?:c|ç)(?:o|õ)es/);
+  assert.match(appHtml, /id="importDashboardCompact"/);
+  assert.match(appHtml, /Ver detalhes/);
   assert.match(appHtml, /id="importDashboardCards"/);
   assert.match(appHtml, /Importe seu primeiro extrato para acompanhar tudo aqui/);
   assert.match(appHtml, /id="importDashboardRecent"/);
   assert.match(appHtml, /id="importDashboardBanks"/);
-  assert.match(appHtml, /Qualidade da categorizacao/);
+  assert.match(appHtml, /Qualidade da categoriza(?:c|ç)(?:a|ã)o/);
   assert.match(appJs, /apiRequest\('\/import\/dashboard'\)/);
   assert.match(appJs, /Importacoes realizadas/);
 });
 
 test('frontend dashboard usa importId correto no botao revisar', () => {
-  assert.match(appJs, /onclick="openImportReview\('\$\{item\.id\}'\)">Revisar<\/button>/);
+  assert.match(appJs, /onclick="openImportReview\('\$\{item\.id\}'\)">Revisar importacao<\/button>/);
 });

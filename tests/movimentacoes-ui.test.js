@@ -35,7 +35,25 @@ test('tabela de movimentacoes continua com handlers de editar e excluir', () => 
 test('estado vazio de movimentacoes preserva ID usado pelo render', () => {
   assert.match(appHtml, /id="movEmpty"/);
   assert.match(appHtml, /Nenhuma movimenta/);
+  assert.match(appHtml, /Nova movimenta/);
+  assert.match(appHtml, /Importar extrato/);
   assert.match(appJs, /const empty = document\.getElementById\('movEmpty'\)/);
+});
+
+test('movimentacoes renderiza cards mobile sem remover tabela desktop', () => {
+  assert.match(appHtml, /id="movTable"/);
+  assert.match(appHtml, /id="movMobileList"/);
+  assert.match(appJs, /const mobileList = document\.getElementById\('movMobileList'\)/);
+  assert.match(appJs, /class="mov-mobile-card"/);
+});
+
+test('importacao avancada fica compacta e acessivel', () => {
+  assert.match(appHtml, /class="import-dashboard-card import-compact-panel"/);
+  assert.match(appHtml, /id="importDashboardCompact"/);
+  assert.match(appHtml, /class="import-templates-card import-compact-panel"/);
+  assert.match(appHtml, /class="import-history-card import-compact-panel"/);
+  assert.match(appHtml, /id="modalImportacao"/);
+  assert.match(appHtml, /id="modalImportReview"/);
 });
 
 test('formulario de movimentacao preserva IDs e handlers atuais', () => {
