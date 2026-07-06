@@ -1,4 +1,4 @@
-import test from 'node:test';
+﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
@@ -398,8 +398,8 @@ test('frontend possui tela de assistente, chat, sugestoes e historico', () => {
   assert.match(appHtml, /id="page-assistente"/);
   assert.match(appHtml, /class="ai-hero[^"]*"/);
   assert.match(appHtml, /FluxIA/);
-  assert.match(appHtml, /Assistente Financeiro/);
-  assert.match(appHtml, /Especialista em MEIs brasileiros/);
+  assert.match(appHtml, /Assistente financeiro inteligente/);
+  assert.match(appHtml, /Resumo inteligente do seu financeiro/);
   assert.match(appHtml, /id="aiInsightsGrid"/);
   assert.match(appHtml, /id="aiPrivacyCard"/);
   assert.match(appHtml, /Nunca enviamos CPF\/CNPJ, cartão, tokens ou dados sensíveis para a IA/);
@@ -414,6 +414,7 @@ test('frontend possui tela de assistente, chat, sugestoes e historico', () => {
   assert.match(appHtml, /data-ai-prompt="Prever próximo mês"/);
   assert.match(appHtml, /id="aiHistoryList"/);
   assert.match(appHtml, /id="aiNewConversation"/);
+  assert.match(appHtml, /ai-history-collapsible/);
   assert.match(appJs, /apiRequest\('\/ai\/insights'\)/);
   assert.match(appJs, /apiRequest\('\/ai\/chat'/);
   assert.match(appJs, /apiRequest\(`\/ai\/conversations\/\$\{encodeURIComponent\(id\)\}`\)/);
@@ -423,6 +424,7 @@ test('frontend possui tela de assistente, chat, sugestoes e historico', () => {
   assert.match(appJs, /function renderAiInsights/);
   assert.match(appJs, /function submitAiMessage/);
   assert.match(appCss, /\.ai-hero/);
+  assert.match(appCss, /\.ai-hero-compact/);
   assert.match(appCss, /\.ai-shell/);
   assert.match(appCss, /\.ai-privacy-card/);
   assert.match(appCss, /\.ai-message\.typing/);

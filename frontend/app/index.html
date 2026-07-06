@@ -571,37 +571,26 @@
 
   <!-- ====== ASSISTENTE FINANCEIRO ====== -->
   <section class="page" id="page-assistente">
-    <div class="ai-hero">
+    <div class="ai-hero ai-hero-compact">
       <div class="ai-hero-copy">
         <div class="ai-hero-kicker">
-          <span class="ai-badge">FluxIA</span>
-          <span>Especialista em MEIs brasileiros</span>
+          <span class="ai-badge">Assistente financeiro inteligente</span>
         </div>
-        <h1 class="page-title">Assistente Financeiro</h1>
-        <p>Entenda seus números, descubra oportunidades e tome decisões melhores com IA.</p>
+        <h1 class="page-title">FluxIA</h1>
+        <p>Resumo inteligente do seu financeiro, previsões e respostas rápidas em um só lugar.</p>
       </div>
-      <div class="ai-hero-visual" aria-hidden="true">
-        <div class="ai-hero-panel">
-          <span></span>
-          <strong>FluxIA</strong>
-          <small>receitas, despesas e metas</small>
-          <div></div>
-        </div>
-      </div>
+      <button class="btn btn-primary btn-sm" type="button" data-open-movimentacao onclick="openNovaMovimentacao()">Adicionar movimentação</button>
     </div>
 
-    <section class="ai-insights-grid" id="aiInsightsGrid" aria-label="Insights do assistente financeiro"></section>
-
-    <section class="financial-intelligence-section" aria-label="Inteligencia Financeira">
+    <section class="financial-intelligence-section ai-radar-section" aria-label="Radar Financeiro">
       <div class="financial-intelligence-header">
         <div>
-          <span>Inteligencia Financeira</span>
+          <span>Radar Financeiro</span>
           <h2>Radar Financeiro da FluxIA</h2>
           <p id="financialIntelligenceSummary">Carregando leitura inteligente dos seus dados...</p>
         </div>
         <div class="financial-intelligence-actions">
           <button class="btn btn-outline btn-sm" type="button" onclick="navigate('movimentacoes')">Ver movimentacoes</button>
-          <button class="btn btn-primary btn-sm" type="button" onclick="navigate('assistente')">Abrir FluxIA</button>
         </div>
       </div>
       <div class="financial-intelligence-grid" id="financialIntelligenceGrid">
@@ -624,22 +613,17 @@
       <article class="ai-forecast-goal" id="aiForecastGoal" hidden></article>
     </section>
 
-    <section class="ai-shell">
-      <aside class="ai-history-panel">
-        <div class="ai-history-header">
-          <div>
-            <strong>Conversas recentes</strong>
-            <span>Continue uma análise ou comece do zero.</span>
-          </div>
-          <button class="btn btn-primary btn-sm" type="button" id="aiNewConversation">Nova conversa</button>
+    <section class="ai-insights-section" aria-label="Insights principais">
+      <div class="card-header">
+        <div>
+          <h3>Insights principais</h3>
+          <p>Alertas rápidos gerados com seus dados financeiros.</p>
         </div>
-        <div class="ai-history-list" id="aiHistoryList"></div>
-        <div class="ai-privacy-card" id="aiPrivacyCard">
-          <span>Privacidade</span>
-          <p>Seus dados financeiros são usados apenas para gerar esta análise. Nunca enviamos CPF/CNPJ, cartão, tokens ou dados sensíveis para a IA.</p>
-        </div>
-      </aside>
+      </div>
+      <section class="ai-insights-grid" id="aiInsightsGrid" aria-label="Insights do assistente financeiro"></section>
+    </section>
 
+    <section class="ai-shell ai-shell-compact">
       <div class="ai-chat-panel">
         <div class="ai-chat-header">
           <div class="ai-avatar" aria-hidden="true">FX</div>
@@ -683,6 +667,24 @@
           </button>
         </form>
       </div>
+
+      <details class="ai-history-panel ai-history-collapsible">
+        <summary>
+          <div>
+            <strong>Histórico</strong>
+            <span>Conversas recentes e análises salvas.</span>
+          </div>
+          <span class="ai-history-toggle-label">Abrir histórico</span>
+        </summary>
+        <div class="ai-history-toolbar">
+          <button class="btn btn-primary btn-sm" type="button" id="aiNewConversation">Nova conversa</button>
+        </div>
+        <div class="ai-history-list" id="aiHistoryList"></div>
+        <div class="ai-privacy-card" id="aiPrivacyCard">
+          <span>Privacidade</span>
+          <p>Seus dados financeiros são usados apenas para gerar esta análise. Nunca enviamos CPF/CNPJ, cartão, tokens ou dados sensíveis para a IA.</p>
+        </div>
+      </details>
     </section>
   </section>
 

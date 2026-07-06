@@ -1709,6 +1709,55 @@ body {
     linear-gradient(180deg, transparent 0 24%, rgba(255,255,255,.12) 24% 25%, transparent 25% 49%, rgba(255,255,255,.12) 49% 50%, transparent 50% 74%, rgba(255,255,255,.12) 74% 75%, transparent 75% 100%),
     linear-gradient(135deg, transparent 0 10%, #7ff0af 10% 14%, transparent 14% 28%, #4cc9f0 28% 32%, transparent 32% 48%, #baff87 48% 53%, transparent 53% 100%);
 }
+.ai-hero-compact {
+  align-items: center;
+  min-height: auto;
+  margin-bottom: 16px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at top left, rgba(72,213,47,.18), transparent 34%),
+    linear-gradient(135deg, rgba(255,255,255,.96), rgba(237,250,232,.90));
+  color: var(--text);
+  box-shadow: 0 10px 28px rgba(8,55,38,.06);
+}
+.ai-hero-compact::after {
+  display: none;
+}
+.ai-hero-compact .ai-hero-copy {
+  gap: 8px;
+}
+.ai-hero-compact .ai-badge {
+  min-height: 28px;
+  border-color: rgba(10,159,90,.16);
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  font-size: 0.76rem;
+}
+.ai-hero-compact .page-title {
+  color: var(--text);
+  font-size: 1.65rem;
+}
+.ai-hero-compact p {
+  max-width: 720px;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+.ai-hero-compact .btn {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+}
+.ai-insights-section {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid rgba(16,43,31,.10);
+  border-radius: 8px;
+  background: var(--bg-card);
+  box-shadow: 0 12px 28px rgba(8,55,38,.08);
+}
+.ai-insights-section .ai-insights-grid {
+  margin-bottom: 0;
+}
 .ai-insights-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1873,6 +1922,15 @@ body {
   gap: 10px;
   margin-top: 14px;
 }
+.financial-intelligence-list .insight-extra {
+  display: none;
+}
+.financial-intelligence-list.show-all .insight-extra {
+  display: grid;
+}
+.financial-intelligence-more {
+  justify-self: flex-start;
+}
 .financial-intelligence-list-header {
   color: var(--text);
   font-size: 0.92rem;
@@ -1970,6 +2028,10 @@ body {
   grid-template-columns: 310px minmax(0, 1fr);
   gap: 16px;
 }
+.ai-shell-compact {
+  min-height: auto;
+  grid-template-columns: minmax(0, 1fr);
+}
 .ai-history-panel,
 .ai-chat-panel {
   border: 1px solid rgba(16,43,31,.11);
@@ -1982,6 +2044,55 @@ body {
   display: grid;
   grid-template-rows: auto 1fr auto;
   gap: 14px;
+}
+.ai-history-collapsible {
+  min-height: 0;
+}
+.ai-history-collapsible > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.ai-history-collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+.ai-history-collapsible > summary strong,
+.ai-history-collapsible > summary span {
+  display: block;
+}
+.ai-history-collapsible > summary strong {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+}
+.ai-history-collapsible > summary span:not(.ai-history-toggle-label) {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.ai-history-toggle-label {
+  flex: 0 0 auto;
+  padding: 0.42rem 0.68rem;
+  border: 1px solid rgba(10,159,90,.16);
+  border-radius: 999px;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+.ai-history-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+.ai-history-collapsible .ai-history-list {
+  max-height: 320px;
+  margin-top: 14px;
+}
+.ai-history-collapsible .ai-privacy-card {
+  margin-top: 14px;
 }
 .ai-history-header {
   display: grid;
@@ -4133,6 +4244,7 @@ textarea.form-input { resize: vertical; }
 
 :root[data-theme="dark"] .ai-insight-card,
 :root[data-theme="dark"] .financial-intelligence-section,
+:root[data-theme="dark"] .ai-insights-section,
 :root[data-theme="dark"] .financial-intelligence-card,
 :root[data-theme="dark"] .ai-forecast-section,
 :root[data-theme="dark"] .ai-forecast-card,
@@ -4364,13 +4476,40 @@ textarea.form-input { resize: vertical; }
     padding: 22px;
   }
 
+  .ai-hero-compact {
+    align-items: stretch;
+    padding: 16px;
+  }
+
   .ai-hero .page-title {
     font-size: 2rem;
+  }
+
+  .ai-hero-compact .page-title {
+    font-size: 1.55rem;
+  }
+
+  .ai-hero-compact .btn {
+    width: 100%;
   }
 
   .ai-history-panel {
     max-height: 280px;
     overflow: hidden;
+  }
+
+  .ai-history-collapsible {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .ai-history-collapsible > summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ai-history-collapsible > summary .btn {
+    width: 100%;
   }
 
   .ai-history-list {

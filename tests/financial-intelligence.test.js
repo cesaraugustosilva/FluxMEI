@@ -139,10 +139,11 @@ test('Gemini falhando usa resumo local', async () => {
 });
 
 test('frontend renderiza radar e insights da inteligencia financeira', () => {
-  assert.match(appHtml, /Inteligencia Financeira/);
+  assert.match(appHtml, /Radar Financeiro/);
   assert.match(appHtml, /id="financialIntelligenceGrid"/);
   assert.match(appHtml, /id="financialIntelligenceList"/);
   assert.match(appHtml, /Ver movimentacoes/);
+  assert.match(appJs, /Ver todos os insights/);
   assert.match(appJs, /apiRequest\('\/ai\/intelligence'\)/);
   assert.match(appJs, /renderFinancialIntelligence/);
   assert.match(appCss, /\.financial-intelligence-section/);

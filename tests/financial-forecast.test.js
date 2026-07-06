@@ -133,7 +133,7 @@ test('rotas de forecast da FluxIA estao registradas', () => {
 });
 
 test('frontend renderiza cards de previsao', () => {
-  assert.match(appHtml, /Previsoes da FluxIA/);
+  assert.match(appHtml, /Previs(?:o|õ)es da FluxIA/);
   assert.match(appHtml, /id="aiForecastGrid"/);
   assert.match(appHtml, /id="aiForecastAlert"/);
   assert.match(appHtml, /id="aiForecastGoal"/);

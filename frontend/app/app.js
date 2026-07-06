@@ -4042,8 +4042,8 @@ function renderFinancialIntelligence() {
     <div class="financial-intelligence-list-header">
       <strong>Hoje a FluxIA encontrou ${insights.length} ponto${insights.length === 1 ? '' : 's'} de atencao</strong>
     </div>
-    ${insights.map((item) => `
-      <article class="financial-intelligence-insight ${esc(item.severity || 'info')}">
+    ${insights.map((item, index) => `
+      <article class="financial-intelligence-insight ${esc(item.severity || 'info')} ${index >= 3 ? 'insight-extra' : ''}">
         <div>
           <span>${esc(item.category || item.type || 'Insight')}</span>
           <h3>${esc(item.title)}</h3>
@@ -4053,6 +4053,7 @@ function renderFinancialIntelligence() {
         ${item.value !== null && item.value !== undefined ? `<strong>${typeof item.value === 'number' ? formatBRL(item.value) : esc(item.value)}</strong>` : ''}
       </article>
     `).join('')}
+    ${insights.length > 3 ? '<button class="btn btn-outline btn-sm financial-intelligence-more" type="button" onclick="this.closest(\\'.financial-intelligence-list\\').classList.add(\\'show-all\\'); this.remove();">Ver todos os insights</button>' : ''}
   `;
 }
 
